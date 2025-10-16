@@ -48,43 +48,6 @@ export function Dashboard() {
             </div>
             <span className="text-xs font-semibold">{COMPANY_NAME}</span>
           </a>
-          
-          {/* Dropdown Menu */}
-          <DropdownMenu onOpenChange={setIsDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <ChevronDown className={`h-4 w-4 transition-colors ${isDropdownOpen ? 'text-foreground' : 'text-muted-foreground'}`} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" alignOffset={-140} className="w-56">
-              <DropdownMenuItem>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Dashboard
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <div className="px-2 py-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Credits</span>
-                  <span className="text-sm font-medium">{credits} left</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden mb-1">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all"
-                    style={{ width: `${(credits / dailyCredits) * 100}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1" />
-                  Daily credits used first
-                </p>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Edit className="mr-2 h-4 w-4" />
-                Rename ad
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         <div className="flex items-center gap-1.5">
