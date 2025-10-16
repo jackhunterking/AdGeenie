@@ -1,0 +1,547 @@
+"use client";
+
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import { Message, MessageContent } from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputActionAddAttachments,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuTrigger,
+  PromptInputAttachment,
+  PromptInputAttachments,
+  PromptInputBody,
+  PromptInputButton,
+  type PromptInputMessage,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputToolbar,
+  PromptInputTools,
+} from "@/components/ai-elements/prompt-input";
+import { useState, useMemo, Fragment } from "react";
+import { useChat } from "@ai-sdk/react";
+import { Response } from "@/components/ai-elements/response";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, HatGlasses, Sparkles } from "lucide-react";
+import {
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
+} from "@/components/ai-elements/source";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
+import { Loader } from "@/components/ai-elements/loader";
+import { Actions, Action } from "@/components/ai-elements/actions";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import { Button } from "@/components/ui/button";
+import { generateImage, editImage } from "@/server/images";
+import { SocialPreview } from "@/components/ai-elements/social-preview";
+import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
+import { useAdPreview } from "@/lib/context/ad-preview-context";
+
+const AIChat = () => {
+  const [input, setInput] = useState("");
+  const [model, setModel] = useState<string>("openai/gpt-4o");
+  const { setAdContent } = useAdPreview();
+  const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
+  const [editingImages, setEditingImages] = useState<Set<string>>(new Set());
+  const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
+  const [dislikedMessages, setDislikedMessages] = useState<Set<string>>(new Set());
+  const [showSpyMessage, setShowSpyMessage] = useState(false);
+  
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: '/api/chat',
+        body: {
+          model: model,
+        },
+      }),
+    [model]
+  );
+  
+  const { messages, sendMessage, addToolResult, status, stop } = useChat({
+    transport,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+  });
+
+  const handleSubmit = (message: PromptInputMessage, e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // If streaming, stop instead of sending
+    if (status === 'streaming') {
+      stop();
+      return;
+    }
+    
+    // Check if we have text or files
+    const hasText = Boolean(message.text);
+    const hasAttachments = Boolean(message.files?.length);
+    
+    if (!(hasText || hasAttachments)) {
+      return;
+    }
+    
+    // Send the message with files
+    sendMessage({ 
+      text: message.text || 'Sent with attachments',
+      files: message.files 
+    });
+    setInput("");
+  };
+
+  const handleLike = (messageId: string) => {
+    setLikedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+        // Remove from disliked if present
+        setDislikedMessages(prevDisliked => {
+          const newDisliked = new Set(prevDisliked);
+          newDisliked.delete(messageId);
+          return newDisliked;
+        });
+      }
+      return newSet;
+    });
+  };
+
+  const handleDislike = (messageId: string) => {
+    setDislikedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+        // Remove from liked if present
+        setLikedMessages(prevLiked => {
+          const newLiked = new Set(prevLiked);
+          newLiked.delete(messageId);
+          return newLiked;
+        });
+      }
+      return newSet;
+    });
+  };
+
+  const handleCopy = (message: any) => {
+    const textParts = message.parts
+      .filter((part: any) => part.type === 'text')
+      .map((part: any) => part.text)
+      .join('\n');
+    navigator.clipboard.writeText(textParts);
+  };
+
+  const handleImageGeneration = async (toolCallId: string, prompt: string, confirmed: boolean) => {
+    if (confirmed) {
+      // Add to loading state
+      setGeneratingImages(prev => new Set(prev).add(toolCallId));
+      
+      try {
+        const imageUrl = await generateImage(prompt);
+        addToolResult({
+          tool: 'generateImage',
+          toolCallId,
+          output: imageUrl,
+        });
+      } catch (err) {
+        addToolResult({
+          tool: 'generateImage',
+          toolCallId,
+          output: undefined,
+          errorText: 'Failed to generate image',
+        } as any);
+      } finally {
+        // Remove from loading state
+        setGeneratingImages(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(toolCallId);
+          return newSet;
+        });
+      }
+    } else {
+      addToolResult({
+        tool: 'generateImage',
+        toolCallId,
+        output: undefined,
+        errorText: 'Image generation cancelled by user',
+      } as any);
+    }
+  };
+
+  const handleImageEdit = async (toolCallId: string, imageUrl: string, prompt: string, confirmed: boolean) => {
+    if (confirmed) {
+      // Add to loading state
+      setEditingImages(prev => new Set(prev).add(toolCallId));
+      
+      try {
+        const editedImageUrl = await editImage(imageUrl, prompt);
+        addToolResult({
+          tool: 'editImage',
+          toolCallId,
+          output: editedImageUrl,
+        });
+      } catch (err) {
+        addToolResult({
+          tool: 'editImage',
+          toolCallId,
+          output: undefined,
+          errorText: 'Failed to edit image',
+        } as any);
+      } finally {
+        // Remove from loading state
+        setEditingImages(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(toolCallId);
+          return newSet;
+        });
+      }
+    } else {
+      addToolResult({
+        tool: 'editImage',
+        toolCallId,
+        output: undefined,
+        errorText: 'Image editing cancelled by user',
+      } as any);
+    }
+  };
+
+  const handleSpyModeClick = () => {
+    setShowSpyMessage(true);
+    setTimeout(() => setShowSpyMessage(false), 2500);
+  };
+
+  return (
+    <div className="relative flex size-full flex-col overflow-hidden">
+      <Conversation>
+        <ConversationContent>
+            {messages.map((message, messageIndex) => {
+              const isLastMessage = messageIndex === messages.length - 1;
+              const isLiked = likedMessages.has(message.id);
+              const isDisliked = dislikedMessages.has(message.id);
+              
+              return (
+                <Fragment key={message.id}>
+                  <div>
+                    {message.role === "assistant" && (
+                      <Sources>
+                        {message.parts.map((part, i) => {
+                          switch (part.type) {
+                            case "source-url":
+                              return (
+                                <Fragment key={`${message.id}-${i}`}>
+                                  <SourcesTrigger
+                                    count={
+                                      message.parts.filter(
+                                        (part) => part.type === "source-url"
+                                      ).length
+                                    }
+                                  />
+                                  <SourcesContent>
+                                    <Source
+                                      href={part.url}
+                                      title={part.url}
+                                    />
+                                  </SourcesContent>
+                                </Fragment>
+                              );
+                          }
+                        })}
+                      </Sources>
+                    )}
+                    <Message from={message.role}>
+                      <MessageContent>
+                        {message.parts.map((part, i) => {
+                          switch (part.type) {
+                            case "text":
+                              return (
+                                <Response key={`${message.id}-${i}`}>
+                                  {part.text}
+                                </Response>
+                              );
+                            case "reasoning":
+                              return (
+                                <Reasoning
+                                  key={`${message.id}-${i}`}
+                                  className="w-full"
+                                  isStreaming={status === "streaming"}
+                                >
+                                  <ReasoningTrigger />
+                                  <ReasoningContent>{part.text}</ReasoningContent>
+                                </Reasoning>
+                              );
+                            case "tool-generateImage": {
+                              const callId = part.toolCallId;
+                              const isGenerating = generatingImages.has(callId);
+                              const input = part.input as { prompt: string; brandName?: string; caption?: string };
+                              
+                              switch (part.state) {
+                                case 'input-streaming':
+                                  return <div key={callId} className="text-sm text-muted-foreground">Preparing...</div>;
+                                
+                                case 'input-available':
+                                  // Show native Loader when generating
+                                  if (isGenerating) {
+                                    return (
+                                      <div key={callId} className="flex items-center gap-3 justify-center p-6 my-2 border rounded-lg bg-card max-w-md mx-auto">
+                                        <Loader size={20} />
+                                        <span className="text-sm text-muted-foreground">Generating your social media ad...</span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <ImageGenerationConfirmation
+                                      key={callId}
+                                      prompt={input.prompt}
+                                      isGenerating={isGenerating}
+                                      onConfirm={(editedPrompt) => handleImageGeneration(callId, editedPrompt, true)}
+                                      onCancel={() => handleImageGeneration(callId, input.prompt, false)}
+                                    />
+                                  );
+                                
+                                case 'output-available':
+                                  return (
+                                    <SocialPreview
+                                      key={callId}
+                                      imageUrl={part.output as string}
+                                      originalPrompt={input.prompt}
+                                      brandName={input.brandName || "Your Brand Name"}
+                                      caption={input.caption || "Your caption text goes here..."}
+                                      onApprove={() => {
+                                        // Populate preview panel with approved content
+                                        setAdContent({
+                                          imageUrl: part.output as string,
+                                          headline: input.brandName || "Your Brand Name",
+                                          body: input.caption || "Your caption text goes here...",
+                                          cta: "Learn More"
+                                        });
+                                      }}
+                                      onEdit={async (imageUrl: string, editPrompt: string) => {
+                                        // Call editImage directly and return the new URL
+                                        try {
+                                          const newImageUrl = await editImage(imageUrl, editPrompt);
+                                          return newImageUrl;
+                                        } catch (error) {
+                                          console.error('Edit image failed:', error);
+                                          throw error;
+                                        }
+                                      }}
+                                      onRegenerate={async (prompt: string) => {
+                                        // Call generateImage directly with the same prompt to create a new variation
+                                        try {
+                                          const newImageUrl = await generateImage(prompt);
+                                          return newImageUrl;
+                                        } catch (error) {
+                                          console.error('Regenerate failed:', error);
+                                          throw error;
+                                        }
+                                      }}
+                                    />
+                                  );
+                                
+                                case 'output-error':
+                                  return (
+                                    <div key={callId} className="text-sm text-destructive border border-destructive/50 rounded-lg p-4 my-2">
+                                      <p className="font-medium mb-1">Generation Failed</p>
+                                      <p className="text-xs">{part.errorText}</p>
+                                    </div>
+                                  );
+                                
+                                default:
+                                  return null;
+                              }
+                            }
+                            case "tool-editImage": {
+                              const callId = part.toolCallId;
+                              const isEditing = editingImages.has(callId);
+                              
+                              switch (part.state) {
+                                case 'input-streaming':
+                                  return <div key={callId} className="text-sm text-muted-foreground">Preparing image edit...</div>;
+                                case 'input-available': {
+                                  const input = part.input as { imageUrl: string; prompt: string };
+                                  return (
+                                    <div key={callId} className="border rounded-lg p-4 my-2 bg-card">
+                                      <p className="mb-2 font-medium">Edit this image?</p>
+                                      <img 
+                                        src={input.imageUrl} 
+                                        alt="Image to edit" 
+                                        className="my-2 rounded-lg max-w-xs shadow-md"
+                                      />
+                                      <p className="text-sm text-muted-foreground mb-4">
+                                        <span className="font-medium">Changes:</span> "{input.prompt}"
+                                      </p>
+                                      {isEditing && (
+                                        <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+                                          <Loader size={14} />
+                                          <span>Editing image...</span>
+                                        </div>
+                                      )}
+                                      <div className="flex gap-2">
+                                        <Button 
+                                          onClick={() => handleImageEdit(callId, input.imageUrl, input.prompt, true)}
+                                          disabled={isEditing}
+                                        >
+                                          {isEditing ? (
+                                            <span className="flex items-center gap-2">
+                                              <Loader size={14} />
+                                              Editing...
+                                            </span>
+                                          ) : (
+                                            'Apply Edit'
+                                          )}
+                                        </Button>
+                                        <Button 
+                                          variant="outline" 
+                                          onClick={() => handleImageEdit(callId, input.imageUrl, input.prompt, false)}
+                                          disabled={isEditing}
+                                        >
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                case 'output-available':
+                                  return (
+                                    <div key={callId} className="my-4">
+                                      <p className="text-sm font-medium text-muted-foreground mb-2">Edited image:</p>
+                                      <img
+                                        src={part.output as string}
+                                        alt="Edited image"
+                                        className="rounded-lg shadow-lg max-w-full h-auto"
+                                      />
+                                    </div>
+                                  );
+                                case 'output-error':
+                                  return <div key={callId} className="text-sm text-destructive">Error: {part.errorText}</div>;
+                              }
+                              break;
+                            }
+                            default:
+                              return null;
+                          }
+                        })}
+                      </MessageContent>
+                    </Message>
+                  </div>
+                  
+                  {/* Add Actions after assistant messages */}
+                  {message.role === "assistant" && isLastMessage && (
+                    <Actions className="ml-14 mt-2">
+                      <Action
+                        onClick={() => handleCopy(message)}
+                        label="Copy"
+                        tooltip="Copy to clipboard"
+                      >
+                        <CopyIcon className="size-3" />
+                      </Action>
+                      <Action
+                        onClick={() => handleLike(message.id)}
+                        label="Like"
+                        tooltip={isLiked ? "Unlike" : "Like"}
+                        variant={isLiked ? "default" : "ghost"}
+                      >
+                        <ThumbsUpIcon className="size-3" />
+                      </Action>
+                      <Action
+                        onClick={() => handleDislike(message.id)}
+                        label="Dislike"
+                        tooltip={isDisliked ? "Remove dislike" : "Dislike"}
+                        variant={isDisliked ? "default" : "ghost"}
+                      >
+                        <ThumbsDownIcon className="size-3" />
+                      </Action>
+                    </Actions>
+                  )}
+                </Fragment>
+              );
+            })}
+            {status === "submitted" && <Loader />}
+          </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+
+      <div className="grid shrink-0 gap-4 pt-4">
+        <div className="w-full px-4 pb-4">
+          <PromptInput 
+            onSubmit={handleSubmit}
+            multiple
+            globalDrop
+            accept="image/*"
+            maxFiles={5}
+            maxFileSize={10 * 1024 * 1024}
+            onError={(err) => {
+              console.error('File upload error:', err);
+            }}
+          >
+            <PromptInputBody>
+              <PromptInputAttachments>
+                {(attachment) => <PromptInputAttachment data={attachment} />}
+              </PromptInputAttachments>
+              <PromptInputTextarea
+                onChange={(e) => setInput(e.target.value)}
+                value={input}
+              />
+            </PromptInputBody>
+            <PromptInputToolbar>
+              <PromptInputTools>
+                <PromptInputActionMenu>
+                  <PromptInputActionMenuTrigger />
+                  <PromptInputActionMenuContent>
+                    <PromptInputActionAddAttachments />
+                  </PromptInputActionMenuContent>
+                </PromptInputActionMenu>
+                <div className="relative">
+                  <PromptInputButton
+                    variant="outline"
+                    onClick={handleSpyModeClick}
+                    className="relative"
+                  >
+                    <HatGlasses size={16} />
+                    <span>Spy Mode</span>
+                    <Sparkles size={10} className="absolute -top-0.5 -right-0.5 text-yellow-500 animate-pulse" />
+                  </PromptInputButton>
+                  
+                  {/* Coming Soon Popup - appears right above button */}
+                  {showSpyMessage && (
+                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap animate-in fade-in slide-in-from-bottom-1 duration-200">
+                      <div className="bg-popover border border-border rounded-md px-3 py-1.5 shadow-md">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <Sparkles size={12} className="text-yellow-500" />
+                          <span className="font-medium">Coming Soon!</span>
+                        </div>
+                      </div>
+                      {/* Arrow pointing down */}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
+                        <div className="border-4 border-transparent border-t-border" />
+                        <div className="border-4 border-transparent border-t-popover absolute top-0 left-1/2 -translate-x-1/2 -mt-px" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </PromptInputTools>
+              <PromptInputSubmit 
+                disabled={!input && status !== 'streaming'} 
+                status={status}
+                type={status === 'streaming' ? 'button' : 'submit'}
+                onClick={status === 'streaming' ? stop : undefined}
+              />
+            </PromptInputToolbar>
+          </PromptInput>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AIChat;
