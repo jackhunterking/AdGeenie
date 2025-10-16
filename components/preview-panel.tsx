@@ -31,7 +31,7 @@ export function PreviewPanel({ activeTab }: PreviewPanelProps) {
 
   return (
     <div className="flex h-full flex-col relative">
-      <div className="flex-1 overflow-auto bg-background p-6">
+      <div className="flex-1 overflow-auto bg-muted border border-border rounded-tl-lg p-6">
         <div className="animate-in fade-in duration-300">
           {activeTab === "preview" && (
             <div className="mx-auto max-w-6xl space-y-6">

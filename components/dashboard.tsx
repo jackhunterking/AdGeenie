@@ -4,9 +4,16 @@ import { useState } from "react"
 import { PreviewPanel } from "./preview-panel"
 import AiChat from "./ai-chat"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Play, Target, DollarSign, Flag, Eye } from "lucide-react"
+import { BarChart3, Play, Target, DollarSign, Flag, Eye, ChevronDown, ArrowLeft, Edit } from "lucide-react"
 import { COMPANY_NAME } from "@/lib/constants"
 import { ModeSwitcher } from "./mode-switcher"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const TAB_COLORS = {
   preview: { bg: "bg-slate-500/10 dark:bg-slate-500/20", text: "text-slate-600 dark:text-slate-400", border: "border-slate-500" },
@@ -18,6 +25,9 @@ const TAB_COLORS = {
 
 export function Dashboard() {
   const [activeTab, setActiveTab] = useState("preview")
+  const [credits, setCredits] = useState(205.5)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dailyCredits = 500
 
   const tabs = [
     { id: "preview", label: "Preview", icon: Eye },
@@ -89,12 +99,12 @@ export function Dashboard() {
       {/* Main Content - Chat and Preview side by side */}
       <div className="flex flex-1 overflow-hidden">
         {/* AI Chat - Takes 1/3 width */}
-        <div className="w-1/3 border-r border-border bg-preview-panel text-preview-panel-foreground flex flex-col h-full">
+        <div className="w-1/3 bg-preview-panel text-preview-panel-foreground flex flex-col h-full">
           <AiChat />
         </div>
 
         {/* Preview Panel - Takes 2/3 width */}
-        <div className="flex-1 bg-chat-panel text-chat-panel-foreground">
+        <div className="flex-1">
           <PreviewPanel activeTab={activeTab} />
         </div>
       </div>

@@ -5,6 +5,12 @@ import { MapPin, Plus, X, Search, Pencil, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { searchLocations, getMapboxToken } from "@/app/actions/geocoding"
 
 declare global {
@@ -460,32 +466,43 @@ export function LocationTargeting() {
         </div>
 
         <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-600" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for a city..."
-              className="pl-10 bg-background border-input focus:border-purple-500 focus:ring-purple-500 h-9 text-sm"
-            />
-
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-10 w-full mt-2 rounded-lg border border-border dropdown-surface shadow-lg overflow-hidden">
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSelectSuggestion(suggestion)}
-                    className="w-full px-3 py-2 text-left hover-surface transition-colors border-b border-border last:border-b-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-xs">{suggestion.place_name}</span>
-                    </div>
-                  </button>
-                ))}
+          <DropdownMenu open={showSuggestions && suggestions.length > 0} onOpenChange={setShowSuggestions}>
+            <DropdownMenuTrigger asChild>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-600 z-10" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search for a city..."
+                  className="pl-10 bg-background border-input focus:border-purple-500 focus:ring-purple-500 h-9 text-sm"
+                  onKeyDown={(e) => {
+                    // Prevent Enter key from triggering dropdown toggle
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                    }
+                  }}
+                />
               </div>
-            )}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent 
+              className="w-[var(--radix-dropdown-menu-trigger-width)]"
+              align="start"
+              side="bottom"
+              sideOffset={4}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              {suggestions.map((suggestion, index) => (
+                <DropdownMenuItem
+                  key={index}
+                  onClick={() => handleSelectSuggestion(suggestion)}
+                  className="cursor-pointer"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="text-xs">{suggestion.place_name}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {selectedLocation && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -535,32 +552,43 @@ export function LocationTargeting() {
             </div>
 
             <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-600" />
-                <Input
-                  value={editSearchQuery}
-                  onChange={(e) => setEditSearchQuery(e.target.value)}
-                  placeholder="Search for a city..."
-                  className="pl-10 bg-background border-input focus:border-purple-500 focus:ring-purple-500 h-11"
-                />
-
-                {showEditSuggestions && editSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-2 rounded-lg border border-border dropdown-surface shadow-lg overflow-hidden">
-                    {editSuggestions.map((suggestion, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSelectEditSuggestion(suggestion)}
-                        className="w-full px-4 py-3 text-left hover-surface transition-colors border-b border-border last:border-b-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm">{suggestion.place_name}</span>
-                        </div>
-                      </button>
-                    ))}
+              <DropdownMenu open={showEditSuggestions && editSuggestions.length > 0} onOpenChange={setShowEditSuggestions}>
+                <DropdownMenuTrigger asChild>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-600 z-10" />
+                    <Input
+                      value={editSearchQuery}
+                      onChange={(e) => setEditSearchQuery(e.target.value)}
+                      placeholder="Search for a city..."
+                      className="pl-10 bg-background border-input focus:border-purple-500 focus:ring-purple-500 h-11"
+                      onKeyDown={(e) => {
+                        // Prevent Enter key from triggering dropdown toggle
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                        }
+                      }}
+                    />
                   </div>
-                )}
-              </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent 
+                  className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                  {editSuggestions.map((suggestion, index) => (
+                    <DropdownMenuItem
+                      key={index}
+                      onClick={() => handleSelectEditSuggestion(suggestion)}
+                      className="cursor-pointer"
+                    >
+                      <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm">{suggestion.place_name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {editSelectedLocation && (
                 <div className="space-y-3">
