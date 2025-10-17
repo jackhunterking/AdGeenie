@@ -221,7 +221,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
           <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
             <Target className="h-4 w-4 text-purple-600" />
           </div>
-          <h3 className="font-semibold text-lg">Target Location</h3>
+          <h3 className="text-base font-semibold">Target Location</h3>
         </div>
 
         {/* Map Display */}
@@ -254,7 +254,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold">Included Locations</h3>
-              <Badge className="bg-purple-600 text-white">{includedLocations.length}</Badge>
+              <Badge className="bg-purple-600 text-white text-xs">{includedLocations.length}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">Ads will show here</p>
           </div>
@@ -276,7 +276,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold">Excluded Locations</h3>
-              <Badge variant="destructive">{excludedLocations.length}</Badge>
+              <Badge variant="destructive" className="text-xs">{excludedLocations.length}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">Ads will NOT show here</p>
           </div>
@@ -336,9 +336,9 @@ function LocationCard({
         </div>
         <div>
           <div className="flex items-center gap-1.5">
-            <p className="font-medium text-xs">{location.name}</p>
+            <p className="text-sm font-medium">{location.name}</p>
             {isExcluded && (
-              <span className="text-[10px] text-red-600 font-medium flex-shrink-0">
+              <span className="text-xs text-red-600 font-medium flex-shrink-0">
                 Excluded
               </span>
             )}

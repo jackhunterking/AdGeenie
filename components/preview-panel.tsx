@@ -102,7 +102,7 @@ export function PreviewPanel({ activeTab, targetedLocations }: PreviewPanelProps
                     <div className="flex items-center gap-3 p-4 border-b border-border">
                       <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500" />
                       <div className="flex-1">
-                        <p className="font-semibold text-sm">Your Brand Name</p>
+                        <p className="text-sm font-semibold">Your Brand Name</p>
                         <p className="text-xs text-muted-foreground">Sponsored</p>
                       </div>
                       <Button
@@ -128,14 +128,14 @@ export function PreviewPanel({ activeTab, targetedLocations }: PreviewPanelProps
                     ) : (
                       <div className="aspect-square bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 flex items-center justify-center">
                         <div className="text-center text-white p-8">
-                          <h3 className="text-2xl font-bold mb-2">Your Ad Content</h3>
+                          <h3 className="text-lg font-bold mb-2">Your Ad Content</h3>
                           <p className="text-sm opacity-90">Feed post preview</p>
                         </div>
                       </div>
                     )}
 
                     {/* Feed Post Actions */}
-                    <div className="p-4 space-y-3">
+                    <div className="p-4 space-y-2">
                       <div className="flex items-center gap-4">
                         {/* Heart/Like icon */}
                         <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,8 +216,8 @@ export function PreviewPanel({ activeTab, targetedLocations }: PreviewPanelProps
                     {!adContent?.imageUrl && (
                       <div className="absolute inset-0 flex items-center justify-center text-center p-8">
                         <div className="text-white">
-                          <h3 className="text-3xl font-bold mb-3">Your Story</h3>
-                          <p className="text-lg opacity-90">Swipe up to learn more</p>
+                          <h3 className="text-2xl font-bold mb-2">Your Story</h3>
+                          <p className="text-base opacity-90">Swipe up to learn more</p>
                         </div>
                       </div>
                     )}
@@ -244,8 +244,8 @@ export function PreviewPanel({ activeTab, targetedLocations }: PreviewPanelProps
                         <div className="h-16 w-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-4">
                           <Play className="h-8 w-8 fill-white" />
                         </div>
-                        <h3 className="text-3xl font-bold mb-3">Your Reel</h3>
-                        <p className="text-lg opacity-90">Video content preview</p>
+                        <h3 className="text-2xl font-bold mb-2">Your Reel</h3>
+                        <p className="text-base opacity-90">Video content preview</p>
                       </div>
                     </div>
 

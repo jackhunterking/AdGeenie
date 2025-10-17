@@ -30,7 +30,7 @@ export function AudienceSelectionCanvas() {
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Audience Locked</h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               This ad has been published. Audience targeting cannot be changed once an ad is live.
             </p>
           </div>
@@ -62,7 +62,7 @@ export function AudienceSelectionCanvas() {
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground pt-4">
+          <p className="text-xs text-muted-foreground">
             To modify audience targeting, you must first unpublish or create a new ad campaign.
           </p>
         </div>
@@ -75,9 +75,9 @@ export function AudienceSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-bold">Audience Targeting</h2>
-            <p className="text-muted-foreground">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold">Audience Targeting</h2>
+            <p className="text-sm text-muted-foreground">
               Ask AI to set your audience, or choose one manually below.
             </p>
           </div>
@@ -90,7 +90,7 @@ export function AudienceSelectionCanvas() {
                 <Sparkles className="h-4 w-4 text-cyan-600 absolute top-1 right-1" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold">AI Advantage+</h3>
+                <h3 className="text-lg font-semibold">AI Advantage+</h3>
                 <p className="text-sm text-muted-foreground">
                   Let Meta's AI automatically find your ideal audience
                 </p>
@@ -112,7 +112,7 @@ export function AudienceSelectionCanvas() {
                 <Wrench className="h-4 w-4 text-cyan-600 absolute top-1 right-1" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold">Manual Targeting</h3>
+                <h3 className="text-lg font-semibold">Manual Targeting</h3>
                 <p className="text-sm text-muted-foreground">
                   Manually configure custom audience settings
                 </p>
@@ -142,7 +142,7 @@ export function AudienceSelectionCanvas() {
           <Loader2 className="h-16 w-16 animate-spin text-cyan-600 mx-auto" />
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Setting up AI Targeting...</h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Configuring Meta's AI Advantage+ for optimal audience reach
             </p>
           </div>
@@ -157,8 +157,8 @@ export function AudienceSelectionCanvas() {
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-xl w-full space-y-6 text-center">
           <div className="space-y-2">
-            <h2 className="text-3xl font-bold">Audience Targeting</h2>
-            <p className="text-muted-foreground">
+            <h2 className="text-2xl font-bold">Audience Targeting</h2>
+            <p className="text-sm text-muted-foreground">
               AI will automatically optimize your audience for best results
             </p>
           </div>
@@ -290,7 +290,7 @@ export function AudienceSelectionCanvas() {
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Setup Failed</h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {audienceState.errorMessage || "Couldn't set up audience targeting. Try again or ask AI for help."}
             </p>
           </div>

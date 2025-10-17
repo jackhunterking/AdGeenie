@@ -214,7 +214,7 @@ export function LocationSelectionCanvas() {
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Location Locked</h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               This ad has been published. Location targeting cannot be changed once an ad is live.
             </p>
           </div>
@@ -235,7 +235,7 @@ export function LocationSelectionCanvas() {
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground pt-4">
+          <p className="text-xs text-muted-foreground">
             To modify location targeting, you must first unpublish or create a new ad campaign.
           </p>
         </div>
@@ -248,9 +248,9 @@ export function LocationSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-bold">Location Targeting</h2>
-            <p className="text-muted-foreground">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold">Location Targeting</h2>
+            <p className="text-sm text-muted-foreground">
               Ask AI to set your location, or choose one manually below.
             </p>
           </div>
@@ -263,7 +263,7 @@ export function LocationSelectionCanvas() {
                 <Sparkles className="h-4 w-4 text-purple-600 absolute top-1 right-1" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold">AI-Assisted</h3>
+                <h3 className="text-lg font-semibold">AI-Assisted</h3>
                 <p className="text-sm text-muted-foreground">
                   Let AI help you target locations naturally
                 </p>
@@ -286,7 +286,7 @@ export function LocationSelectionCanvas() {
                 <Wrench className="h-4 w-4 text-purple-600 absolute top-1 right-1" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold">Manual Selection</h3>
+                <h3 className="text-lg font-semibold">Manual Selection</h3>
                 <p className="text-sm text-muted-foreground">
                   Browse and select locations from a list
                 </p>
@@ -316,7 +316,7 @@ export function LocationSelectionCanvas() {
           <Loader2 className="h-16 w-16 animate-spin text-purple-600 mx-auto" />
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Setting up locations...</h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               AI is geocoding and mapping your locations. This may take a few seconds.
             </p>
           </div>
@@ -333,9 +333,9 @@ export function LocationSelectionCanvas() {
     return (
       <div className="flex flex-col h-full overflow-auto p-8">
         <div className="max-w-3xl w-full mx-auto space-y-6">
-          <div className="space-y-2 text-center pt-4">
-            <h2 className="text-3xl font-bold">Location Targeting</h2>
-            <p className="text-muted-foreground">
+          <div className="space-y-2 text-center">
+            <h2 className="text-2xl font-bold">Location Targeting</h2>
+            <p className="text-sm text-muted-foreground">
               Your ads will target {locationState.locations.length} location{locationState.locations.length > 1 ? 's' : ''}
             </p>
           </div>
@@ -351,8 +351,8 @@ export function LocationSelectionCanvas() {
             {includedLocations.length > 0 && (
               <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-base font-semibold">Included</h3>
-                  <Badge className="bg-purple-600 text-white">{includedLocations.length}</Badge>
+                  <h3 className="text-lg font-semibold">Included</h3>
+                  <Badge className="bg-purple-600 text-white text-xs">{includedLocations.length}</Badge>
                 </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
                   {includedLocations.map((location) => (
@@ -370,8 +370,8 @@ export function LocationSelectionCanvas() {
             {excludedLocations.length > 0 && (
               <div className="bg-card border border-red-500/30 rounded-lg p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-base font-semibold">Excluded</h3>
-                  <Badge variant="destructive">{excludedLocations.length}</Badge>
+                  <h3 className="text-lg font-semibold">Excluded</h3>
+                  <Badge variant="destructive" className="text-xs">{excludedLocations.length}</Badge>
                 </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
                   {excludedLocations.map((location) => (
@@ -430,7 +430,7 @@ export function LocationSelectionCanvas() {
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Setup Failed</h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {locationState.errorMessage || "Couldn't set up locations. Try again or ask AI for help."}
             </p>
           </div>
@@ -481,8 +481,8 @@ function LocationCard({
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${isExcluded ? "text-red-600" : "text-purple-600"}`} />
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{location.name}</p>
-          <p className="text-muted-foreground text-[10px]">{getLocationTypeLabel()}</p>
+          <p className="text-sm font-medium truncate">{location.name}</p>
+          <p className="text-xs text-muted-foreground">{getLocationTypeLabel()}</p>
         </div>
       </div>
       <Button

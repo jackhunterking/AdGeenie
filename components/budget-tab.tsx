@@ -63,7 +63,7 @@ export function BudgetTab() {
         <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
           <DollarSign className="h-4 w-4 text-green-600" />
         </div>
-        <h2 className="text-lg font-semibold">Daily Budget</h2>
+        <h2 className="text-base font-semibold">Daily Budget</h2>
       </div>
 
       <div className="space-y-2">
@@ -118,12 +118,12 @@ export function BudgetTab() {
                 disabled={dailyBudget <= minBudget}
                 className="h-8 w-8 rounded-lg hover:bg-green-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
               >
-                <Minus className="h-3.5 w-3.5" />
+                <Minus className="h-4 w-4" />
               </Button>
 
               {isEditing ? (
                 <div className="flex items-baseline gap-0">
-                  <span className="text-2xl font-bold text-green-600 leading-none">$</span>
+                  <span className="text-xl font-bold text-green-600 leading-none">$</span>
                   <Input
                     type="text"
                     value={inputValue}
@@ -131,13 +131,13 @@ export function BudgetTab() {
                     onBlur={handleInputBlur}
                     onKeyDown={handleInputKeyDown}
                     autoFocus
-                    className="w-[70px] text-2xl font-bold text-green-600 text-left bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-[32px] leading-none"
+                    className="w-[70px] text-xl font-bold text-green-600 text-left bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-[28px] leading-none"
                   />
                 </div>
               ) : (
                 <button
                   onClick={handleBudgetClick}
-                  className="text-2xl font-bold text-green-600 hover:opacity-80 transition-opacity cursor-pointer leading-none min-w-[60px] text-center"
+                  className="text-xl font-bold text-green-600 hover:opacity-80 transition-opacity cursor-pointer leading-none min-w-[60px] text-center"
                 >
                   ${dailyBudget}
                 </button>
@@ -150,7 +150,7 @@ export function BudgetTab() {
                 disabled={dailyBudget >= maxBudget}
                 className="h-8 w-8 rounded-lg hover:bg-green-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
           </div>

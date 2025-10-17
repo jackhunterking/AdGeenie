@@ -866,8 +866,15 @@ const AIChat = () => {
                                     const currentFormId = goalState.formData?.id;
                                     const newFormId = output.formData?.formId;
                                     
-                                    // Only update if the form is different or we're not in completed state
-                                    if (currentFormId !== newFormId || goalState.status !== 'completed') {
+                                    // Only update if:
+                                    // 1. We're in setup-in-progress state (actively setting up)
+                                    // 2. OR the form is different and we're not in idle/completed state
+                                    const isActiveSetup = goalState.status === 'setup-in-progress';
+                                    const isNewForm = currentFormId !== newFormId && 
+                                                     goalState.status !== 'idle' && 
+                                                     goalState.status !== 'completed';
+                                    
+                                    if (isActiveSetup || isNewForm) {
                                       setTimeout(() => {
                                         setFormData({
                                           id: output.formData?.formId,
