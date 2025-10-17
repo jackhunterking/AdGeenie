@@ -5,9 +5,11 @@ import { PreviewPanel } from "./preview-panel"
 import AiChat from "./ai-chat"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { BarChart3, Play, Target, DollarSign, Flag, Eye, ChevronDown, ArrowLeft, Edit, Plus, Minus, Moon, Sun, Check } from "lucide-react"
+import { BarChart3, Play, Target, DollarSign, Flag, Eye, ChevronDown, ArrowLeft, Edit, Plus, Minus, Moon, Sun, Check, MapPin, Users } from "lucide-react"
 import { COMPANY_NAME } from "@/lib/constants"
 import { useTheme } from "next-themes"
+import { useAdPreview } from "@/lib/context/ad-preview-context"
+import { useGoal } from "@/lib/context/goal-context"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +23,8 @@ import {
 
 const TAB_COLORS = {
   preview: { bg: "bg-slate-500/10 dark:bg-slate-500/20", text: "text-slate-600 dark:text-slate-400", border: "border-slate-500" },
-  target: { bg: "bg-purple-500/10 dark:bg-purple-500/20", text: "text-purple-600 dark:text-purple-400", border: "border-purple-500" },
+  location: { bg: "bg-purple-500/10 dark:bg-purple-500/20", text: "text-purple-600 dark:text-purple-400", border: "border-purple-500" },
+  audience: { bg: "bg-cyan-500/10 dark:bg-cyan-500/20", text: "text-cyan-600 dark:text-cyan-400", border: "border-cyan-500" },
   budget: { bg: "bg-green-500/10 dark:bg-green-500/20", text: "text-green-600 dark:text-green-400", border: "border-green-500" },
   goal: { bg: "bg-blue-500/10 dark:bg-blue-500/20", text: "text-blue-600 dark:text-blue-400", border: "border-[#4B73FF]" },
   results: { bg: "bg-orange-500/10 dark:bg-orange-500/20", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500" },
@@ -34,6 +37,8 @@ export function Dashboard() {
   const dailyCredits = 500
   const [targetedLocations, setTargetedLocations] = useState<any[]>([])
   const { setTheme, resolvedTheme } = useTheme()
+  const { isPublished, setIsPublished } = useAdPreview()
+  const { goalState } = useGoal()
   
   // Budget state
   const [dailyBudget, setDailyBudget] = useState(20)
@@ -116,9 +121,7 @@ export function Dashboard() {
   useEffect(() => {
     const handleTabSwitch = (event: any) => {
       const tabId = event.detail;
-      if (tabId === 'location') {
-        setActiveTab('target');
-      }
+      setActiveTab(tabId);
     }
 
     window.addEventListener('switchToTab', handleTabSwitch);
@@ -127,7 +130,8 @@ export function Dashboard() {
 
   const tabs = [
     { id: "preview", label: "Preview", icon: Eye },
-    { id: "target", label: "Target", icon: Target },
+    { id: "location", label: "Location", icon: MapPin },
+    { id: "audience", label: "Audience", icon: Target },
     { id: "budget", label: "Budget", icon: DollarSign },
     { id: "goal", label: "Goal", icon: Flag },
     { id: "results", label: "Results", icon: BarChart3 },
@@ -305,9 +309,18 @@ export function Dashboard() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button size="sm" className="gap-1.5 bg-[#4B73FF] hover:bg-[#3d5fd9] text-white h-8 px-3 text-xs">
+          <Button 
+            size="sm" 
+            className="gap-1.5 bg-[#4B73FF] hover:bg-[#3d5fd9] text-white h-8 px-3 text-xs disabled:opacity-50"
+            disabled={!isPublished && goalState.status !== 'completed'}
+            onClick={() => {
+              setIsPublished(!isPublished)
+              // You can add additional publish logic here (e.g., API call to Supabase)
+            }}
+            title={!isPublished && goalState.status !== 'completed' ? 'Complete goal setup before publishing' : ''}
+          >
             <Play className="h-3 w-3" />
-            Publish
+            {isPublished ? 'Unpublish' : 'Publish'}
           </Button>
         </div>
       </div>

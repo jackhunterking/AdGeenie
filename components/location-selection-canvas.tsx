@@ -1,0 +1,499 @@
+"use client"
+
+import { MapPin, Loader2, Lock, Plus, X, Sparkles, Wrench } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { useLocation } from "@/lib/context/location-context"
+import { useAdPreview } from "@/lib/context/ad-preview-context"
+import { useEffect, useRef, useState } from "react"
+
+declare global {
+  interface Window {
+    L: any
+  }
+}
+
+export function LocationSelectionCanvas() {
+  const { locationState, removeLocation, resetLocations, clearLocations } = useLocation()
+  const { isPublished } = useAdPreview()
+  const mapRef = useRef<any>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const markersRef = useRef<any[]>([])
+  const shapesRef = useRef<any[]>([])
+  const [isMapReady, setIsMapReady] = useState(false)
+
+  // Initialize map when container is ready
+  useEffect(() => {
+    // Only run when status is completed (container is rendered)
+    if (locationState.status !== "completed") {
+      // Clean up map if status changed away from completed
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+        setIsMapReady(false)
+      }
+      return
+    }
+
+    if (!mapContainerRef.current) return
+    if (typeof window === "undefined" || !window.L) return
+    if (isMapReady) return // Already initialized
+
+    // Initialize map
+    const initTimer = setTimeout(() => {
+      try {
+        // Clear any existing map first
+        if (mapRef.current) {
+          mapRef.current.remove()
+          mapRef.current = null
+        }
+
+        mapRef.current = window.L.map(mapContainerRef.current, {
+          center: [20, 0],
+          zoom: 2,
+          zoomControl: true,
+          minZoom: 1,
+          maxZoom: 19,
+          scrollWheelZoom: true,
+        })
+
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+          maxZoom: 19,
+        }).addTo(mapRef.current)
+
+        // Force immediate size calculation
+        mapRef.current.invalidateSize(true)
+        
+        // Invalidate size again after render to ensure proper rendering
+        setTimeout(() => {
+          if (mapRef.current) {
+            mapRef.current.invalidateSize(true)
+            setIsMapReady(true) // Trigger re-render to add markers
+            console.log("[Map] Initialized successfully")
+          }
+        }, 150)
+      } catch (error) {
+        console.error("[OpenStreetMap] Error initializing map:", error)
+      }
+    }, 150)
+
+    return () => clearTimeout(initTimer)
+  }, [locationState.status, isMapReady])
+
+  // Update map markers when locations change
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current || !window.L) {
+      console.log("[Map] Not ready yet, waiting...")
+      return
+    }
+
+    // Clear existing markers and shapes
+    markersRef.current.forEach(marker => marker.remove())
+    markersRef.current = []
+    shapesRef.current.forEach(shape => shape.remove())
+    shapesRef.current = []
+
+    const locations = locationState.locations
+    console.log("[Map] Updating with locations:", locations.length)
+
+    if (locations.length === 0) {
+      mapRef.current.setView([20, 0], 2)
+      return
+    }
+
+    // Filter out any locations with invalid coordinates (safety check)
+    const validLocations = locations.filter(loc => 
+      loc.coordinates && 
+      Array.isArray(loc.coordinates) && 
+      loc.coordinates.length === 2 &&
+      typeof loc.coordinates[0] === 'number' &&
+      typeof loc.coordinates[1] === 'number' &&
+      !isNaN(loc.coordinates[0]) &&
+      !isNaN(loc.coordinates[1])
+    );
+
+    console.log("[Map] Valid locations after filtering:", validLocations.length)
+    validLocations.forEach(loc => {
+      console.log(`[Map] ${loc.name}: [${loc.coordinates[0]}, ${loc.coordinates[1]}] - ${loc.mode}`)
+    })
+
+    if (validLocations.length === 0) {
+      mapRef.current.setView([20, 0], 2)
+      return
+    }
+
+    // Add markers and shapes for each location
+    validLocations.forEach((location) => {
+      const color = location.mode === "include" ? "#9333EA" : "#DC2626"
+
+      // Add marker
+      const marker = window.L.circleMarker(
+        [location.coordinates[1], location.coordinates[0]],
+        {
+          radius: 8,
+          fillColor: color,
+          color: "#fff",
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.9,
+        }
+      ).addTo(mapRef.current)
+
+      marker.bindPopup(`<strong>${location.name}</strong>`)
+      markersRef.current.push(marker)
+
+      // Add radius circle or boundaries based on type
+      if (location.type === "radius" && location.radius) {
+        const radiusInMeters = location.radius * 1609.34
+        const circle = window.L.circle(
+          [location.coordinates[1], location.coordinates[0]],
+          {
+            radius: radiusInMeters,
+            fillColor: color,
+            fillOpacity: 0.15,
+            color: color,
+            weight: 2,
+            opacity: 0.6,
+          }
+        ).addTo(mapRef.current)
+        shapesRef.current.push(circle)
+      } else if (location.geometry) {
+        try {
+          const geoJsonLayer = window.L.geoJSON(location.geometry, {
+            style: {
+              fillColor: color,
+              fillOpacity: 0.25,
+              color: color,
+              weight: 3,
+              opacity: 0.9,
+            }
+          }).addTo(mapRef.current)
+          shapesRef.current.push(geoJsonLayer)
+        } catch (error) {
+          console.error("Error adding boundary:", error)
+        }
+      }
+    })
+
+    // Fit map to show all locations
+    const bounds = window.L.latLngBounds()
+    validLocations.forEach(loc => {
+      if (loc.bbox) {
+        bounds.extend([loc.bbox[1], loc.bbox[0]])
+        bounds.extend([loc.bbox[3], loc.bbox[2]])
+      } else {
+        bounds.extend([loc.coordinates[1], loc.coordinates[0]])
+      }
+    })
+    
+    if (bounds.isValid()) {
+      mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 })
+      console.log("[Map] Fitted bounds successfully")
+    }
+
+    // Invalidate size to ensure proper rendering after adding markers
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize(true)
+      }
+    }, 100)
+  }, [isMapReady, locationState.locations])
+
+  const handleAddMore = () => {
+    window.dispatchEvent(new CustomEvent('triggerLocationSetup'))
+  }
+
+  // If published, show locked state
+  if (isPublished) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <div className="max-w-xl w-full space-y-6 text-center">
+          <div className="h-16 w-16 rounded-full bg-orange-500/10 flex items-center justify-center mx-auto">
+            <Lock className="h-8 w-8 text-orange-600" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Location Locked</h2>
+            <p className="text-muted-foreground">
+              This ad has been published. Location targeting cannot be changed once an ad is live.
+            </p>
+          </div>
+          
+          {locationState.locations.length > 0 && (
+            <div className="bg-card border border-border rounded-lg p-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Locations Targeted:</span>
+                <span className="text-sm font-semibold">{locationState.locations.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Status:</span>
+                <span className="text-sm text-orange-600 font-medium flex items-center gap-1">
+                  <Lock className="h-3 w-3" />
+                  Published
+                </span>
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground pt-4">
+            To modify location targeting, you must first unpublish or create a new ad campaign.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Initial state - no locations selected
+  if (locationState.status === "idle" || locationState.locations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <div className="max-w-2xl w-full space-y-8">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl font-bold">Location Targeting</h2>
+            <p className="text-muted-foreground">
+              Ask AI to set your location, or choose one manually below.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            {/* AI-Assisted Targeting Card */}
+            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-purple-500 hover:bg-purple-500/5 transition-all duration-300">
+              <div className="h-20 w-20 rounded-2xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors relative mb-4">
+                <MapPin className="h-10 w-10 text-purple-600" />
+                <Sparkles className="h-4 w-4 text-purple-600 absolute top-1 right-1" />
+              </div>
+              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
+                <h3 className="text-xl font-semibold">AI-Assisted</h3>
+                <p className="text-sm text-muted-foreground">
+                  Let AI help you target locations naturally
+                </p>
+              </div>
+              <Button
+                size="lg"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('triggerLocationSetup'))
+                }}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-8 mt-auto"
+              >
+                Set Location
+              </Button>
+            </div>
+
+            {/* Manual Selection Card */}
+            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border opacity-60">
+              <div className="h-20 w-20 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-4 relative">
+                <MapPin className="h-10 w-10 text-purple-600" />
+                <Wrench className="h-4 w-4 text-purple-600 absolute top-1 right-1" />
+              </div>
+              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
+                <h3 className="text-xl font-semibold">Manual Selection</h3>
+                <p className="text-sm text-muted-foreground">
+                  Browse and select locations from a list
+                </p>
+              </div>
+              <span className="absolute top-4 right-4 text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded-full">
+                Coming Soon
+              </span>
+              <Button
+                size="lg"
+                disabled
+                className="bg-purple-600 text-white px-8 opacity-50 cursor-not-allowed mt-auto"
+              >
+                Browse Locations
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Setup in progress
+  if (locationState.status === "setup-in-progress") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <div className="max-w-xl w-full space-y-6 text-center">
+          <Loader2 className="h-16 w-16 animate-spin text-purple-600 mx-auto" />
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Setting up locations...</h2>
+            <p className="text-muted-foreground">
+              AI is geocoding and mapping your locations. This may take a few seconds.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Setup completed - show locations with map
+  if (locationState.status === "completed") {
+    const includedLocations = locationState.locations.filter(loc => loc.mode === "include")
+    const excludedLocations = locationState.locations.filter(loc => loc.mode === "exclude")
+
+    return (
+      <div className="flex flex-col h-full overflow-auto p-8">
+        <div className="max-w-3xl w-full mx-auto space-y-6">
+          <div className="space-y-2 text-center pt-4">
+            <h2 className="text-3xl font-bold">Location Targeting</h2>
+            <p className="text-muted-foreground">
+              Your ads will target {locationState.locations.length} location{locationState.locations.length > 1 ? 's' : ''}
+            </p>
+          </div>
+
+          {/* Map Display */}
+          <div className="rounded-lg border-2 border-purple-500 bg-card overflow-hidden">
+            <div ref={mapContainerRef} className="w-full h-[400px]" style={{ position: 'relative', isolation: 'isolate' }} />
+          </div>
+
+          {/* Location Summary */}
+          <div className="flex flex-col gap-4">
+            {/* Included Locations */}
+            {includedLocations.length > 0 && (
+              <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-base font-semibold">Included</h3>
+                  <Badge className="bg-purple-600 text-white">{includedLocations.length}</Badge>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {includedLocations.map((location) => (
+                    <LocationCard
+                      key={location.id}
+                      location={location}
+                      onRemove={removeLocation}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Excluded Locations */}
+            {excludedLocations.length > 0 && (
+              <div className="bg-card border border-red-500/30 rounded-lg p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-base font-semibold">Excluded</h3>
+                  <Badge variant="destructive">{excludedLocations.length}</Badge>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {excludedLocations.map((location) => (
+                    <LocationCard
+                      key={location.id}
+                      location={location}
+                      onRemove={removeLocation}
+                      isExcluded
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+            <p className="text-sm text-yellow-700 dark:text-yellow-600 text-center">
+              ⚠️ Once published, location targeting cannot be changed
+            </p>
+          </div>
+
+          <div className="flex justify-center gap-4 pt-4 pb-8">
+            {!isPublished && (
+              <>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleAddMore}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add More Locations
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={clearLocations}
+                >
+                  Clear All
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (locationState.status === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <div className="max-w-xl w-full space-y-6 text-center">
+          <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Setup Failed</h2>
+            <p className="text-muted-foreground">
+              {locationState.errorMessage || "Couldn't set up locations. Try again or ask AI for help."}
+            </p>
+          </div>
+          
+          <Button
+            size="lg"
+            onClick={resetLocations}
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// Location Card Component
+function LocationCard({ 
+  location, 
+  onRemove,
+  isExcluded = false 
+}: { 
+  location: any
+  onRemove: (id: string) => void
+  isExcluded?: boolean
+}) {
+  const getLocationTypeLabel = () => {
+    switch (location.type) {
+      case "radius": return location.radius ? `${location.radius} mile radius` : "Radius"
+      case "city": return "City"
+      case "region": return "Province/Region"
+      case "country": return "Country"
+      default: return location.type
+    }
+  }
+
+  return (
+    <div
+      className={`flex items-center justify-between p-2 rounded-lg border text-xs ${
+        isExcluded 
+          ? "bg-red-500/5 border-red-500/30" 
+          : "bg-purple-500/5 border-purple-500/30"
+      }`}
+    >
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${isExcluded ? "text-red-600" : "text-purple-600"}`} />
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{location.name}</p>
+          <p className="text-muted-foreground text-[10px]">{getLocationTypeLabel()}</p>
+        </div>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => onRemove(location.id)}
+        className="h-6 w-6 hover:bg-red-500/10 hover:text-red-600 flex-shrink-0"
+      >
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  )
+}
+
