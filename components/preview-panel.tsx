@@ -4,8 +4,10 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Play, ImageIcon, Video, Layers, Sparkles } from "lucide-react"
 import { LocationTargeting } from "./location-targeting"
+import { LocationSelectionCanvas } from "./location-selection-canvas"
+import { AudienceSelectionCanvas } from "./audience-selection-canvas"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
-import { GoalTab } from "./goal-tab"
+import { GoalSelectionCanvas } from "./goal-selection-canvas"
 import { ResultsTab } from "./results-tab"
 
 interface PreviewPanelProps {
@@ -301,15 +303,21 @@ export function PreviewPanel({ activeTab, targetedLocations }: PreviewPanelProps
             </div>
           )}
 
-          {activeTab === "target" && (
-            <div className="mx-auto max-w-4xl">
-              <LocationTargeting externalLocations={targetedLocations} />
+          {activeTab === "location" && (
+            <div className="h-full">
+              <LocationSelectionCanvas />
+            </div>
+          )}
+
+          {activeTab === "audience" && (
+            <div className="h-full">
+              <AudienceSelectionCanvas />
             </div>
           )}
 
           {activeTab === "goal" && (
-            <div className="mx-auto max-w-4xl">
-              <GoalTab />
+            <div className="h-full">
+              <GoalSelectionCanvas />
             </div>
           )}
 

@@ -169,10 +169,14 @@
 .leaflet-container {
   background: #1a1a1a !important;
   font-family: inherit;
+  position: relative !important;
+  z-index: 0 !important;
+  contain: layout size style !important;
 }
 
 .leaflet-tile-pane {
   opacity: 0.8;
+  position: absolute !important;
 }
 
 .leaflet-control-attribution {

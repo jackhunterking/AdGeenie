@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AdPreviewProvider } from "@/lib/context/ad-preview-context";
+import { GoalProvider } from "@/lib/context/goal-context";
+import { LocationProvider } from "@/lib/context/location-context";
+import { AudienceProvider } from "@/lib/context/audience-context";
 import Script from "next/script";
 import { COMPANY_NAME } from "@/lib/constants";
 
@@ -42,7 +45,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AdPreviewProvider>
-            {children}
+            <GoalProvider>
+              <LocationProvider>
+                <AudienceProvider>
+                  {children}
+                </AudienceProvider>
+              </LocationProvider>
+            </GoalProvider>
           </AdPreviewProvider>
         </ThemeProvider>
       </body>

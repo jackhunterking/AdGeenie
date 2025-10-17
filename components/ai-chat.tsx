@@ -25,7 +25,7 @@ import {
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, HatGlasses, Sparkles, ChevronRight, MapPin } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, HatGlasses, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle } from "lucide-react";
 import {
   Source,
   Sources,
@@ -44,13 +44,20 @@ import { Button } from "@/components/ui/button";
 import { generateImage, editImage } from "@/server/images";
 import { SocialPreview } from "@/components/ai-elements/social-preview";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
+import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
 import { useAdPreview } from "@/lib/context/ad-preview-context";
 import { searchLocations, getLocationBoundary } from "@/app/actions/geocoding";
+import { useGoal } from "@/lib/context/goal-context";
+import { useLocation } from "@/lib/context/location-context";
+import { useAudience } from "@/lib/context/audience-context";
 
 const AIChat = () => {
   const [input, setInput] = useState("");
   const [model, setModel] = useState<string>("openai/gpt-4o");
   const { setAdContent } = useAdPreview();
+  const { goalState, setFormData, updateStatus, setError, resetGoal } = useGoal();
+  const { locationState, addLocations, updateStatus: updateLocationStatus } = useLocation();
+  const { setAudienceTargeting, updateStatus: updateAudienceStatus } = useAudience();
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
   const [editingImages, setEditingImages] = useState<Set<string>>(new Set());
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
@@ -242,7 +249,19 @@ const AIChat = () => {
                 if (results.length > 0) {
                   coordinates = results[0].center;
                   bbox = results[0].bbox;
+                } else {
+                  // Geocoding failed - return null to filter out later
+                  console.error(`Failed to geocode location: ${loc.name}`);
+                  return null;
                 }
+              }
+              
+              // Validate coordinates are valid numbers
+              if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2 || 
+                  typeof coordinates[0] !== 'number' || typeof coordinates[1] !== 'number' ||
+                  isNaN(coordinates[0]) || isNaN(coordinates[1])) {
+                console.error(`Invalid coordinates for location: ${loc.name}`, coordinates);
+                return null;
               }
               
               // For non-radius types, fetch actual boundary geometry from OpenStreetMap
@@ -269,18 +288,33 @@ const AIChat = () => {
               };
             })
           );
+          
+          // Filter out any null values (failed geocoding)
+          const validLocations = locationsWithCoords.filter(loc => loc !== null);
+          
+          // Check if any locations were successfully geocoded
+          if (validLocations.length === 0) {
+            throw new Error('Failed to geocode any locations. Please check the location names and try again.');
+          }
 
+          // Update location context with full data
+          updateLocationStatus("setup-in-progress");
+          addLocations(validLocations);
+          
           // Send FULL data (with geometry) to the map
           window.dispatchEvent(new CustomEvent('locationsUpdated', { 
-            detail: locationsWithCoords 
+            detail: validLocations 
           }));
+
+          // Switch to location tab
+          window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'location' }));
 
           // Send MINIMAL data to AI conversation (no geometry - it's too large!)
           addToolResult({
             tool: 'locationTargeting',
             toolCallId,
             output: {
-              locations: locationsWithCoords.map(loc => ({
+              locations: validLocations.map(loc => ({
                 id: loc.id,
                 name: loc.name,
                 coordinates: loc.coordinates,
@@ -290,6 +324,7 @@ const AIChat = () => {
                 // Exclude geometry and bbox from conversation - they can be massive
               })),
               explanation: input.explanation,
+              failedCount: input.locations.length - validLocations.length,
             },
           });
         } catch (err) {
@@ -314,6 +349,51 @@ const AIChat = () => {
 
     processCalls();
   }, [pendingLocationCalls, processingLocations, addToolResult]);
+
+  // Listen for goal setup trigger from canvas
+  useEffect(() => {
+    const handleGoalSetup = (event: any) => {
+      const { goalType } = event.detail;
+      
+      // Send a message to AI to start goal setup
+      sendMessage({
+        text: `I want to set up ${goalType} goal with instant forms`,
+      });
+    };
+
+    window.addEventListener('triggerGoalSetup', handleGoalSetup);
+    return () => window.removeEventListener('triggerGoalSetup', handleGoalSetup);
+  }, [sendMessage]);
+
+  // Listen for location setup trigger from canvas
+  useEffect(() => {
+    const handleLocationSetup = () => {
+      const hasExistingLocations = locationState.locations.length > 0;
+      
+      // Send appropriate message based on whether locations already exist
+      sendMessage({
+        text: hasExistingLocations 
+          ? `Add more locations to my current targeting setup`
+          : `Help me set up location targeting for my ad`,
+      });
+    };
+
+    window.addEventListener('triggerLocationSetup', handleLocationSetup);
+    return () => window.removeEventListener('triggerLocationSetup', handleLocationSetup);
+  }, [sendMessage, locationState.locations.length]);
+
+  // Listen for audience setup trigger from canvas
+  useEffect(() => {
+    const handleAudienceSetup = () => {
+      // Send a message to AI to start audience targeting
+      sendMessage({
+        text: `Set up AI Advantage+ audience targeting for my ad`,
+      });
+    };
+
+    window.addEventListener('triggerAudienceSetup', handleAudienceSetup);
+    return () => window.removeEventListener('triggerAudienceSetup', handleAudienceSetup);
+  }, [sendMessage]);
 
   const handleSpyModeClick = () => {
     setShowSpyMessage(true);
@@ -615,6 +695,234 @@ const AIChat = () => {
                                   return (
                                     <div key={callId} className="text-sm text-destructive border border-destructive/50 rounded-lg p-4">
                                       {part.errorText}
+                                    </div>
+                                  );
+                              }
+                              break;
+                            }
+                            case "tool-audienceTargeting": {
+                              const callId = part.toolCallId;
+                              const input = part.input as any;
+
+                              switch (part.state) {
+                                case 'input-streaming':
+                                  return <div key={callId} className="text-sm text-muted-foreground">Setting up audience targeting...</div>;
+                                
+                                case 'input-available':
+                                  // Auto-process - AI Advantage+ requires no confirmation
+                                  setTimeout(() => {
+                                    updateAudienceStatus("setup-in-progress");
+                                    
+                                    // Set the audience targeting
+                                    setAudienceTargeting({
+                                      mode: 'ai',
+                                      description: input.description,
+                                      interests: input.interests,
+                                      demographics: input.demographics
+                                    });
+
+                                    // Complete the tool call
+                                    addToolResult({
+                                      tool: 'audienceTargeting',
+                                      toolCallId: callId,
+                                      output: {
+                                        success: true,
+                                        mode: 'ai',
+                                        description: input.description
+                                      }
+                                    });
+
+                                    // Switch to audience tab
+                                    window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'audience' }));
+                                  }, 0);
+                                  
+                                  return (
+                                    <div key={callId} className="flex items-center gap-3 p-4 border rounded-lg bg-card">
+                                      <Loader size={16} />
+                                      <span className="text-sm text-muted-foreground">Configuring AI Advantage+ targeting...</span>
+                                    </div>
+                                  );
+                                
+                                case 'output-available': {
+                                  const output = part.output as { success: boolean; mode: string; description: string };
+                                  
+                                  return (
+                                    <div key={callId} className="w-full my-4">
+                                      <div
+                                        className="flex items-center justify-between p-3 rounded-lg border panel-surface hover:border-cyan-500/50 transition-colors cursor-pointer"
+                                        onClick={() => {
+                                          window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'audience' }));
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/10 to-cyan-500/10 flex items-center justify-center flex-shrink-0">
+                                            <Sparkles className="h-5 w-5 text-blue-600" />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                              <p className="font-semibold text-sm">AI Advantage+ Targeting</p>
+                                              <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                                            </div>
+                                            <p className="text-xs text-muted-foreground line-clamp-1">{output.description}</p>
+                                          </div>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors flex-shrink-0 ml-2" />
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                
+                                case 'output-error':
+                                  return (
+                                    <div key={callId} className="text-sm text-destructive border border-destructive/50 rounded-lg p-4">
+                                      {part.errorText}
+                                    </div>
+                                  );
+                              }
+                              break;
+                            }
+                            case "tool-setupGoal": {
+                              const callId = part.toolCallId;
+                              const input = part.input as any;
+
+                              switch (part.state) {
+                                case 'input-streaming':
+                                  return <div key={callId} className="text-sm text-muted-foreground">Setting up goal...</div>;
+                                
+                                case 'input-available':
+                                  // Show interactive form selection UI instead of auto-processing
+                                  return (
+                                    <FormSelectionUI
+                                      key={callId}
+                                      onCreateNew={(formData) => {
+                                        addToolResult({
+                                          tool: 'setupGoal',
+                                          toolCallId: callId,
+                                          output: {
+                                            success: true,
+                                            goalType: input.goalType,
+                                            conversionMethod: input.conversionMethod,
+                                            formData: {
+                                              formId: `form-${Date.now()}`,
+                                              formName: formData.name,
+                                              createNew: true,
+                                              fields: formData.fields
+                                            },
+                                            explanation: `Created new instant form: ${formData.name} with ${formData.fields.length} fields`,
+                                          },
+                                        });
+                                      }}
+                                      onSelectExisting={(formId: string, formName: string) => {
+                                        addToolResult({
+                                          tool: 'setupGoal',
+                                          toolCallId: callId,
+                                          output: {
+                                            success: true,
+                                            goalType: input.goalType,
+                                            conversionMethod: input.conversionMethod,
+                                            formData: {
+                                              formId,
+                                              formName,
+                                              createNew: false
+                                            },
+                                            explanation: `Using existing form: ${formName}`,
+                                          },
+                                        });
+                                      }}
+                                      onCancel={() => {
+                                        // Reset goal state back to idle immediately
+                                        resetGoal();
+                                        
+                                        addToolResult({
+                                          tool: 'setupGoal',
+                                          toolCallId: callId,
+                                          output: undefined,
+                                          errorText: 'Form selection cancelled by user',
+                                        } as any);
+                                      }}
+                                    />
+                                  );
+                                
+                                case 'output-available': {
+                                  const output = part.output as any;
+                                  
+                                  // Handle cancellation or no selection (output is undefined or null)
+                                  if (!output || output === null) {
+                                    // Already reset in onCancel, no need to reset again
+                                    return (
+                                      <div key={callId} className="border rounded-lg p-4 my-2 bg-red-500/5 border-red-500/20">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <XCircle className="h-5 w-5 text-red-600" />
+                                          <p className="font-medium text-red-600">Goal Setup Cancelled</p>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">Feel free to try again or ask me anything else!</p>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // Update goal context with form data only if successful
+                                  // Only update if we haven't already set this form data (prevents re-setting after reset)
+                                  if (output.success) {
+                                    const currentFormId = goalState.formData?.id;
+                                    const newFormId = output.formData?.formId;
+                                    
+                                    // Only update if the form is different or we're not in completed state
+                                    if (currentFormId !== newFormId || goalState.status !== 'completed') {
+                                      setTimeout(() => {
+                                        setFormData({
+                                          id: output.formData?.formId,
+                                          name: output.formData?.formName || "New Instant Form",
+                                          type: output.conversionMethod,
+                                        });
+                                      }, 100);
+                                    }
+                                  }
+                                  
+                                  // Show success message
+                                  return (
+                                    <div key={callId} className="border rounded-lg p-4 my-2 bg-green-500/5 border-green-500/30">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                        <p className="font-medium text-green-600">Goal Setup Complete</p>
+                                      </div>
+                                      <p className="text-sm text-muted-foreground">{output.explanation || "Your goal has been set up successfully!"}</p>
+                                    </div>
+                                  );
+                                }
+                                
+                                case 'output-error':
+                                  // Check if it's a cancellation (not a real error)
+                                  const isCancellation = part.errorText?.includes('cancelled');
+                                  
+                                  // Reset to idle for cancellation, or show error for real errors
+                                  if (isCancellation) {
+                                    // Already reset in onCancel, no additional action needed
+                                  } else {
+                                    setTimeout(() => {
+                                      setError(part.errorText || "Failed to set up goal");
+                                    }, 100);
+                                  }
+                                  
+                                  // Show friendly message for cancellation, error message for real errors
+                                  return (
+                                    <div key={callId} className={`border rounded-lg p-4 my-2 ${
+                                      isCancellation 
+                                        ? 'bg-red-500/5 border-red-500/20' 
+                                        : 'bg-destructive/5 border-destructive/50'
+                                    }`}>
+                                      {isCancellation ? (
+                                        <>
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <XCircle className="h-5 w-5 text-red-600" />
+                                            <p className="font-medium text-red-600">Goal Setup Cancelled</p>
+                                          </div>
+                                          <p className="text-sm text-muted-foreground">Feel free to try again or ask me anything else!</p>
+                                        </>
+                                      ) : (
+                                        <p className="text-sm text-destructive font-medium">
+                                          {part.errorText || 'Failed to set up goal'}
+                                        </p>
+                                      )}
                                     </div>
                                   );
                               }

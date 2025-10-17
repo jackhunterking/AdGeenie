@@ -12,14 +12,21 @@ interface AdContent {
 interface AdPreviewContextType {
   adContent: AdContent | null
   setAdContent: (content: AdContent | null) => void
+  isPublished: boolean
+  setIsPublished: (published: boolean) => void
 }
 
 const AdPreviewContext = createContext<AdPreviewContextType | undefined>(undefined)
 
 export function AdPreviewProvider({ children }: { children: ReactNode }) {
   const [adContent, setAdContent] = useState<AdContent | null>(null)
+  const [isPublished, setIsPublished] = useState(false)
 
-  return <AdPreviewContext.Provider value={{ adContent, setAdContent }}>{children}</AdPreviewContext.Provider>
+  return (
+    <AdPreviewContext.Provider value={{ adContent, setAdContent, isPublished, setIsPublished }}>
+      {children}
+    </AdPreviewContext.Provider>
+  )
 }
 
 export function useAdPreview() {
