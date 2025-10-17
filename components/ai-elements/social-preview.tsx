@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ai-elements/loader";
-import { ImageIcon, Layers } from "lucide-react";
+import { ImageIcon, Layers, Eye } from "lucide-react";
 
 type SocialPreviewProps = {
   imageUrl: string;
   originalPrompt: string;
   brandName?: string;
   caption?: string;
-  onApprove?: () => void;
+  onApprove?: (currentImageUrl: string) => void;
   onRegenerate?: (prompt: string) => Promise<string>;
   onEdit?: (imageUrl: string, editPrompt: string) => Promise<string>;
 };
@@ -265,12 +265,13 @@ export const SocialPreview = ({
       {/* Action Buttons - 3 buttons only */}
       <div className="flex flex-col sm:flex-row gap-2 justify-center px-4 max-w-md mx-auto">
         <Button 
-          onClick={onApprove}
+          onClick={() => onApprove?.(currentImageUrl)}
           className="flex-1"
           size="sm"
           disabled={isEditMode || isEditing || isRegenerating}
         >
-          ✓ Approve
+          <Eye className="h-3.5 w-3.5 mr-1.5" />
+          Add to Preview
         </Button>
         <Button 
           onClick={() => setIsEditMode(!isEditMode)}

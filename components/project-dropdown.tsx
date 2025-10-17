@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { ChevronDown, ChevronLeft, Edit3 } from "lucide-react"
+import { ChevronDown, ChevronLeft, Edit3, Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useTheme } from "next-themes"
 
 export function ProjectDropdown() {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const { setTheme, resolvedTheme } = useTheme()
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -81,6 +83,25 @@ export function ProjectDropdown() {
             >
               <Edit3 className="h-4 w-4" />
               Rename project
+            </Button>
+
+            {/* Theme Toggle */}
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 h-10 px-3 text-sm font-normal hover-surface"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            >
+              {resolvedTheme === "dark" ? (
+                <>
+                  <Sun className="h-4 w-4" />
+                  Light mode
+                </>
+              ) : (
+                <>
+                  <Moon className="h-4 w-4" />
+                  Dark mode
+                </>
+              )}
             </Button>
           </div>
         </div>

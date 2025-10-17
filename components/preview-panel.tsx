@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Play, ImageIcon, Video, Layers, Sparkles } from "lucide-react"
 import { LocationTargeting } from "./location-targeting"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
-import { BudgetTab } from "./budget-tab"
 import { GoalTab } from "./goal-tab"
 import { ResultsTab } from "./results-tab"
 
 interface PreviewPanelProps {
   activeTab: string
+  targetedLocations?: any[]
 }
 
-export function PreviewPanel({ activeTab }: PreviewPanelProps) {
+export function PreviewPanel({ activeTab, targetedLocations }: PreviewPanelProps) {
   const [activeFormat, setActiveFormat] = useState("feed")
   const { adContent } = useAdPreview()
   const [showReelMessage, setShowReelMessage] = useState(false)
@@ -103,6 +103,16 @@ export function PreviewPanel({ activeTab }: PreviewPanelProps) {
                         <p className="font-semibold text-sm">Your Brand Name</p>
                         <p className="text-xs text-muted-foreground">Sponsored</p>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 px-2.5 text-xs"
+                      >
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                        </svg>
+                        <span className="text-xs font-medium">Connect Meta</span>
+                      </Button>
                     </div>
 
                     {adContent?.imageUrl ? (
@@ -174,8 +184,19 @@ export function PreviewPanel({ activeTab }: PreviewPanelProps) {
               {activeFormat === "story" && (
                 <div className="mx-auto max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
                   <div className="aspect-[9/16] rounded-2xl border-2 border-border bg-card overflow-hidden relative">
-                    {/* Story Background */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-teal-500" />
+                    {/* Story Background - use image if available */}
+                    {adContent?.imageUrl ? (
+                      <div className="absolute inset-0">
+                        <img
+                          src={adContent.imageUrl}
+                          alt={adContent.headline}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-teal-500" />
+                    )}
 
                     {/* Story Header */}
                     <div className="relative z-10 p-4">
@@ -183,24 +204,26 @@ export function PreviewPanel({ activeTab }: PreviewPanelProps) {
                         <div className="h-full w-1/3 bg-white rounded-full" />
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-white/20 border-2 border-white" />
-                        <p className="text-white text-sm font-semibold">Your Brand</p>
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 border-2 border-white" />
+                        <p className="text-white text-sm font-semibold">{adContent?.headline || "Your Brand"}</p>
                         <p className="text-white/80 text-xs">2h</p>
                       </div>
                     </div>
 
-                    {/* Story Content */}
-                    <div className="absolute inset-0 flex items-center justify-center text-center p-8">
-                      <div className="text-white">
-                        <h3 className="text-3xl font-bold mb-3">Your Story</h3>
-                        <p className="text-lg opacity-90">Swipe up to learn more</p>
+                    {/* Story Content - only show text overlay if no image */}
+                    {!adContent?.imageUrl && (
+                      <div className="absolute inset-0 flex items-center justify-center text-center p-8">
+                        <div className="text-white">
+                          <h3 className="text-3xl font-bold mb-3">Your Story</h3>
+                          <p className="text-lg opacity-90">Swipe up to learn more</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Story CTA */}
                     <div className="absolute bottom-8 left-0 right-0 px-4">
                       <div className="bg-white/20 backdrop-blur-sm rounded-full py-3 px-6 text-center">
-                        <p className="text-white font-semibold text-sm">Learn More</p>
+                        <p className="text-white font-semibold text-sm">{adContent?.cta || "Learn More"}</p>
                       </div>
                     </div>
                   </div>
@@ -280,14 +303,7 @@ export function PreviewPanel({ activeTab }: PreviewPanelProps) {
 
           {activeTab === "target" && (
             <div className="mx-auto max-w-4xl">
-              <LocationTargeting />
-            </div>
-          )}
-
-          {activeTab === "budget" && (
-            <div className="mx-auto max-w-4xl">
-              {/* Replace placeholder with BudgetTab component */}
-              <BudgetTab />
+              <LocationTargeting externalLocations={targetedLocations} />
             </div>
           )}
 
