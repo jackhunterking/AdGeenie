@@ -22,10 +22,10 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { useState, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, HatGlasses, Sparkles } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, HatGlasses, Sparkles, ChevronRight, MapPin } from "lucide-react";
 import {
   Source,
   Sources,
@@ -45,6 +45,7 @@ import { generateImage, editImage } from "@/server/images";
 import { SocialPreview } from "@/components/ai-elements/social-preview";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 import { useAdPreview } from "@/lib/context/ad-preview-context";
+import { searchLocations, getLocationBoundary } from "@/app/actions/geocoding";
 
 const AIChat = () => {
   const [input, setInput] = useState("");
@@ -55,6 +56,8 @@ const AIChat = () => {
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
   const [dislikedMessages, setDislikedMessages] = useState<Set<string>>(new Set());
   const [showSpyMessage, setShowSpyMessage] = useState(false);
+  const [processingLocations, setProcessingLocations] = useState<Set<string>>(new Set());
+  const [pendingLocationCalls, setPendingLocationCalls] = useState<Array<{ toolCallId: string; input: any }>>([]);
   
   const transport = useMemo(
     () =>
@@ -215,6 +218,103 @@ const AIChat = () => {
     }
   };
 
+  // Process pending location calls in useEffect (not during render)
+  useEffect(() => {
+    if (pendingLocationCalls.length === 0) return;
+
+    const processCalls = async () => {
+      for (const { toolCallId, input } of pendingLocationCalls) {
+        if (processingLocations.has(toolCallId)) continue;
+
+        setProcessingLocations(prev => new Set(prev).add(toolCallId));
+
+        try {
+          // Geocode locations and fetch boundary data from OpenStreetMap
+          const locationsWithCoords = await Promise.all(
+            input.locations.map(async (loc: any) => {
+              let coordinates = loc.coordinates;
+              let bbox = null;
+              let geometry = null;
+              
+              // Get coordinates via geocoding if not provided
+              if (!coordinates) {
+                const results = await searchLocations(loc.name);
+                if (results.length > 0) {
+                  coordinates = results[0].center;
+                  bbox = results[0].bbox;
+                }
+              }
+              
+              // For non-radius types, fetch actual boundary geometry from OpenStreetMap
+              if (loc.type !== "radius" && coordinates) {
+                const boundaryData = await getLocationBoundary(coordinates, loc.name, loc.type);
+                if (boundaryData) {
+                  geometry = boundaryData.geometry;
+                  // Update bbox with better boundary data if available
+                  if (boundaryData.bbox) {
+                    bbox = boundaryData.bbox;
+                  }
+                }
+              }
+              
+              return {
+                id: `${Date.now()}-${Math.random()}`,
+                name: loc.name,
+                coordinates,
+                radius: loc.radius || 30,
+                type: loc.type,
+                mode: loc.mode,
+                bbox,
+                geometry,
+              };
+            })
+          );
+
+          // Send FULL data (with geometry) to the map
+          window.dispatchEvent(new CustomEvent('locationsUpdated', { 
+            detail: locationsWithCoords 
+          }));
+
+          // Send MINIMAL data to AI conversation (no geometry - it's too large!)
+          addToolResult({
+            tool: 'locationTargeting',
+            toolCallId,
+            output: {
+              locations: locationsWithCoords.map(loc => ({
+                id: loc.id,
+                name: loc.name,
+                coordinates: loc.coordinates,
+                radius: loc.radius,
+                type: loc.type,
+                mode: loc.mode,
+                // Exclude geometry and bbox from conversation - they can be massive
+              })),
+              explanation: input.explanation,
+            },
+          });
+        } catch (err) {
+          addToolResult({
+            tool: 'locationTargeting',
+            toolCallId,
+            output: undefined,
+            errorText: 'Failed to set location targeting',
+          } as any);
+        } finally {
+          setProcessingLocations(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(toolCallId);
+            return newSet;
+          });
+        }
+      }
+
+      // Clear pending calls after processing
+      setPendingLocationCalls([]);
+    };
+
+    processCalls();
+  }, [pendingLocationCalls, processingLocations, addToolResult]);
+
   const handleSpyModeClick = () => {
     setShowSpyMessage(true);
     setTimeout(() => setShowSpyMessage(false), 2500);
@@ -316,10 +416,10 @@ const AIChat = () => {
                                       originalPrompt={input.prompt}
                                       brandName={input.brandName || "Your Brand Name"}
                                       caption={input.caption || "Your caption text goes here..."}
-                                      onApprove={() => {
-                                        // Populate preview panel with approved content
+                                      onApprove={(currentImageUrl) => {
+                                        // Populate preview panel with approved content (using current image URL which may be edited/regenerated)
                                         setAdContent({
-                                          imageUrl: part.output as string,
+                                          imageUrl: currentImageUrl,
                                           headline: input.brandName || "Your Brand Name",
                                           body: input.caption || "Your caption text goes here...",
                                           cta: "Learn More"
@@ -424,6 +524,99 @@ const AIChat = () => {
                                   );
                                 case 'output-error':
                                   return <div key={callId} className="text-sm text-destructive">Error: {part.errorText}</div>;
+                              }
+                              break;
+                            }
+                            case "tool-locationTargeting": {
+                              const callId = part.toolCallId;
+                              const isProcessing = processingLocations.has(callId);
+                              const input = part.input as any;
+
+                              switch (part.state) {
+                                case 'input-streaming':
+                                  return <div key={callId} className="text-sm text-muted-foreground">Setting up location targeting...</div>;
+                                
+                                case 'input-available':
+                                  if (isProcessing) {
+                                    return (
+                                      <div key={callId} className="flex items-center gap-3 p-4 border rounded-lg bg-card">
+                                        <Loader size={16} />
+                                        <span className="text-sm text-muted-foreground">Geocoding locations...</span>
+                                      </div>
+                                    );
+                                  }
+                                  // Schedule processing (don't call during render!)
+                                  if (!pendingLocationCalls.some(c => c.toolCallId === callId)) {
+                                    setTimeout(() => {
+                                      setPendingLocationCalls(prev => [...prev, { toolCallId: callId, input }]);
+                                    }, 0);
+                                  }
+                                  return null;
+                                
+                                case 'output-available': {
+                                  const output = part.output as { locations: any[]; explanation: string };
+                                  
+                                  const getLocationTypeLabel = (loc: any) => {
+                                    switch (loc.type) {
+                                      case "radius": return loc.radius ? `${loc.radius} mile radius` : "Radius"
+                                      case "city": return "City"
+                                      case "region": return "Province/Region"
+                                      case "country": return "Country"
+                                      default: return loc.type
+                                    }
+                                  };
+                                  
+                                  return (
+                                    <div key={callId} className="w-full my-4 space-y-2">
+                                      {output.locations.map((loc: any, idx: number) => {
+                                        const isExcluded = loc.mode === "exclude";
+                                        
+                                        return (
+                                          <div
+                                            key={`${callId}-${idx}`}
+                                            className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
+                                              isExcluded 
+                                                ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" 
+                                                : "panel-surface hover:border-purple-500/50"
+                                            }`}
+                                            onClick={() => {
+                                              // Switch to the location targeting tab
+                                              const event = new CustomEvent('switchToTab', { detail: 'location' });
+                                              window.dispatchEvent(event);
+                                            }}
+                                          >
+                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                              <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                                isExcluded ? "bg-red-500/10 text-red-600" : "bg-purple-500/10 text-purple-600"
+                                              }`}>
+                                                <MapPin className="h-4 w-4" />
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                  <p className="font-medium text-xs truncate">{loc.name}</p>
+                                                  {isExcluded && (
+                                                    <span className="text-[10px] text-red-600 font-medium flex-shrink-0">
+                                                      Excluded
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">{getLocationTypeLabel(loc)}</p>
+                                              </div>
+                                            </div>
+                                            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0 ml-2" />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                }
+                                
+                                case 'output-error':
+                                  return (
+                                    <div key={callId} className="text-sm text-destructive border border-destructive/50 rounded-lg p-4">
+                                      {part.errorText}
+                                    </div>
+                                  );
                               }
                               break;
                             }

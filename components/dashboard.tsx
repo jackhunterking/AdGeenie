@@ -1,18 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { PreviewPanel } from "./preview-panel"
 import AiChat from "./ai-chat"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Play, Target, DollarSign, Flag, Eye, ChevronDown, ArrowLeft, Edit } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { BarChart3, Play, Target, DollarSign, Flag, Eye, ChevronDown, ArrowLeft, Edit, Plus, Minus, Moon, Sun, Check } from "lucide-react"
 import { COMPANY_NAME } from "@/lib/constants"
-import { ModeSwitcher } from "./mode-switcher"
+import { useTheme } from "next-themes"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
 
 const TAB_COLORS = {
@@ -28,6 +32,98 @@ export function Dashboard() {
   const [credits, setCredits] = useState(205.5)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dailyCredits = 500
+  const [targetedLocations, setTargetedLocations] = useState<any[]>([])
+  const { setTheme, resolvedTheme } = useTheme()
+  
+  // Budget state
+  const [dailyBudget, setDailyBudget] = useState(20)
+  const [isBudgetDropdownOpen, setIsBudgetDropdownOpen] = useState(false)
+  const [isEditingBudget, setIsEditingBudget] = useState(false)
+  const [budgetInputValue, setBudgetInputValue] = useState(dailyBudget.toString())
+  const minBudget = 5
+  const maxBudget = 100
+  const increment = 5
+
+  // Budget handlers
+  const handleIncrementBudget = () => {
+    setDailyBudget((prev) => Math.min(prev + increment, maxBudget))
+  }
+
+  const handleDecrementBudget = () => {
+    setDailyBudget((prev) => Math.max(prev - increment, minBudget))
+  }
+
+  const handleBudgetClick = () => {
+    setIsEditingBudget(true)
+    setBudgetInputValue(dailyBudget.toString())
+  }
+
+  const handleBudgetInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/[^0-9]/g, "")
+    setBudgetInputValue(value)
+  }
+
+  const handleBudgetInputBlur = () => {
+    const numValue = Number.parseInt(budgetInputValue) || minBudget
+    const clampedValue = Math.max(minBudget, Math.min(maxBudget, numValue))
+    setDailyBudget(clampedValue)
+    setIsEditingBudget(false)
+  }
+
+  const handleBudgetInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleBudgetInputBlur()
+    } else if (e.key === "Escape") {
+      setIsEditingBudget(false)
+      setBudgetInputValue(dailyBudget.toString())
+    }
+  }
+
+  // Listen for location updates from chat
+  useEffect(() => {
+    const handleLocationsUpdate = (event: any) => {
+      const newLocations = event.detail;
+      
+      // Merge new locations with existing ones (avoid duplicates by name+mode)
+      setTargetedLocations(prev => {
+        const existingMap = new Map(prev.map(loc => [`${loc.name}-${loc.mode}`, loc]));
+        
+        // Add or update with new locations
+        newLocations.forEach((newLoc: any) => {
+          existingMap.set(`${newLoc.name}-${newLoc.mode}`, newLoc);
+        });
+        
+        return Array.from(existingMap.values());
+      });
+    }
+
+    window.addEventListener('locationsUpdated', handleLocationsUpdate)
+    return () => window.removeEventListener('locationsUpdated', handleLocationsUpdate)
+  }, [])
+
+  // Listen for location removal from location targeting component
+  useEffect(() => {
+    const handleLocationRemoved = (event: any) => {
+      const { id } = event.detail;
+      setTargetedLocations(prev => prev.filter(loc => loc.id !== id));
+    }
+
+    window.addEventListener('locationRemoved', handleLocationRemoved);
+    return () => window.removeEventListener('locationRemoved', handleLocationRemoved);
+  }, [])
+
+  // Listen for tab switch requests from chat
+  useEffect(() => {
+    const handleTabSwitch = (event: any) => {
+      const tabId = event.detail;
+      if (tabId === 'location') {
+        setActiveTab('target');
+      }
+    }
+
+    window.addEventListener('switchToTab', handleTabSwitch);
+    return () => window.removeEventListener('switchToTab', handleTabSwitch);
+  }, [])
 
   const tabs = [
     { id: "preview", label: "Preview", icon: Eye },
@@ -48,10 +144,73 @@ export function Dashboard() {
             </div>
             <span className="text-xs font-semibold">{COMPANY_NAME}</span>
           </a>
+          
+          {/* Dropdown Menu */}
+          <DropdownMenu onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <ChevronDown className={`h-4 w-4 transition-colors ${isDropdownOpen ? 'text-foreground' : 'text-muted-foreground'}`} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" alignOffset={-140} className="w-56">
+              <DropdownMenuItem>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Credits</span>
+                  <span className="text-sm font-medium">{credits} left</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden mb-1">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all"
+                    style={{ width: `${(credits / dailyCredits) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1" />
+                  Daily credits used first
+                </p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <Edit className="mr-2 h-4 w-4" />
+                Rename ad
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {resolvedTheme === "dark" ? (
+                    <Moon className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Sun className="mr-2 h-4 w-4" />
+                  )}
+                  Appearance
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => setTheme("light")}>
+                    <Sun className="mr-2 h-4 w-4" />
+                    Light
+                    {resolvedTheme === "light" && <Check className="ml-auto h-4 w-4" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("dark")}>
+                    <Moon className="mr-2 h-4 w-4" />
+                    Dark
+                    {resolvedTheme === "dark" && <Check className="ml-auto h-4 w-4" />}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex items-center gap-1.5">
           {tabs.map((tab) => {
+            // Skip budget tab as it's now in the header
+            if (tab.id === "budget") return null
+
             const Icon = tab.icon
             const isActive = activeTab === tab.id
             const colors = TAB_COLORS[tab.id as keyof typeof TAB_COLORS]
@@ -78,16 +237,73 @@ export function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2">
-          <ModeSwitcher />
-          <Button
-            variant="outline"
-            className="h-8 gap-1.5 px-3 text-xs"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-            </svg>
-            <span className="text-xs font-medium">Connect Meta</span>
-          </Button>
+          {/* Budget Dropdown */}
+          <DropdownMenu onOpenChange={setIsBudgetDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-8 gap-1.5 px-3 text-xs border-green-500 bg-green-500/10 hover:bg-green-500/20 text-foreground"
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                <span className="text-xs font-medium">Budget</span>
+                <span className="text-xs font-bold text-green-600">
+                  ${dailyBudget}
+                </span>
+                <span className="text-xs text-muted-foreground">/ day</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <div className="px-2 py-3">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-medium">Daily Budget</span>
+                </div>
+                
+                <div className="flex items-center justify-between gap-4">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleDecrementBudget}
+                    disabled={dailyBudget <= minBudget}
+                    className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+
+                  {isEditingBudget ? (
+                    <div className="flex items-baseline gap-0">
+                      <span className="text-3xl font-bold text-green-600 leading-none">$</span>
+                      <Input
+                        type="text"
+                        value={budgetInputValue}
+                        onChange={handleBudgetInputChange}
+                        onBlur={handleBudgetInputBlur}
+                        onKeyDown={handleBudgetInputKeyDown}
+                        autoFocus
+                        className="w-[90px] text-3xl font-bold text-green-600 text-center bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-[40px] leading-none"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleBudgetClick}
+                      className="text-3xl font-bold text-green-600 hover:opacity-80 transition-opacity cursor-pointer leading-none min-w-[90px] text-center"
+                    >
+                      ${dailyBudget}
+                    </button>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleIncrementBudget}
+                    disabled={dailyBudget >= maxBudget}
+                    className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button size="sm" className="gap-1.5 bg-[#4B73FF] hover:bg-[#3d5fd9] text-white h-8 px-3 text-xs">
             <Play className="h-3 w-3" />
@@ -105,7 +321,7 @@ export function Dashboard() {
 
         {/* Preview Panel - Takes 2/3 width */}
         <div className="flex-1">
-          <PreviewPanel activeTab={activeTab} />
+          <PreviewPanel activeTab={activeTab} targetedLocations={targetedLocations} />
         </div>
       </div>
     </div>
