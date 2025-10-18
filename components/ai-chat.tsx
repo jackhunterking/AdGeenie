@@ -69,10 +69,13 @@ interface LocationInput {
   name: string;
   coordinates?: [number, number];
   radius?: number;
+  type?: string;
+  mode?: string;
 }
 
 interface LocationToolInput {
   locations: LocationInput[];
+  explanation?: string;
 }
 
 interface LocationOutput {
@@ -108,6 +111,31 @@ interface AudienceContext {
   currentAudience?: {
     demographics?: string;
     interests?: string;
+  };
+  type?: string;
+  variationNumber?: number;
+  variationTitle?: string;
+  copyNumber?: number;
+  format?: 'feed' | 'story' | 'reel';
+  gradient?: string;
+  content?: {
+    primaryText?: string;
+    headline?: string;
+    description?: string;
+    demographics?: string;
+    interests?: string;
+  };
+  preview?: {
+    brandName?: string;
+    headline?: string;
+    body?: string;
+    gradient?: string;
+    imageUrl?: string;
+    dimensions?: {
+      width: number;
+      height: number;
+      aspect: string;
+    };
   };
 }
 
@@ -338,8 +366,8 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
               if (!coordinates) {
                 const results = await searchLocations(loc.name);
                 if (results.length > 0) {
-                  coordinates = results[0].center;
-                  bbox = results[0].bbox;
+                  coordinates = results[0].center as [number, number];
+                  bbox = results[0].bbox as [number, number, number, number];
                 } else {
                   // Geocoding failed - return null to filter out later
                   console.error(`Failed to geocode location: ${loc.name}`);
@@ -452,8 +480,8 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
       });
     };
 
-    window.addEventListener('triggerGoalSetup', handleGoalSetup);
-    return () => window.removeEventListener('triggerGoalSetup', handleGoalSetup);
+    window.addEventListener('triggerGoalSetup', handleGoalSetup as EventListener);
+    return () => window.removeEventListener('triggerGoalSetup', handleGoalSetup as EventListener);
   }, [sendMessage]);
 
   // Listen for location setup trigger from canvas
@@ -529,8 +557,8 @@ Make it conversational and easy to understand for a business owner.`,
       });
     };
 
-    window.addEventListener('generateAudience', handleAudienceGeneration);
-    return () => window.removeEventListener('generateAudience', handleAudienceGeneration);
+    window.addEventListener('generateAudience', handleAudienceGeneration as EventListener);
+    return () => window.removeEventListener('generateAudience', handleAudienceGeneration as EventListener);
   }, [sendMessage]);
 
   // Listen for audience chat opening (when user clicks "Change This")
@@ -554,8 +582,8 @@ Make it conversational and easy to understand for a business owner.`,
       });
     };
 
-    window.addEventListener('openAudienceChat', handleOpenAudienceChat);
-    return () => window.removeEventListener('openAudienceChat', handleOpenAudienceChat);
+    window.addEventListener('openAudienceChat', handleOpenAudienceChat as EventListener);
+    return () => window.removeEventListener('openAudienceChat', handleOpenAudienceChat as EventListener);
   }, [sendMessage]);
 
   // Listen for ad edit events from preview panel
@@ -566,7 +594,7 @@ Make it conversational and easy to understand for a business owner.`,
       // Route to appropriate reference based on type
       if (context.type === 'audience_reference') {
         // Store as audience context
-        setAudienceContext(context.content);
+        setAudienceContext(context.content as AudienceContext | null || null);
         setCustomPlaceholder("Describe how you'd like to change the audience targeting...");
       } else {
         // Store as ad edit reference (for ad copy/creative)
@@ -590,12 +618,12 @@ Make it conversational and easy to understand for a business owner.`,
       }
     };
 
-    window.addEventListener('openEditInChat', handleOpenEditInChat);
-    window.addEventListener('sendMessageToAI', handleSendMessageToAI);
+    window.addEventListener('openEditInChat', handleOpenEditInChat as EventListener);
+    window.addEventListener('sendMessageToAI', handleSendMessageToAI as EventListener);
     
     return () => {
-      window.removeEventListener('openEditInChat', handleOpenEditInChat);
-      window.removeEventListener('sendMessageToAI', handleSendMessageToAI);
+      window.removeEventListener('openEditInChat', handleOpenEditInChat as EventListener);
+      window.removeEventListener('sendMessageToAI', handleSendMessageToAI as EventListener);
     };
   }, [sendMessage]);
 
