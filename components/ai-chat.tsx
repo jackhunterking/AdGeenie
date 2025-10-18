@@ -25,7 +25,7 @@ import {
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, HatGlasses, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle } from "lucide-react";
 import {
   Source,
   Sources,
@@ -51,9 +51,14 @@ import { useGoal } from "@/lib/context/goal-context";
 import { useLocation } from "@/lib/context/location-context";
 import { useAudience } from "@/lib/context/audience-context";
 import { AdReferenceCard } from "@/components/ad-reference-card-example";
+import { AudienceContextCard } from "@/components/audience-context-card";
 import { useRef } from "react";
 
-const AIChat = () => {
+interface AIChatProps {
+  initialPrompt?: string | null;
+}
+
+const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   const [input, setInput] = useState("");
   const [model, setModel] = useState<string>("openai/gpt-4o");
   const { setAdContent } = useAdPreview();
@@ -64,12 +69,13 @@ const AIChat = () => {
   const [editingImages, setEditingImages] = useState<Set<string>>(new Set());
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
   const [dislikedMessages, setDislikedMessages] = useState<Set<string>>(new Set());
-  const [showSpyMessage, setShowSpyMessage] = useState(false);
   const [processingLocations, setProcessingLocations] = useState<Set<string>>(new Set());
   const [pendingLocationCalls, setPendingLocationCalls] = useState<Array<{ toolCallId: string; input: any }>>([]);
   const [adEditReference, setAdEditReference] = useState<any>(null);
+  const [audienceContext, setAudienceContext] = useState<any>(null);
   const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
   
   const transport = useMemo(
     () =>
@@ -115,6 +121,14 @@ const AIChat = () => {
     if (adEditReference) {
       setTimeout(() => {
         setAdEditReference(null);
+        setCustomPlaceholder("Type your message...");
+      }, 1000);
+    }
+    
+    // Clear the audience context after sending the first message
+    if (audienceContext) {
+      setTimeout(() => {
+        setAudienceContext(null);
         setCustomPlaceholder("Type your message...");
       }, 1000);
     }
@@ -408,15 +422,93 @@ const AIChat = () => {
     return () => window.removeEventListener('triggerAudienceSetup', handleAudienceSetup);
   }, [sendMessage]);
 
+  // Listen for audience generation (when user clicks "Find My Audience with AI")
+  useEffect(() => {
+    const handleAudienceGeneration = (event: any) => {
+      const { adContent, locations } = event.detail;
+      
+      // Build comprehensive context message
+      // NOTE: We do NOT include goal here - goal comes AFTER finding the audience
+      // The correct flow is: Creative → Copy → Location → Audience → Goal
+      const contextParts = [];
+      
+      if (adContent) {
+        if (adContent.headline) {
+          contextParts.push(`Ad headline: "${adContent.headline}"`);
+        }
+        if (adContent.body) {
+          contextParts.push(`Ad message: "${adContent.body}"`);
+        }
+      }
+      
+      if (locations && locations.length > 0) {
+        const locationNames = locations.map((l: any) => l.name).join(', ');
+        contextParts.push(`Targeting locations: ${locationNames}`);
+      }
+      
+      const fullContext = contextParts.length > 0 
+        ? contextParts.join('. ') 
+        : 'No specific context provided yet';
+      
+      // Send comprehensive message to AI
+      sendMessage({
+        text: `Based on my campaign details, generate an AI Advantage+ audience profile that makes perfect sense for this campaign. 
+
+Campaign Context: ${fullContext}
+
+Please analyze this information and create a detailed, natural language audience targeting strategy. Include:
+1. A simple description of who will see the ad
+2. Relevant interests based on the campaign
+3. Appropriate demographics (age, gender if relevant)
+
+Make it conversational and easy to understand for a business owner.`,
+      });
+    };
+
+    window.addEventListener('generateAudience', handleAudienceGeneration);
+    return () => window.removeEventListener('generateAudience', handleAudienceGeneration);
+  }, [sendMessage]);
+
+  // Listen for audience chat opening (when user clicks "Change This")
+  useEffect(() => {
+    const handleOpenAudienceChat = (event: any) => {
+      const context = event.detail;
+      // Store the audience context for display
+      setAudienceContext(context.currentAudience);
+      
+      // Set placeholder with natural language
+      setCustomPlaceholder("What would you like to change about who sees this?");
+      
+      // Focus chat input
+      setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+      
+      // Optionally send a message to AI about updating audience
+      sendMessage({
+        text: `I want to update who sees my ad. Currently targeting: ${context.currentAudience?.demographics || 'general audience'}${context.currentAudience?.interests ? `, ${context.currentAudience.interests}` : ''}`,
+      });
+    };
+
+    window.addEventListener('openAudienceChat', handleOpenAudienceChat);
+    return () => window.removeEventListener('openAudienceChat', handleOpenAudienceChat);
+  }, [sendMessage]);
+
   // Listen for ad edit events from preview panel
   useEffect(() => {
     const handleOpenEditInChat = (event: any) => {
       const context = event.detail;
-      // Store the reference context for display
-      setAdEditReference(context);
       
-      // Update placeholder if provided
-      setCustomPlaceholder(`Describe the changes you'd like to make to ${context.variationTitle}...`);
+      // Route to appropriate reference based on type
+      if (context.type === 'audience_reference') {
+        // Store as audience context
+        setAudienceContext(context.content);
+        setCustomPlaceholder("Describe how you'd like to change the audience targeting...");
+      } else {
+        // Store as ad edit reference (for ad copy/creative)
+        setAdEditReference(context);
+        setCustomPlaceholder(`Describe the changes you'd like to make to ${context.variationTitle}...`);
+      }
       
       // Focus chat input
       setTimeout(() => {
@@ -443,10 +535,39 @@ const AIChat = () => {
     };
   }, [sendMessage]);
 
-  const handleSpyModeClick = () => {
-    setShowSpyMessage(true);
-    setTimeout(() => setShowSpyMessage(false), 2500);
-  };
+  // Listen for step navigation to clear editing references
+  useEffect(() => {
+    const handleStepNavigation = () => {
+      // Clear ad edit reference when navigating between steps
+      if (adEditReference) {
+        setAdEditReference(null);
+        setCustomPlaceholder("Type your message...");
+      }
+      
+      // Clear audience context when navigating between steps
+      if (audienceContext) {
+        setAudienceContext(null);
+        setCustomPlaceholder("Type your message...");
+      }
+    };
+
+    window.addEventListener('stepNavigation', handleStepNavigation);
+    
+    return () => {
+      window.removeEventListener('stepNavigation', handleStepNavigation);
+    };
+  }, [adEditReference, audienceContext]);
+
+  // Auto-submit initial prompt if provided (from email verification flow)
+  useEffect(() => {
+    if (initialPrompt && !hasAutoSubmitted && status !== 'streaming') {
+      setHasAutoSubmitted(true);
+      // Small delay to ensure everything is ready
+      setTimeout(() => {
+        sendMessage({ text: initialPrompt });
+      }, 500);
+    }
+  }, [initialPrompt, hasAutoSubmitted, status, sendMessage]);
 
   return (
     <div className="relative flex size-full flex-col overflow-hidden">
@@ -458,6 +579,17 @@ const AIChat = () => {
                 reference={adEditReference}
                 onDismiss={() => {
                   setAdEditReference(null);
+                  setCustomPlaceholder("Type your message...");
+                }}
+              />
+            )}
+            
+            {/* Show audience context card if active */}
+            {audienceContext && (
+              <AudienceContextCard 
+                currentAudience={audienceContext}
+                onDismiss={() => {
+                  setAudienceContext(null);
                   setCustomPlaceholder("Type your message...");
                 }}
               />
@@ -765,7 +897,7 @@ const AIChat = () => {
 
                               switch (part.state) {
                                 case 'input-streaming':
-                                  return <div key={callId} className="text-sm text-muted-foreground">Setting up audience targeting...</div>;
+                                  return <div key={callId} className="text-sm text-muted-foreground">Finding your people...</div>;
                                 
                                 case 'input-available':
                                   // Auto-process - AI Advantage+ requires no confirmation
@@ -798,7 +930,7 @@ const AIChat = () => {
                                   return (
                                     <div key={callId} className="flex items-center gap-3 p-4 border rounded-lg bg-card">
                                       <Loader size={16} />
-                                      <span className="text-sm text-muted-foreground">Configuring AI Advantage+ targeting...</span>
+                                      <span className="text-sm text-muted-foreground">Finding your people...</span>
                                     </div>
                                   );
                                 
@@ -806,9 +938,9 @@ const AIChat = () => {
                                   const output = part.output as { success: boolean; mode: string; description: string };
                                   
                                   return (
-                                    <div key={callId} className="w-full my-4">
+                                    <div key={callId} className="w-full my-4 space-y-3">
                                       <div
-                                        className="flex items-center justify-between p-3 rounded-lg border panel-surface hover:border-cyan-500/50 transition-colors cursor-pointer"
+                                        className="flex items-center justify-between p-4 rounded-lg border panel-surface hover:border-cyan-500/50 transition-colors cursor-pointer"
                                         onClick={() => {
                                           window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'audience' }));
                                         }}
@@ -819,13 +951,47 @@ const AIChat = () => {
                                           </div>
                                           <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
-                                              <p className="font-semibold text-sm">AI Advantage+ Targeting</p>
+                                              <p className="font-semibold text-sm">Got it! We'll show your ad to these people</p>
                                               <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
                                             </div>
                                             <p className="text-xs text-muted-foreground line-clamp-1">{output.description}</p>
                                           </div>
                                         </div>
                                         <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors flex-shrink-0 ml-2" />
+                                      </div>
+                                      
+                                      {/* Quick Action Chips */}
+                                      <div className="space-y-2">
+                                        <p className="text-xs text-muted-foreground px-1">Want to adjust? Try asking:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                          <button
+                                            onClick={() => {
+                                              setInput("Make them younger");
+                                              chatInputRef.current?.focus();
+                                            }}
+                                            className="text-xs px-3 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20 hover:border-cyan-500/30 transition-colors"
+                                          >
+                                            Make them younger
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setInput("Focus on families");
+                                              chatInputRef.current?.focus();
+                                            }}
+                                            className="text-xs px-3 py-1.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/20 hover:border-purple-500/30 transition-colors"
+                                          >
+                                            Focus on families
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setInput("Add more interests");
+                                              chatInputRef.current?.focus();
+                                            }}
+                                            className="text-xs px-3 py-1.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/20 hover:border-blue-500/30 transition-colors"
+                                          >
+                                            Add more interests
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   );
@@ -1070,34 +1236,6 @@ const AIChat = () => {
                     <PromptInputActionAddAttachments />
                   </PromptInputActionMenuContent>
                 </PromptInputActionMenu>
-                <div className="relative">
-                  <PromptInputButton
-                    variant="outline"
-                    onClick={handleSpyModeClick}
-                    className="relative"
-                  >
-                    <HatGlasses size={16} />
-                    <span>Spy Mode</span>
-                    <Sparkles size={10} className="absolute -top-0.5 -right-0.5 text-yellow-500 animate-pulse" />
-                  </PromptInputButton>
-                  
-                  {/* Coming Soon Popup - appears right above button */}
-                  {showSpyMessage && (
-                    <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap animate-in fade-in slide-in-from-bottom-1 duration-200">
-                      <div className="bg-popover border border-border rounded-md px-3 py-1.5 shadow-md">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Sparkles size={12} className="text-yellow-500" />
-                          <span className="font-medium">Coming Soon!</span>
-                        </div>
-                      </div>
-                      {/* Arrow pointing down */}
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
-                        <div className="border-4 border-transparent border-t-border" />
-                        <div className="border-4 border-transparent border-t-popover absolute top-0 left-1/2 -translate-x-1/2 -mt-px" />
-                      </div>
-                    </div>
-                  )}
-                </div>
               </PromptInputTools>
               <PromptInputSubmit 
                 disabled={!input && status !== 'streaming'} 

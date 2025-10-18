@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/components/auth/auth-provider";
 import { AdPreviewProvider } from "@/lib/context/ad-preview-context";
 import { GoalProvider } from "@/lib/context/goal-context";
 import { LocationProvider } from "@/lib/context/location-context";
@@ -46,19 +47,21 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AdPreviewProvider>
-            <GoalProvider>
-              <LocationProvider>
-                <AudienceProvider>
-                  <BudgetProvider>
-                    <AdCopyProvider>
-                      {children}
-                    </AdCopyProvider>
-                  </BudgetProvider>
-                </AudienceProvider>
-              </LocationProvider>
-            </GoalProvider>
-          </AdPreviewProvider>
+          <AuthProvider>
+            <AdPreviewProvider>
+              <GoalProvider>
+                <LocationProvider>
+                  <AudienceProvider>
+                    <BudgetProvider>
+                      <AdCopyProvider>
+                        {children}
+                      </AdCopyProvider>
+                    </BudgetProvider>
+                  </AudienceProvider>
+                </LocationProvider>
+              </GoalProvider>
+            </AdPreviewProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

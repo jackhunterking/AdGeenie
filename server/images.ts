@@ -2,6 +2,48 @@
 
 import { generateText } from 'ai';
 import fs from 'node:fs';
+import { supabaseServer } from '@/lib/supabase/server';
+
+// Upload image buffer to Supabase Storage
+async function uploadToSupabase(
+    imageBuffer: Buffer,
+    fileName: string,
+    campaignId?: string
+): Promise<string> {
+    try {
+        // Generate path with campaign folder if provided
+        const path = campaignId 
+            ? `campaigns/${campaignId}/${fileName}`
+            : `temp/${fileName}`;
+
+        // Upload to Supabase Storage
+        const { data, error } = await supabaseServer
+            .storage
+            .from('campaign-assets')
+            .upload(path, imageBuffer, {
+                contentType: 'image/png',
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (error) {
+            console.error('Supabase upload error:', error);
+            throw new Error(`Failed to upload to Supabase: ${error.message}`);
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabaseServer
+            .storage
+            .from('campaign-assets')
+            .getPublicUrl(path);
+
+        console.log(`✅ Uploaded to Supabase: ${publicUrl}`);
+        return publicUrl;
+    } catch (error) {
+        console.error('Error uploading to Supabase:', error);
+        throw error;
+    }
+}
 
 // Meta-specific prompt enhancement for visual guardrails
 function enhancePromptWithMetaGuardrails(userPrompt: string, isEdit: boolean = false): string {
@@ -39,7 +81,7 @@ The image should look like professional, authentic content that stops the scroll
     return baseEnhancement;
 }
 
-export async function generateImage(prompt: string) {
+export async function generateImage(prompt: string, campaignId?: string) {
     try {
         // Enhance prompt with Meta guardrails
         const enhancedPrompt = enhancePromptWithMetaGuardrails(prompt);
@@ -54,43 +96,78 @@ export async function generateImage(prompt: string) {
             },
         });
 
-        let fileName = '';
+        let publicUrl = '';
 
-        // Save generated images
+        // Upload generated images to Supabase
         for (const file of result.files) {
             if (file.mediaType.startsWith('image/')) {
                 const timestamp = Date.now();
-                fileName = `generated-${timestamp}.png`;
+                const fileName = `generated-${timestamp}.png`;
+                const imageBuffer = Buffer.from(file.uint8Array);
 
-                await fs.promises.writeFile(`public/${fileName}`, file.uint8Array);
+                // Upload to Supabase Storage
+                publicUrl = await uploadToSupabase(imageBuffer, fileName, campaignId);
+
+                // Also save to generated_assets table if we have a campaign
+                if (campaignId) {
+                    try {
+                        await supabaseServer
+                            .from('generated_assets')
+                            .insert({
+                                campaign_id: campaignId,
+                                user_id: 'temp-user-id', // TODO: Replace with actual user ID
+                                asset_type: 'image',
+                                storage_path: campaignId ? `campaigns/${campaignId}/${fileName}` : `temp/${fileName}`,
+                                public_url: publicUrl,
+                                file_size: file.uint8Array.length,
+                                dimensions: { width: null, height: null }, // Could extract if needed
+                                generation_params: { prompt, model: 'gemini-2.5-flash-image-preview' }
+                            });
+                    } catch (dbError) {
+                        console.error('Error saving to generated_assets:', dbError);
+                        // Don't fail the whole operation if DB save fails
+                    }
+                }
             }
         }
 
-        if (!fileName) {
+        if (!publicUrl) {
             throw new Error('No image was generated');
         }
 
-        return `/${fileName}`;
+        return publicUrl;
     } catch (error) {
         console.error('Error generating image:', error);
         throw error;
     }
 }
 
-export async function editImage(imageUrl: string, editPrompt: string) {
+export async function editImage(imageUrl: string, editPrompt: string, campaignId?: string) {
     try {
-        // Read the existing image from public folder
-        const imagePath = imageUrl.startsWith('/') 
-            ? `public${imageUrl}` 
-            : imageUrl;
+        let imageBuffer: Buffer;
+
+        // Check if URL is from Supabase or local
+        if (imageUrl.includes('supabase.co')) {
+            // Fetch from Supabase URL
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch image: ${response.statusText}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            imageBuffer = Buffer.from(arrayBuffer);
+        } else {
+            // Read from local public folder (legacy)
+            const imagePath = imageUrl.startsWith('/') 
+                ? `public${imageUrl}` 
+                : imageUrl;
+            imageBuffer = await fs.promises.readFile(imagePath);
+        }
         
-        const imageBuffer = await fs.promises.readFile(imagePath);
-        
-        // Determine media type from file extension
+        // Determine media type from URL
         let mediaType = 'image/png';
-        if (imagePath.endsWith('.jpg') || imagePath.endsWith('.jpeg')) {
+        if (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.jpeg')) {
             mediaType = 'image/jpeg';
-        } else if (imagePath.endsWith('.webp')) {
+        } else if (imageUrl.endsWith('.webp')) {
             mediaType = 'image/webp';
         }
         
@@ -98,7 +175,6 @@ export async function editImage(imageUrl: string, editPrompt: string) {
         const enhancedEditPrompt = enhancePromptWithMetaGuardrails(editPrompt, true);
         
         // Use messages format with file input
-        // AI Gateway will route to Gemini with image input support
         const result = await generateText({
             model: 'google/gemini-2.5-flash-image-preview',
             providerOptions: {
@@ -126,23 +202,49 @@ IMPORTANT: Maintain Meta's native ad aesthetic - natural, realistic, mobile-opti
             ],
         });
 
-        let fileName = '';
+        let publicUrl = '';
 
-        // Save edited image
+        // Upload edited image to Supabase
         for (const file of result.files) {
             if (file.mediaType.startsWith('image/')) {
                 const timestamp = Date.now();
-                fileName = `edited-${timestamp}.png`;
+                const fileName = `edited-${timestamp}.png`;
+                const editedBuffer = Buffer.from(file.uint8Array);
 
-                await fs.promises.writeFile(`public/${fileName}`, file.uint8Array);
+                // Upload to Supabase Storage
+                publicUrl = await uploadToSupabase(editedBuffer, fileName, campaignId);
+
+                // Save to generated_assets table if we have a campaign
+                if (campaignId) {
+                    try {
+                        await supabaseServer
+                            .from('generated_assets')
+                            .insert({
+                                campaign_id: campaignId,
+                                user_id: 'temp-user-id', // TODO: Replace with actual user ID
+                                asset_type: 'image',
+                                storage_path: campaignId ? `campaigns/${campaignId}/${fileName}` : `temp/${fileName}`,
+                                public_url: publicUrl,
+                                file_size: file.uint8Array.length,
+                                dimensions: { width: null, height: null },
+                                generation_params: { 
+                                    editPrompt, 
+                                    originalUrl: imageUrl,
+                                    model: 'gemini-2.5-flash-image-preview' 
+                                }
+                            });
+                    } catch (dbError) {
+                        console.error('Error saving to generated_assets:', dbError);
+                    }
+                }
             }
         }
 
-        if (!fileName) {
+        if (!publicUrl) {
             throw new Error('No image was generated from edit');
         }
 
-        return `/${fileName}`;
+        return publicUrl;
     } catch (error) {
         console.error('Error editing image:', error);
         throw error;

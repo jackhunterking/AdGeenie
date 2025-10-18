@@ -110,13 +110,6 @@ export function GoalSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-bold">Goal</h2>
-            <p className="text-muted-foreground">
-              Ask AI to set your goal, or choose one manually below.
-            </p>
-          </div>
-
           <div className="grid grid-cols-2 gap-6">
             {/* Leads Card */}
             <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">

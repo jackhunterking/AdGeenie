@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useParams, useSearchParams } from "next/navigation"
 import { PreviewPanel } from "./preview-panel"
 import AiChat from "./ai-chat"
 import { Button } from "@/components/ui/button"
@@ -21,10 +22,43 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function Dashboard() {
+  const params = useParams()
+  const searchParams = useSearchParams()
   const [credits, setCredits] = useState(205.5)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [initialPrompt, setInitialPrompt] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const dailyCredits = 500
   const { setTheme, resolvedTheme } = useTheme()
+  
+  const campaignId = params?.campaignId as string
+  const autostart = searchParams?.get('autostart') === 'true'
+
+  // Fetch campaign data to get initial prompt
+  useEffect(() => {
+    const fetchCampaign = async () => {
+      if (!campaignId) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}`)
+        if (response.ok) {
+          const { campaign } = await response.json()
+          if (campaign?.metadata?.initialPrompt && autostart) {
+            setInitialPrompt(campaign.metadata.initialPrompt)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching campaign:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCampaign()
+  }, [campaignId, autostart])
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
@@ -37,7 +71,7 @@ export function Dashboard() {
             <div className="flex items-center gap-3">
               <a href="/" className="flex items-center gap-2">
                 <div className="relative h-5 w-5">
-                  <img src="/vibeads-logo.png" alt="Vibeads" className="h-5 w-5" />
+                  <img src="/vibeads-logo.png" alt="AdGeenie" className="h-5 w-5" />
                 </div>
                 <span className="text-xs font-semibold">{COMPANY_NAME}</span>
               </a>
@@ -105,7 +139,7 @@ export function Dashboard() {
           </div>
           
           {/* AI Chat Content */}
-          <AiChat />
+          {!loading && <AiChat initialPrompt={initialPrompt} />}
         </div>
 
         {/* Preview Panel - Takes 3/4 width */}

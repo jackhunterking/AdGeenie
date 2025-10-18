@@ -1,6 +1,8 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { useCampaign } from "@/lib/hooks/use-campaign"
+import { useDebounce } from "@/lib/hooks/use-debounce"
 
 type GoalType = "leads" | "calls" | null
 type GoalStatus = "idle" | "selecting" | "setup-in-progress" | "completed" | "error"
@@ -31,11 +33,31 @@ interface GoalContextType {
 const GoalContext = createContext<GoalContextType | undefined>(undefined)
 
 export function GoalProvider({ children }: { children: ReactNode }) {
+  const { campaign, saveCampaignState } = useCampaign()
   const [goalState, setGoalState] = useState<GoalState>({
     selectedGoal: null,
     status: "idle",
     formData: null,
   })
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Load initial state from campaign
+  useEffect(() => {
+    if (campaign?.campaign_states?.[0]?.goal_data && !isInitialized) {
+      const savedData = campaign.campaign_states[0].goal_data
+      setGoalState(savedData)
+      setIsInitialized(true)
+    }
+  }, [campaign, isInitialized])
+
+  // Debounced auto-save
+  const debouncedGoalState = useDebounce(goalState, 1000)
+
+  useEffect(() => {
+    if (isInitialized && campaign?.id) {
+      saveCampaignState('goal_data', debouncedGoalState)
+    }
+  }, [debouncedGoalState, saveCampaignState, campaign?.id, isInitialized])
 
   const setSelectedGoal = (goal: GoalType) => {
     setGoalState(prev => ({ 

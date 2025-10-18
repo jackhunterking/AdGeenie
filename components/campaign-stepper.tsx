@@ -18,22 +18,22 @@ interface Step {
 // Dynamic content for each step
 const stepHeaders: Record<string, { title: string; subtitle: string; subtext: string }> = {
   ads: {
-    title: "Choose Your Creative",
+    title: "Ad Creative",
     subtitle: "Select the design that stands out",
     subtext: "Pick a creative that best represents your brand"
   },
   copy: {
-    title: "Craft Your Message",
+    title: "Ad Copy",
     subtitle: "Choose words that convert",
     subtext: "Select compelling copy for your campaign"
   },
   location: {
-    title: "Target Your Area",
+    title: "Ad Location",
     subtitle: "Reach the right places",
     subtext: "Define where your ads will appear"
   },
   audience: {
-    title: "Find Your People",
+    title: "Ad Audience",
     subtitle: "Connect with ideal customers",
     subtext: "Define who will see your ads"
   },
@@ -66,6 +66,8 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
     if (canGoNext && !isLastStep) {
       setDirection('forward')
       setCurrentStepIndex(prev => prev + 1)
+      // Dispatch event to clear any editing references
+      window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: 'next' } }))
     }
   }
 
@@ -73,12 +75,27 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
     if (!isFirstStep) {
       setDirection('backward')
       setCurrentStepIndex(prev => prev - 1)
+      // Dispatch event to clear any editing references
+      window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: 'back' } }))
     }
   }
 
   const handleStepClick = (index: number) => {
+    // Only allow navigation to completed steps or the next step if current is complete
+    const targetStep = steps[index]
+    const isTargetCompleted = targetStep.completed
+    const isNextStep = index === currentStepIndex + 1
+    const isPreviousStep = index < currentStepIndex
+    const canNavigate = isTargetCompleted || isPreviousStep || (isNextStep && currentStep.completed)
+    
+    if (!canNavigate) {
+      return // Block navigation to incomplete future steps
+    }
+    
     setDirection(index > currentStepIndex ? 'forward' : 'backward')
     setCurrentStepIndex(index)
+    // Dispatch event to clear any editing references
+    window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: index > currentStepIndex ? 'forward' : 'backward' } }))
   }
 
   const completedCount = steps.filter(step => step.completed).length
@@ -104,15 +121,23 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
 
           {/* Step Indicators */}
           <div className="flex items-center justify-center gap-2 h-10">
-            {steps.map((step, index) => (
+            {steps.map((step, index) => {
+              const isTargetCompleted = step.completed
+              const isNextStep = index === currentStepIndex + 1
+              const isPreviousStep = index < currentStepIndex
+              const canNavigate = isTargetCompleted || isPreviousStep || (isNextStep && currentStep.completed)
+              
+              return (
               <div key={step.id} className="flex items-center">
                 <button
                   onClick={() => handleStepClick(index)}
+                  disabled={!canNavigate}
                   className={cn(
-                    "relative flex items-center justify-center",
+                    "relative flex items-center justify-center transition-opacity",
                     index === currentStepIndex
                       ? "h-10 w-10"
-                      : "h-8 w-8"
+                      : "h-8 w-8",
+                    !canNavigate && "opacity-40 cursor-not-allowed"
                   )}
                   title={step.title}
                 >
@@ -123,7 +148,9 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
                         ? "bg-green-500 text-white"
                         : index === currentStepIndex
                         ? "bg-blue-500 text-white"
-                        : "bg-muted text-muted-foreground hover:bg-muted-foreground/20"
+                        : canNavigate
+                        ? "bg-muted text-muted-foreground hover:bg-muted-foreground/20"
+                        : "bg-muted text-muted-foreground cursor-not-allowed"
                     )}
                   >
                     {step.completed ? (
@@ -153,7 +180,8 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
                   />
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
 
         </div>

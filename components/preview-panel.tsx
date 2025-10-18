@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Play, ImageIcon, Video, Layers, Sparkles, DollarSign, Plus, Minus, Building2, Check, Facebook, Loader2, Edit2, RefreshCw, X, Palette, Type, MapPin, Users, Target, Rocket } from "lucide-react"
+import { Play, ImageIcon, Video, Layers, Sparkles, DollarSign, Plus, Minus, Building2, Check, Facebook, Loader2, Edit2, RefreshCw, X, Palette, Type, MapPin, Users, Target, Rocket, Flag } from "lucide-react"
 import { LocationSelectionCanvas } from "./location-selection-canvas"
 import { AudienceSelectionCanvas } from "./audience-selection-canvas"
 import { AdCopySelectionCanvas } from "./ad-copy-selection-canvas"
@@ -698,7 +698,7 @@ export function PreviewPanel() {
       description: "Select who should see your ads",
       completed: audienceState.status === "completed",
       content: <AudienceSelectionCanvas />,
-      icon: Users,
+      icon: Target,
     },
     {
       id: "goal",
@@ -707,7 +707,7 @@ export function PreviewPanel() {
       description: "Choose what you want to achieve with your ads",
       completed: goalState.status === "completed",
       content: <GoalSelectionCanvas />,
-      icon: Target,
+      icon: Flag,
     },
     {
       id: "budget",

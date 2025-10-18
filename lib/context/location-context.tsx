@@ -1,6 +1,8 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { useCampaign } from "@/lib/hooks/use-campaign"
+import { useDebounce } from "@/lib/hooks/use-debounce"
 
 interface Location {
   id: string
@@ -34,10 +36,30 @@ interface LocationContextType {
 const LocationContext = createContext<LocationContextType | undefined>(undefined)
 
 export function LocationProvider({ children }: { children: ReactNode }) {
+  const { campaign, saveCampaignState } = useCampaign()
   const [locationState, setLocationState] = useState<LocationState>({
     locations: [],
     status: "idle",
   })
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Load initial state from campaign
+  useEffect(() => {
+    if (campaign?.campaign_states?.[0]?.location_data && !isInitialized) {
+      const savedData = campaign.campaign_states[0].location_data
+      setLocationState(savedData)
+      setIsInitialized(true)
+    }
+  }, [campaign, isInitialized])
+
+  // Debounced auto-save
+  const debouncedLocationState = useDebounce(locationState, 1000)
+
+  useEffect(() => {
+    if (isInitialized && campaign?.id) {
+      saveCampaignState('location_data', debouncedLocationState)
+    }
+  }, [debouncedLocationState, saveCampaignState, campaign?.id, isInitialized])
 
   const addLocations = (newLocations: Location[], shouldMerge: boolean = true) => {
     setLocationState(prev => {

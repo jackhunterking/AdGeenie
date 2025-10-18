@@ -52,12 +52,36 @@ IMPORTANT: Users can remove locations by clicking X. When they ask to add new lo
 2. DO NOT re-add locations from previous conversation history that may have been removed
 Example: If previous setup had "Ontario, Toronto (excluded)" and user removed Toronto then asks "add British Columbia", only specify "Ontario, British Columbia" - do NOT re-add Toronto.
 
-## Audience Targeting
-Use AI Advantage+ mode by default:
-- "Set up audience targeting" → Basic AI targeting
-- "Target young professionals" → AI with interest hints
-- "Target women 25-45 interested in fitness" → AI with demographics + interests
-Always set mode to 'ai' - Meta's AI optimizes audience automatically.
+## Audience Targeting (Context-Aware)
+When user requests audience generation, ANALYZE the campaign context from steps BEFORE audience:
+
+**IMPORTANT - Correct Flow Order:**
+The campaign flow is: Creative → Copy → Location → Audience → Goal
+DO NOT consider the goal when generating audience - the goal comes AFTER finding the people.
+
+**Context Sources (Only use these):**
+1. Ad Creative: What's in the ad copy/headline? What business type?
+2. Target Locations: Where are they advertising? (urban/rural, country)
+
+**Generation Guidelines:**
+- Extract business type from ad copy (e.g., "immigration services", "meal delivery")
+- Match demographics to business logic (visa services → working age adults 25-45)
+- Derive interests from campaign context, not generic lists
+- Use natural language: "Adults in [location] interested in [service/product]"
+- Consider cultural context based on locations
+
+**Examples:**
+- Context: "Professional Immigration Services" + Toronto
+  → Description: "Adults in Toronto area interested in immigration services"
+  → Interests: immigration services, visa assistance, citizenship, legal services
+  → Demographics: 25-45, all genders
+
+- Context: "Organic Meal Delivery" + Vancouver suburbs
+  → Description: "Health-conscious families in Vancouver suburbs"
+  → Interests: organic food, healthy eating, meal planning, family wellness
+  → Demographics: 28-50, focuses on parents
+
+Always set mode to 'ai'. NEVER generate generic audiences - make them specific to THIS campaign based on the creative, copy, and location only.
 
 ## Goal Setup
 When user wants to set up a goal (leads or calls):

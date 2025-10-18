@@ -1,6 +1,8 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { useCampaign } from "@/lib/hooks/use-campaign"
+import { useDebounce } from "@/lib/hooks/use-debounce"
 
 interface AdCopyVariation {
   id: string
@@ -23,10 +25,30 @@ interface AdCopyContextType {
 const AdCopyContext = createContext<AdCopyContextType | undefined>(undefined)
 
 export function AdCopyProvider({ children }: { children: ReactNode }) {
+  const { campaign, saveCampaignState } = useCampaign()
   const [adCopyState, setAdCopyState] = useState<AdCopyState>({
     selectedCopyIndex: null,
     status: "idle",
   })
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Load initial state from campaign
+  useEffect(() => {
+    if (campaign?.campaign_states?.[0]?.ad_copy_data && !isInitialized) {
+      const savedData = campaign.campaign_states[0].ad_copy_data
+      setAdCopyState(savedData)
+      setIsInitialized(true)
+    }
+  }, [campaign, isInitialized])
+
+  // Debounced auto-save
+  const debouncedAdCopyState = useDebounce(adCopyState, 1000)
+
+  useEffect(() => {
+    if (isInitialized && campaign?.id) {
+      saveCampaignState('ad_copy_data', debouncedAdCopyState)
+    }
+  }, [debouncedAdCopyState, saveCampaignState, campaign?.id, isInitialized])
 
   const setSelectedCopyIndex = (index: number | null) => {
     setAdCopyState({

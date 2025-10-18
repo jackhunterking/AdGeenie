@@ -248,13 +248,6 @@ export function LocationSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-bold">Location Targeting</h2>
-            <p className="text-muted-foreground">
-              Ask AI to set your location, or choose one manually below.
-            </p>
-          </div>
-
           <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
             {/* AI-Assisted Targeting Card */}
             <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-purple-500 hover:bg-purple-500/5 transition-all duration-300">
@@ -277,13 +270,6 @@ export function LocationSelectionCanvas() {
               >
                 Set Location
               </Button>
-            </div>
-
-            {/* Manual Selection - Coming Soon */}
-            <div className="flex items-center justify-center py-3 px-4 rounded-lg border border-dashed border-border/50 bg-muted/20">
-              <p className="text-sm text-muted-foreground">
-                Manual selections coming soon
-              </p>
             </div>
           </div>
         </div>
@@ -316,13 +302,6 @@ export function LocationSelectionCanvas() {
     return (
       <div className="flex flex-col h-full overflow-auto p-8">
         <div className="max-w-3xl w-full mx-auto space-y-6">
-          <div className="space-y-2 text-center pt-4">
-            <h2 className="text-3xl font-bold">Location Targeting</h2>
-            <p className="text-muted-foreground">
-              Your ads will target {locationState.locations.length} location{locationState.locations.length > 1 ? 's' : ''}
-            </p>
-          </div>
-
           {/* Map Display */}
           <div className="rounded-lg border-2 border-purple-500 bg-card overflow-hidden">
             <div ref={mapContainerRef} className="w-full h-[400px]" style={{ position: 'relative', isolation: 'isolate' }} />
@@ -368,12 +347,6 @@ export function LocationSelectionCanvas() {
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-            <p className="text-sm text-yellow-700 dark:text-yellow-600 text-center">
-              ⚠️ Once published, location targeting cannot be changed
-            </p>
           </div>
 
           <div className="flex justify-center gap-4 pt-4 pb-8">

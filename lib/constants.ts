@@ -1,3 +1,3 @@
 // Ad project branding constants
-export const COMPANY_NAME = "Toronto-Geo-Ads"
-export const COMPANY_TAGLINE = "Build for the web 20x faster"
+export const COMPANY_NAME = "AdGeenie"
+export const COMPANY_TAGLINE = "AI-Powered Meta Ads That Drive Results"
