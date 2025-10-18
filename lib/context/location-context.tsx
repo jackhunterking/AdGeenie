@@ -51,7 +51,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.location_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].location_data as LocationState
+      const savedData = campaign.campaign_states[0].location_data as unknown as LocationState
       setLocationState(savedData)
       setIsInitialized(true)
     }

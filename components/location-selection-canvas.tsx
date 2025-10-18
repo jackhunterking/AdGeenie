@@ -98,6 +98,8 @@ export function LocationSelectionCanvas() {
           mapRef.current = null
         }
 
+        if (!mapContainerRef.current) return
+
         mapRef.current = window.L.map(mapContainerRef.current, {
           center: [20, 0],
           zoom: 2,
@@ -138,6 +140,8 @@ export function LocationSelectionCanvas() {
       return
     }
 
+    const map = mapRef.current // Store in local variable for TypeScript
+
     // Clear existing markers and shapes
     markersRef.current.forEach(marker => marker.remove())
     markersRef.current = []
@@ -148,7 +152,7 @@ export function LocationSelectionCanvas() {
     console.log("[Map] Updating with locations:", locations.length)
 
     if (locations.length === 0) {
-      mapRef.current.setView([20, 0], 2)
+      map.setView([20, 0], 2)
       return
     }
 
@@ -169,7 +173,7 @@ export function LocationSelectionCanvas() {
     })
 
     if (validLocations.length === 0) {
-      mapRef.current.setView([20, 0], 2)
+      map.setView([20, 0], 2)
       return
     }
 
@@ -178,7 +182,8 @@ export function LocationSelectionCanvas() {
       const color = location.mode === "include" ? "#9333EA" : "#DC2626"
 
       // Add marker
-      const marker = window.L.circleMarker(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const marker: any = window.L.circleMarker(
         [location.coordinates[1], location.coordinates[0]],
         {
           radius: 8,
@@ -188,13 +193,13 @@ export function LocationSelectionCanvas() {
           opacity: 1,
           fillOpacity: 0.9,
         }
-      ).addTo(mapRef.current)
+      ).addTo(map)
 
       marker.bindPopup(`<strong>${location.name}</strong>`)
       markersRef.current.push(marker)
 
       // Add radius circle or boundaries based on type
-      if (location.type === "radius" && location.radius && mapRef.current) {
+      if (location.type === "radius" && location.radius) {
         const radiusInMeters = location.radius * 1609.34
         const circle = window.L.circle(
           [location.coordinates[1], location.coordinates[0]],
@@ -206,9 +211,9 @@ export function LocationSelectionCanvas() {
             weight: 2,
             opacity: 0.6,
           }
-        ).addTo(mapRef.current)
+        ).addTo(map)
         shapesRef.current.push(circle)
-      } else if (location.geometry && mapRef.current) {
+      } else if (location.geometry) {
         try {
           const geoJsonLayer = window.L.geoJSON(location.geometry, {
             style: {
@@ -218,7 +223,7 @@ export function LocationSelectionCanvas() {
               weight: 3,
               opacity: 0.9,
             }
-          }).addTo(mapRef.current)
+          }).addTo(map)
           shapesRef.current.push(geoJsonLayer)
         } catch (error) {
           console.error("Error adding boundary:", error)
@@ -227,7 +232,8 @@ export function LocationSelectionCanvas() {
     })
 
     // Fit map to show all locations
-    const bounds = window.L.latLngBounds()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bounds: any = window.L.latLngBounds()
     validLocations.forEach(loc => {
       if (loc.bbox) {
         bounds.extend([loc.bbox[1], loc.bbox[0]])
@@ -238,7 +244,7 @@ export function LocationSelectionCanvas() {
     })
     
     if (bounds.isValid()) {
-      mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 })
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 })
       console.log("[Map] Fitted bounds successfully")
     }
 
@@ -370,7 +376,7 @@ export function LocationSelectionCanvas() {
                   {includedLocations.map((location) => (
                     <LocationCard
                       key={location.id}
-                      location={location}
+                      location={location as LocationData}
                       onRemove={removeLocation}
                     />
                   ))}
@@ -389,7 +395,7 @@ export function LocationSelectionCanvas() {
                   {excludedLocations.map((location) => (
                     <LocationCard
                       key={location.id}
-                      location={location}
+                      location={location as LocationData}
                       onRemove={removeLocation}
                       isExcluded
                     />

@@ -20,6 +20,7 @@ interface SelectFormTabProps {
 export function SelectFormTab({ onFormSelected }: SelectFormTabProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
+  const [isLoading] = useState(false)
 
   // Mock data - will be replaced with API call
   const forms: LeadForm[] = [

@@ -44,7 +44,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.goal_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].goal_data as GoalState
+      const savedData = campaign.campaign_states[0].goal_data as unknown as GoalState
       setGoalState(savedData)
       setIsInitialized(true)
     }

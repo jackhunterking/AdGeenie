@@ -33,7 +33,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.budget_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].budget_data as BudgetState
+      const savedData = campaign.campaign_states[0].budget_data as unknown as BudgetState
       setBudgetState(savedData)
       setIsInitialized(true)
     }

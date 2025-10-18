@@ -56,7 +56,7 @@ export function AudienceProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.audience_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].audience_data as AudienceState
+      const savedData = campaign.campaign_states[0].audience_data as unknown as AudienceState
       setAudienceState(savedData)
       setIsInitialized(true)
     }

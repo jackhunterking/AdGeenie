@@ -20,12 +20,12 @@ interface AdReferenceCardProps {
     variationNumber?: number
     variationTitle?: string
     copyNumber?: number
-    format: 'feed' | 'story' | 'reel'
+    format?: 'feed' | 'story' | 'reel'
     gradient?: string
     content?: {
-      primaryText: string
-      headline: string
-      description: string
+      primaryText?: string
+      headline?: string
+      description?: string
     }
     preview?: {
       brandName?: string
@@ -33,7 +33,7 @@ interface AdReferenceCardProps {
       body?: string
       gradient?: string
       imageUrl?: string
-      dimensions: {
+      dimensions?: {
         width: number
         height: number
         aspect: string

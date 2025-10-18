@@ -400,16 +400,16 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
                 name: loc.name,
                 coordinates,
                 radius: loc.radius || 30,
-                type: loc.type,
-                mode: loc.mode,
-                bbox,
+                type: loc.type as "radius" | "city" | "region" | "country",
+                mode: loc.mode as "include" | "exclude",
+                bbox: bbox || undefined,
                 geometry,
               };
             })
           );
           
           // Filter out any null values (failed geocoding)
-          const validLocations = locationsWithCoords.filter(loc => loc !== null);
+          const validLocations = locationsWithCoords.filter((loc): loc is NonNullable<typeof loc> => loc !== null);
           
           // Check if any locations were successfully geocoded
           if (validLocations.length === 0) {
@@ -566,7 +566,7 @@ Make it conversational and easy to understand for a business owner.`,
     const handleOpenAudienceChat = (event: CustomEvent<AudienceContext>) => {
       const context = event.detail;
       // Store the audience context for display
-      setAudienceContext(context.currentAudience);
+      setAudienceContext(context.currentAudience || null);
       
       // Set placeholder with natural language
       setCustomPlaceholder("What would you like to change about who sees this?");
@@ -1000,8 +1000,8 @@ Make it conversational and easy to understand for a business owner.`,
                                     setAudienceTargeting({
                                       mode: 'ai',
                                       description: input.description,
-                                      interests: input.interests,
-                                      demographics: input.demographics
+                                      interests: input.interests ? (Array.isArray(input.interests) ? input.interests : [input.interests]) : undefined,
+                                      demographics: typeof input.demographics === 'object' ? input.demographics : undefined
                                     });
 
                                     // Complete the tool call
@@ -1195,8 +1195,8 @@ Make it conversational and easy to understand for a business owner.`,
                                       setTimeout(() => {
                                         setFormData({
                                           id: output.formData?.formId,
-                                          name: output.formData?.formName || "New Instant Form",
-                                          type: output.conversionMethod,
+                                          name: "New Instant Form",
+                                          type: undefined,
                                         });
                                       }, 100);
                                     }
@@ -1209,7 +1209,7 @@ Make it conversational and easy to understand for a business owner.`,
                                         <CheckCircle2 className="h-5 w-5 text-green-600" />
                                         <p className="font-medium text-green-600">Goal Setup Complete</p>
                                       </div>
-                                      <p className="text-sm text-muted-foreground">{output.explanation || "Your goal has been set up successfully!"}</p>
+                                      <p className="text-sm text-muted-foreground">Your goal has been set up successfully!</p>
                                     </div>
                                   );
                                 }
@@ -1264,7 +1264,7 @@ Make it conversational and easy to understand for a business owner.`,
                   {message.role === "assistant" && isLastMessage && (
                     <Actions className="ml-14 mt-2">
                       <Action
-                        onClick={() => handleCopy(message)}
+                        onClick={() => handleCopy(message as unknown as ChatMessage)}
                         label="Copy"
                         tooltip="Copy to clipboard"
                       >
