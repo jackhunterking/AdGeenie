@@ -4,10 +4,11 @@ import { supabaseServer } from '@/lib/supabase/server'
 // PATCH /api/campaigns/[id]/state - Update campaign state
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const campaignId = params.id
+    const { id } = await params
+    const campaignId = id
     const body = await request.json()
     
     // Validate that at least one field is being updated
@@ -69,10 +70,11 @@ export async function PATCH(
 // GET /api/campaigns/[id]/state - Get campaign state
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const campaignId = params.id
+    const { id } = await params
+    const campaignId = id
 
     const { data, error } = await supabaseServer
       .from('campaign_states')

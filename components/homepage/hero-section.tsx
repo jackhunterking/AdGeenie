@@ -15,6 +15,20 @@ interface HeroSectionProps {
   onAuthRequired: () => void
 }
 
+// Move placeholders outside to avoid recreating on every render
+const PLACEHOLDERS = [
+  "I run a fitness coaching business...",
+  "I have a B2B SaaS platform...",
+  "I run an immigration law firm...",
+  "I have an e-commerce kitchen store...",
+  "I own a real estate agency...",
+  "I run a digital marketing agency...",
+  "I own a yoga studio...",
+  "I have a tech startup...",
+  "I run a plumbing service and need local calls...",
+  "I have a restaurant and want more reservations...",
+]
+
 // Custom hook for typewriter effect
 const useTypewriterPlaceholder = () => {
   const [placeholder, setPlaceholder] = useState("")
@@ -22,21 +36,8 @@ const useTypewriterPlaceholder = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
 
-  const placeholders = [
-    "I run a fitness coaching business...",
-    "I have a B2B SaaS platform...",
-    "I run an immigration law firm...",
-    "I have an e-commerce kitchen store...",
-    "I own a real estate agency...",
-    "I run a digital marketing agency...",
-    "I own a yoga studio...",
-    "I have a tech startup...",
-    "I run a plumbing service and need local calls...",
-    "I have a restaurant and want more reservations...",
-  ]
-
   useEffect(() => {
-    const currentText = placeholders[currentIndex]
+    const currentText = PLACEHOLDERS[currentIndex]
     
     if (isPaused) {
       const pauseTimer = setTimeout(() => {
@@ -55,7 +56,7 @@ const useTypewriterPlaceholder = () => {
     if (isDeleting && placeholder === "") {
       // Finished deleting, move to next placeholder
       setIsDeleting(false)
-      setCurrentIndex((prev) => (prev + 1) % placeholders.length)
+      setCurrentIndex((prev) => (prev + 1) % PLACEHOLDERS.length)
       return
     }
 
@@ -73,7 +74,7 @@ const useTypewriterPlaceholder = () => {
     )
 
     return () => clearTimeout(timeout)
-  }, [placeholder, currentIndex, isDeleting, isPaused, placeholders])
+  }, [placeholder, currentIndex, isDeleting, isPaused])
 
   return placeholder
 }

@@ -254,7 +254,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
           toolCallId,
           output: imageUrl,
         });
-      } catch (err) {
+      } catch {
         addToolResult({
           tool: 'generateImage',
           toolCallId,
@@ -439,7 +439,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
     };
 
     processCalls();
-  }, [pendingLocationCalls, processingLocations, addLocations, updateLocationStatus]);
+  }, [pendingLocationCalls, processingLocations, addLocations, updateLocationStatus, addToolResult]);
 
   // Listen for goal setup trigger from canvas
   useEffect(() => {

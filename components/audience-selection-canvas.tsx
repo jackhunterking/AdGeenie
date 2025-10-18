@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useAudience } from "@/lib/context/audience-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
-import { useGoal } from "@/lib/context/goal-context"
 import { useLocation } from "@/lib/context/location-context"
 
 export function AudienceSelectionCanvas() {
