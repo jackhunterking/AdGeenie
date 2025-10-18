@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button"
 import { ChevronDown, ArrowLeft, Edit, Moon, Sun, Check } from "lucide-react"
 import { COMPANY_NAME } from "@/lib/constants"
 import { useTheme } from "next-themes"
-import { useAdPreview } from "@/lib/context/ad-preview-context"
-import { useGoal } from "@/lib/context/goal-context"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +22,7 @@ import {
 export function Dashboard() {
   const params = useParams()
   const searchParams = useSearchParams()
-  const [credits, setCredits] = useState(205.5)
+  const [credits] = useState(205.5)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [initialPrompt, setInitialPrompt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)

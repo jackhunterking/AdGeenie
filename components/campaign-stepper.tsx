@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Check, ChevronLeft, ChevronRight, LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -98,8 +98,6 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
     window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: index > currentStepIndex ? 'forward' : 'backward' } }))
   }
 
-  const completedCount = steps.filter(step => step.completed).length
-  
   // Get dynamic header content for current step
   const currentStepHeader = stepHeaders[currentStep.id] || {
     title: currentStep.title,

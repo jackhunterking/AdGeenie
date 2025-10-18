@@ -15,7 +15,6 @@ import {
   PromptInputAttachment,
   PromptInputAttachments,
   PromptInputBody,
-  PromptInputButton,
   type PromptInputMessage,
   PromptInputSubmit,
   PromptInputTextarea,
@@ -125,9 +124,9 @@ interface AIChatProps {
 
 const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   const [input, setInput] = useState("");
-  const [model, setModel] = useState<string>("openai/gpt-4o");
+  const [model] = useState<string>("openai/gpt-4o");
   const { setAdContent } = useAdPreview();
-  const { goalState, setFormData, updateStatus, setError, resetGoal } = useGoal();
+  const { goalState, setFormData, setError, resetGoal } = useGoal();
   const { locationState, addLocations, updateStatus: updateLocationStatus } = useLocation();
   const { setAudienceTargeting, updateStatus: updateAudienceStatus } = useAudience();
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
@@ -292,7 +291,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
           toolCallId,
           output: editedImageUrl,
         });
-      } catch (err) {
+      } catch {
         addToolResult({
           tool: 'editImage',
           toolCallId,
@@ -419,13 +418,13 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
               failedCount: input.locations.length - validLocations.length,
             },
           });
-        } catch (err) {
+        } catch {
           addToolResult({
             tool: 'locationTargeting',
             toolCallId,
             output: undefined,
             errorText: 'Failed to set location targeting',
-          } as any);
+          } as ToolResult);
         } finally {
           setProcessingLocations(prev => {
             const newSet = new Set(prev);
@@ -440,11 +439,11 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
     };
 
     processCalls();
-  }, [pendingLocationCalls, processingLocations, addToolResult]);
+  }, [pendingLocationCalls, processingLocations, addLocations, updateLocationStatus]);
 
   // Listen for goal setup trigger from canvas
   useEffect(() => {
-    const handleGoalSetup = (event: any) => {
+    const handleGoalSetup = (event: CustomEvent<{ goalType: string }>) => {
       const { goalType } = event.detail;
       
       // Send a message to AI to start goal setup
@@ -581,7 +580,7 @@ Make it conversational and easy to understand for a business owner.`,
       }, 100);
     };
 
-    const handleSendMessageToAI = (event: any) => {
+    const handleSendMessageToAI = (event: CustomEvent<{ message: string; reference?: { action?: string } }>) => {
       const { message, reference } = event.detail;
       
       // Only used for other purposes, not for edit button

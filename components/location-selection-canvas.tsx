@@ -23,6 +23,16 @@ interface LeafletShape {
   [key: string]: unknown;
 }
 
+interface LocationData {
+  id: string;
+  name: string;
+  type: string;
+  mode?: string;
+  radius?: number;
+  coordinates: [number, number];
+  [key: string]: unknown;
+}
+
 declare global {
   interface Window {
     L: {
@@ -436,7 +446,7 @@ function LocationCard({
   onRemove,
   isExcluded = false 
 }: { 
-  location: any
+  location: LocationData
   onRemove: (id: string) => void
   isExcluded?: boolean
 }) {

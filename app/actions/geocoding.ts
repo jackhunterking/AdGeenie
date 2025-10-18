@@ -14,11 +14,6 @@ interface GeoJSONGeometry {
   coordinates: number[] | number[][] | number[][][] | number[][][][];
 }
 
-interface GeoJSONFeature {
-  geometry: GeoJSONGeometry;
-  bbox?: number[];
-}
-
 // Use OpenStreetMap Nominatim API for geocoding (FREE!)
 export async function searchLocations(query: string) {
   try {

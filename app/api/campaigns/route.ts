@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase/server'
 
 // GET /api/campaigns - List user's campaigns
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get user from auth
     const { data: { user }, error: authError } = await supabaseServer.auth.getUser()

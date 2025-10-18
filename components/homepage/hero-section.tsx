@@ -73,7 +73,7 @@ const useTypewriterPlaceholder = () => {
     )
 
     return () => clearTimeout(timeout)
-  }, [placeholder, currentIndex, isDeleting, isPaused])
+  }, [placeholder, currentIndex, isDeleting, isPaused, placeholders])
 
   return placeholder
 }

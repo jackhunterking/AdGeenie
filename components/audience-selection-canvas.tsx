@@ -1,6 +1,6 @@
 "use client"
 
-import { Users, Sparkles, Check, Loader2, Lock, Target, Palette, Type, MapPin, Flag, Edit2 } from "lucide-react"
+import { Users, Sparkles, Check, Loader2, Lock, Target, Palette, Type, MapPin, Edit2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -12,7 +12,6 @@ import { useLocation } from "@/lib/context/location-context"
 export function AudienceSelectionCanvas() {
   const { audienceState, resetAudience, updateStatus, setSelected } = useAudience()
   const { isPublished, adContent } = useAdPreview()
-  const { goalState } = useGoal()
   const { locationState } = useLocation()
   
   const isSelected = audienceState.isSelected

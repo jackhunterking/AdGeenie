@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { MapPin, Plus, X, Search, Pencil, Target } from "lucide-react"
+import { MapPin, X, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { searchLocations } from "@/app/actions/geocoding"
 
 interface LeafletMap {
   remove(): void;
