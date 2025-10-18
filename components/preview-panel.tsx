@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Play, ImageIcon, Video, Layers, Sparkles, DollarSign, Plus, Minus, Building2, Check, Facebook, Loader2, Edit2, RefreshCw, X, Palette, Type, MapPin, Users, Target, Rocket, Flag } from "lucide-react"
+import { Play, ImageIcon, Video, Layers, Sparkles, DollarSign, Plus, Minus, Building2, Check, Facebook, Loader2, Edit2, RefreshCw, Palette, Type, MapPin, Target, Rocket, Flag } from "lucide-react"
 import { LocationSelectionCanvas } from "./location-selection-canvas"
 import { AudienceSelectionCanvas } from "./audience-selection-canvas"
 import { AdCopySelectionCanvas } from "./ad-copy-selection-canvas"

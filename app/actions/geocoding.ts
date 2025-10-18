@@ -107,14 +107,15 @@ function calculateBBoxFromGeometry(geometry: GeoJSONGeometry): [number, number, 
 
   const processCoords = (coords: number[] | number[][] | number[][][] | number[][][][]): void => {
     if (typeof coords[0] === 'number') {
-      // It's a coordinate pair [lng, lat]
-      minLng = Math.min(minLng, coords[0])
-      maxLng = Math.max(maxLng, coords[0])
-      minLat = Math.min(minLat, coords[1])
-      maxLat = Math.max(maxLat, coords[1])
+      // Type assertion after runtime check - it's a coordinate pair [lng, lat]
+      const [lng, lat] = coords as number[]
+      minLng = Math.min(minLng, lng)
+      maxLng = Math.max(maxLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLat = Math.max(maxLat, lat)
     } else {
       // It's an array of coordinates, recurse
-      coords.forEach(processCoords)
+      (coords as (number[] | number[][] | number[][][] | number[][][][])[]).forEach(c => processCoords(c))
     }
   }
 

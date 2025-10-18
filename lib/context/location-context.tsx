@@ -51,7 +51,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.location_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].location_data
+      const savedData = campaign.campaign_states[0].location_data as LocationState
       setLocationState(savedData)
       setIsInitialized(true)
     }
@@ -62,7 +62,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isInitialized && campaign?.id) {
-      saveCampaignState('location_data', debouncedLocationState)
+      saveCampaignState('location_data', debouncedLocationState as unknown as Record<string, unknown>)
     }
   }, [debouncedLocationState, saveCampaignState, campaign?.id, isInitialized])
 

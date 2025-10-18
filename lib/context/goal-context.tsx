@@ -44,7 +44,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.goal_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].goal_data
+      const savedData = campaign.campaign_states[0].goal_data as GoalState
       setGoalState(savedData)
       setIsInitialized(true)
     }
@@ -55,7 +55,7 @@ export function GoalProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isInitialized && campaign?.id) {
-      saveCampaignState('goal_data', debouncedGoalState)
+      saveCampaignState('goal_data', debouncedGoalState as unknown as Record<string, unknown>)
     }
   }, [debouncedGoalState, saveCampaignState, campaign?.id, isInitialized])
 

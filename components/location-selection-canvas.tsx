@@ -7,19 +7,28 @@ import { useLocation } from "@/lib/context/location-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
 import { useEffect, useRef, useState } from "react"
 
+interface LeafletBounds {
+  isValid(): boolean;
+  [key: string]: unknown;
+}
+
 interface LeafletMap {
   remove(): void;
-  invalidateSize(): void;
+  invalidateSize(options?: unknown): void;
+  fitBounds(bounds: LeafletBounds, options?: unknown): void;
+  setView(coords: [number, number], zoom: number): void;
   [key: string]: unknown;
 }
 
 interface LeafletMarker {
   remove(): void;
+  addTo(map: LeafletMap): LeafletMarker;
   [key: string]: unknown;
 }
 
 interface LeafletShape {
   remove(): void;
+  addTo(map: LeafletMap): LeafletShape;
   [key: string]: unknown;
 }
 
@@ -30,6 +39,11 @@ interface LocationData {
   mode?: string;
   radius?: number;
   coordinates: [number, number];
+  bbox?: [number, number, number, number];
+  geometry?: {
+    type: string;
+    coordinates: number[] | number[][] | number[][][] | number[][][][];
+  };
   [key: string]: unknown;
 }
 
@@ -38,10 +52,12 @@ declare global {
     L: {
       map(element: HTMLElement, options?: unknown): LeafletMap;
       tileLayer(url: string, options?: unknown): { addTo(map: LeafletMap): void };
-      marker(coords: [number, number], options?: unknown): LeafletMarker & { addTo(map: LeafletMap): LeafletMarker };
-      circle(coords: [number, number], options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
-      geoJSON(data: unknown, options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
-      latLngBounds(coords: [number, number][]): { isValid(): boolean };
+      marker(coords: [number, number], options?: unknown): LeafletMarker;
+      circle(coords: [number, number], options?: unknown): LeafletShape;
+      circleMarker(coords: [number, number], options?: unknown): LeafletMarker;
+      geoJSON(data: unknown, options?: unknown): LeafletShape;
+      latLngBounds(): LeafletBounds;
+      rectangle(bounds: [[number, number], [number, number]], options?: unknown): LeafletShape;
       [key: string]: unknown;
     };
   }
@@ -178,7 +194,7 @@ export function LocationSelectionCanvas() {
       markersRef.current.push(marker)
 
       // Add radius circle or boundaries based on type
-      if (location.type === "radius" && location.radius) {
+      if (location.type === "radius" && location.radius && mapRef.current) {
         const radiusInMeters = location.radius * 1609.34
         const circle = window.L.circle(
           [location.coordinates[1], location.coordinates[0]],
@@ -192,7 +208,7 @@ export function LocationSelectionCanvas() {
           }
         ).addTo(mapRef.current)
         shapesRef.current.push(circle)
-      } else if (location.geometry) {
+      } else if (location.geometry && mapRef.current) {
         try {
           const geoJsonLayer = window.L.geoJSON(location.geometry, {
             style: {

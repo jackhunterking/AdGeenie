@@ -35,7 +35,7 @@ export function AdCopyProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.ad_copy_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].ad_copy_data
+      const savedData = campaign.campaign_states[0].ad_copy_data as AdCopyState
       setAdCopyState(savedData)
       setIsInitialized(true)
     }
@@ -46,7 +46,7 @@ export function AdCopyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isInitialized && campaign?.id) {
-      saveCampaignState('ad_copy_data', debouncedAdCopyState)
+      saveCampaignState('ad_copy_data', debouncedAdCopyState as unknown as Record<string, unknown>)
     }
   }, [debouncedAdCopyState, saveCampaignState, campaign?.id, isInitialized])
 

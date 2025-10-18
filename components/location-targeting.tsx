@@ -5,19 +5,28 @@ import { MapPin, X, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
+interface LeafletBounds {
+  isValid(): boolean;
+  [key: string]: unknown;
+}
+
 interface LeafletMap {
   remove(): void;
-  invalidateSize(): void;
+  invalidateSize(options?: unknown): void;
+  fitBounds(bounds: LeafletBounds, options?: unknown): void;
+  setView(coords: [number, number], zoom: number): void;
   [key: string]: unknown;
 }
 
 interface LeafletMarker {
   remove(): void;
+  addTo(map: LeafletMap): LeafletMarker;
   [key: string]: unknown;
 }
 
 interface LeafletShape {
   remove(): void;
+  addTo(map: LeafletMap): LeafletShape;
   [key: string]: unknown;
 }
 
@@ -31,10 +40,12 @@ declare global {
     L: {
       map(element: HTMLElement, options?: unknown): LeafletMap;
       tileLayer(url: string, options?: unknown): { addTo(map: LeafletMap): void };
-      marker(coords: [number, number], options?: unknown): LeafletMarker & { addTo(map: LeafletMap): LeafletMarker };
-      circle(coords: [number, number], options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
-      geoJSON(data: unknown, options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
-      latLngBounds(coords: [number, number][]): { isValid(): boolean };
+      marker(coords: [number, number], options?: unknown): LeafletMarker;
+      circle(coords: [number, number], options?: unknown): LeafletShape;
+      circleMarker(coords: [number, number], options?: unknown): LeafletMarker;
+      geoJSON(data: unknown, options?: unknown): LeafletShape;
+      latLngBounds(): LeafletBounds;
+      rectangle(bounds: [[number, number], [number, number]], options?: unknown): LeafletShape;
       [key: string]: unknown;
     };
   }
@@ -131,6 +142,8 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
       const color = location.mode === "include" ? "#9333EA" : "#DC2626"
 
       // Add marker
+      if (!mapRef.current) return;
+      
       const marker = window.L.circleMarker(
         [location.coordinates[1], location.coordinates[0]], // Leaflet uses [lat, lng]
         {
@@ -147,7 +160,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
       markersRef.current.push(marker)
 
       // Add circle for radius type
-      if (location.type === "radius" && location.radius) {
+      if (location.type === "radius" && location.radius && mapRef.current) {
         const radiusInMeters = location.radius * 1609.34 // miles to meters
         const circle = window.L.circle(
           [location.coordinates[1], location.coordinates[0]],
@@ -164,7 +177,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
         shapesRef.current.push(circle)
       }
       // Add boundary for city/region/country
-      else if (location.geometry && (location.type === "city" || location.type === "region" || location.type === "country")) {
+      else if (location.geometry && (location.type === "city" || location.type === "region" || location.type === "country") && mapRef.current) {
         try {
           const geoJsonLayer = window.L.geoJSON(location.geometry, {
             style: {
@@ -211,7 +224,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
   }, [locations])
 
   const addBboxRectangle = (location: Location, color: string) => {
-    if (!location.bbox || !window.L) return
+    if (!location.bbox || !window.L || !mapRef.current) return
 
     const [minLng, minLat, maxLng, maxLat] = location.bbox
 

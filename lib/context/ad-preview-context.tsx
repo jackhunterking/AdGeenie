@@ -40,7 +40,11 @@ export function AdPreviewProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.ad_preview_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].ad_preview_data
+      const savedData = campaign.campaign_states[0].ad_preview_data as unknown as {
+        adContent?: AdContent | null;
+        isPublished?: boolean;
+        selectedCreativeVariation?: CreativeVariation | null;
+      }
       if (savedData.adContent) setAdContent(savedData.adContent)
       if (savedData.isPublished !== undefined) setIsPublished(savedData.isPublished)
       if (savedData.selectedCreativeVariation) setSelectedCreativeVariation(savedData.selectedCreativeVariation)

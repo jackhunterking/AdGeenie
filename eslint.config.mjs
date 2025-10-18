@@ -11,6 +11,25 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    rules: {
+      // Allow img tags for dynamic/external content (AI-generated images, user uploads, social previews)
+      '@next/next/no-img-element': 'off',
+      
+      // Keep strict TypeScript rules
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { 
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_'
+      }],
+      
+      // React hooks - enforce but allow flexibility for complex cases
+      'react-hooks/exhaustive-deps': 'warn',
+      
+      // Enforce proper entity escaping
+      'react/no-unescaped-entities': 'error',
+    }
+  }
 ];
 
 export default eslintConfig;

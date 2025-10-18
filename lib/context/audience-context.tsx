@@ -56,7 +56,7 @@ export function AudienceProvider({ children }: { children: ReactNode }) {
   // Load initial state from campaign
   useEffect(() => {
     if (campaign?.campaign_states?.[0]?.audience_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].audience_data
+      const savedData = campaign.campaign_states[0].audience_data as AudienceState
       setAudienceState(savedData)
       setIsInitialized(true)
     }
@@ -67,7 +67,7 @@ export function AudienceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isInitialized && campaign?.id) {
-      saveCampaignState('audience_data', debouncedAudienceState)
+      saveCampaignState('audience_data', debouncedAudienceState as unknown as Record<string, unknown>)
     }
   }, [debouncedAudienceState, saveCampaignState, campaign?.id, isInitialized])
 
