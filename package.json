@@ -25,6 +25,7 @@
     "@radix-ui/react-tabs": "latest",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
+    "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.75.1",
     "ai": "^5.0.8",
     "class-variance-authority": "^0.7.1",
