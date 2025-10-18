@@ -1,6 +1,6 @@
 "use client"
 
-import { MapPin, Loader2, Lock, Plus, X, Sparkles, Wrench } from "lucide-react"
+import { MapPin, Loader2, Lock, Plus, X, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useLocation } from "@/lib/context/location-context"
@@ -255,7 +255,7 @@ export function LocationSelectionCanvas() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
             {/* AI-Assisted Targeting Card */}
             <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-purple-500 hover:bg-purple-500/5 transition-all duration-300">
               <div className="h-20 w-20 rounded-2xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors relative mb-4">
@@ -279,28 +279,11 @@ export function LocationSelectionCanvas() {
               </Button>
             </div>
 
-            {/* Manual Selection Card */}
-            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border opacity-60">
-              <div className="h-20 w-20 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-4 relative">
-                <MapPin className="h-10 w-10 text-purple-600" />
-                <Wrench className="h-4 w-4 text-purple-600 absolute top-1 right-1" />
-              </div>
-              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-lg font-semibold">Manual Selection</h3>
-                <p className="text-sm text-muted-foreground">
-                  Browse and select locations from a list
-                </p>
-              </div>
-              <span className="absolute top-4 right-4 text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded-full">
-                Coming Soon
-              </span>
-              <Button
-                size="lg"
-                disabled
-                className="bg-purple-600 text-white px-8 opacity-50 cursor-not-allowed mt-auto"
-              >
-                Browse Locations
-              </Button>
+            {/* Manual Selection - Coming Soon */}
+            <div className="flex items-center justify-center py-3 px-4 rounded-lg border border-dashed border-border/50 bg-muted/20">
+              <p className="text-sm text-muted-foreground">
+                Manual selections coming soon
+              </p>
             </div>
           </div>
         </div>

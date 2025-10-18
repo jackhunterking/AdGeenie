@@ -6,6 +6,8 @@ import { AdPreviewProvider } from "@/lib/context/ad-preview-context";
 import { GoalProvider } from "@/lib/context/goal-context";
 import { LocationProvider } from "@/lib/context/location-context";
 import { AudienceProvider } from "@/lib/context/audience-context";
+import { BudgetProvider } from "@/lib/context/budget-context";
+import { AdCopyProvider } from "@/lib/context/ad-copy-context";
 import Script from "next/script";
 import { COMPANY_NAME } from "@/lib/constants";
 
@@ -48,7 +50,11 @@ export default function RootLayout({
             <GoalProvider>
               <LocationProvider>
                 <AudienceProvider>
-                  {children}
+                  <BudgetProvider>
+                    <AdCopyProvider>
+                      {children}
+                    </AdCopyProvider>
+                  </BudgetProvider>
                 </AudienceProvider>
               </LocationProvider>
             </GoalProvider>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Users, Sparkles, CheckCircle2, Loader2, Lock, Brain, Target, Wrench } from "lucide-react"
+import { Users, Sparkles, CheckCircle2, Loader2, Lock, Brain, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAudience } from "@/lib/context/audience-context"
@@ -82,7 +82,7 @@ export function AudienceSelectionCanvas() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
             {/* AI Advantage+ Card */}
             <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-cyan-500 bg-cyan-500/5 transition-all duration-300">
               <div className="h-20 w-20 rounded-2xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors relative mb-4">
@@ -105,28 +105,11 @@ export function AudienceSelectionCanvas() {
               </Button>
             </div>
 
-            {/* Manual Targeting Card */}
-            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border opacity-60">
-              <div className="h-20 w-20 rounded-2xl bg-cyan-500/10 flex items-center justify-center relative mb-4">
-                <Target className="h-10 w-10 text-cyan-600" />
-                <Wrench className="h-4 w-4 text-cyan-600 absolute top-1 right-1" />
-              </div>
-              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-lg font-semibold">Manual Targeting</h3>
-                <p className="text-sm text-muted-foreground">
-                  Manually configure custom audience settings
-                </p>
-              </div>
-              <span className="absolute top-4 right-4 text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded-full">
-                Coming Soon
-              </span>
-              <Button
-                size="lg"
-                disabled
-                className="bg-cyan-600 text-white px-8 mt-auto opacity-50 cursor-not-allowed"
-              >
-                Manual Setup
-              </Button>
+            {/* Manual Targeting - Coming Soon */}
+            <div className="flex items-center justify-center py-3 px-4 rounded-lg border border-dashed border-border/50 bg-muted/20">
+              <p className="text-sm text-muted-foreground">
+                Manual selections coming soon
+              </p>
             </div>
           </div>
         </div>

@@ -132,3 +132,5 @@ This document outlines the standardized typography system applied across all tab
 - **Before**: Default badge size (inconsistent)
 - **After**: Explicit `text-xs` for all badges
 
+
+
