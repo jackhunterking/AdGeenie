@@ -6,9 +6,38 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { searchLocations } from "@/app/actions/geocoding"
 
+interface LeafletMap {
+  remove(): void;
+  invalidateSize(): void;
+  [key: string]: unknown;
+}
+
+interface LeafletMarker {
+  remove(): void;
+  [key: string]: unknown;
+}
+
+interface LeafletShape {
+  remove(): void;
+  [key: string]: unknown;
+}
+
+interface GeoJSONGeometry {
+  type: string;
+  coordinates: number[] | number[][] | number[][][] | number[][][][];
+}
+
 declare global {
   interface Window {
-    L: any
+    L: {
+      map(element: HTMLElement, options?: unknown): LeafletMap;
+      tileLayer(url: string, options?: unknown): { addTo(map: LeafletMap): void };
+      marker(coords: [number, number], options?: unknown): LeafletMarker & { addTo(map: LeafletMap): LeafletMarker };
+      circle(coords: [number, number], options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
+      geoJSON(data: unknown, options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
+      latLngBounds(coords: [number, number][]): { isValid(): boolean };
+      [key: string]: unknown;
+    };
   }
 }
 
@@ -20,7 +49,7 @@ interface Location {
   type: "radius" | "city" | "region" | "country"
   mode: "include" | "exclude"
   bbox?: [number, number, number, number]
-  geometry?: any // GeoJSON geometry from OpenStreetMap
+  geometry?: GeoJSONGeometry
 }
 
 interface LocationTargetingProps {
@@ -29,10 +58,10 @@ interface LocationTargetingProps {
 
 export function LocationTargeting({ externalLocations }: LocationTargetingProps) {
   const [locations, setLocations] = useState<Location[]>([])
-  const mapRef = useRef<any>(null)
+  const mapRef = useRef<LeafletMap | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const markersRef = useRef<any[]>([])
-  const shapesRef = useRef<any[]>([])
+  const markersRef = useRef<LeafletMarker[]>([])
+  const shapesRef = useRef<LeafletShape[]>([])
   const isMapInitializedRef = useRef(false)
 
   // Update locations from external source (AI chat)
@@ -240,7 +269,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
                   No locations targeted yet
                 </p>
                 <p className="text-sm text-white/90 mt-2 italic">
-                  Ask AI: "Target Toronto" or "Show ads in California"
+                  Ask AI: &quot;Target Toronto&quot; or &quot;Show ads in California&quot;
                 </p>
               </div>
             </div>

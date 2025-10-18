@@ -43,7 +43,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold">Check your email</h2>
                 <p className="text-muted-foreground text-sm">
-                  We've sent a confirmation link to
+                  We&apos;ve sent a confirmation link to
                 </p>
                 <p className="font-medium text-foreground">{userEmail}</p>
               </div>
@@ -73,10 +73,10 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                 onClick={handleCloseConfirmation}
                 className="text-sm text-blue-500 hover:text-blue-600 font-medium transition-colors"
               >
-                Got it, I'll check my email
+                Got it, I&apos;ll check my email
               </button>
               <p className="text-xs text-muted-foreground">
-                Didn't receive the email? Check your spam folder
+                Didn&apos;t receive the email? Check your spam folder
               </p>
             </div>
           </div>

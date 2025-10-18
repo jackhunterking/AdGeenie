@@ -20,7 +20,7 @@ export async function PATCH(
       'budget_data',
     ]
     
-    const updateData: Record<string, any> = {}
+    const updateData: Record<string, unknown> = {}
     for (const field of validFields) {
       if (field in body) {
         updateData[field] = body[field]

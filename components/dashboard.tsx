@@ -69,12 +69,12 @@ export function Dashboard() {
           {/* Header - Only for left section */}
           <div className="flex h-12 items-center justify-between px-4 bg-preview-panel text-preview-panel-foreground shrink-0">
             <div className="flex items-center gap-3">
-              <a href="/" className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <div className="relative h-5 w-5">
                   <img src="/vibeads-logo.png" alt="AdGeenie" className="h-5 w-5" />
                 </div>
                 <span className="text-xs font-semibold">{COMPANY_NAME}</span>
-              </a>
+              </div>
               
               {/* Dropdown Menu */}
               <DropdownMenu onOpenChange={setIsDropdownOpen}>

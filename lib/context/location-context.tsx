@@ -4,6 +4,11 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { useCampaign } from "@/lib/hooks/use-campaign"
 import { useDebounce } from "@/lib/hooks/use-debounce"
 
+interface GeoJSONGeometry {
+  type: string;
+  coordinates: number[] | number[][] | number[][][] | number[][][][];
+}
+
 interface Location {
   id: string
   name: string
@@ -12,7 +17,7 @@ interface Location {
   type: "radius" | "city" | "region" | "country"
   mode: "include" | "exclude"
   bbox?: [number, number, number, number]
-  geometry?: any
+  geometry?: GeoJSONGeometry
 }
 
 type LocationStatus = "idle" | "selecting" | "setup-in-progress" | "completed" | "error"

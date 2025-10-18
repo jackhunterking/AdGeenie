@@ -7,19 +7,43 @@ import { useLocation } from "@/lib/context/location-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
 import { useEffect, useRef, useState } from "react"
 
+interface LeafletMap {
+  remove(): void;
+  invalidateSize(): void;
+  [key: string]: unknown;
+}
+
+interface LeafletMarker {
+  remove(): void;
+  [key: string]: unknown;
+}
+
+interface LeafletShape {
+  remove(): void;
+  [key: string]: unknown;
+}
+
 declare global {
   interface Window {
-    L: any
+    L: {
+      map(element: HTMLElement, options?: unknown): LeafletMap;
+      tileLayer(url: string, options?: unknown): { addTo(map: LeafletMap): void };
+      marker(coords: [number, number], options?: unknown): LeafletMarker & { addTo(map: LeafletMap): LeafletMarker };
+      circle(coords: [number, number], options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
+      geoJSON(data: unknown, options?: unknown): LeafletShape & { addTo(map: LeafletMap): LeafletShape };
+      latLngBounds(coords: [number, number][]): { isValid(): boolean };
+      [key: string]: unknown;
+    };
   }
 }
 
 export function LocationSelectionCanvas() {
   const { locationState, removeLocation, resetLocations, clearLocations } = useLocation()
   const { isPublished } = useAdPreview()
-  const mapRef = useRef<any>(null)
+  const mapRef = useRef<LeafletMap | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const markersRef = useRef<any[]>([])
-  const shapesRef = useRef<any[]>([])
+  const markersRef = useRef<LeafletMarker[]>([])
+  const shapesRef = useRef<LeafletShape[]>([])
   const [isMapReady, setIsMapReady] = useState(false)
 
   // Initialize map when container is ready

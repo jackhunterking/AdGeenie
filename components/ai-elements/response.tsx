@@ -275,8 +275,7 @@ const components: Options['components'] = {
   },
 };
 
-export const Response = memo(
-  ({
+const ResponseComponent = ({
     className,
     options,
     children,
@@ -313,6 +312,8 @@ export const Response = memo(
         </HardenedMarkdown>
       </div>
     );
-  },
-  (prevProps, nextProps) => prevProps.children === nextProps.children,
-);
+  };
+
+ResponseComponent.displayName = 'ResponseComponent';
+
+export const Response = memo(ResponseComponent, (prevProps, nextProps) => prevProps.children === nextProps.children);

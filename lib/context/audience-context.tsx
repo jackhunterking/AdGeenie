@@ -7,6 +7,10 @@ import { useDebounce } from "@/lib/hooks/use-debounce"
 type AudienceMode = "ai" | "advanced"
 type AudienceStatus = "idle" | "generating" | "setup-in-progress" | "completed" | "error"
 
+interface DetailedTargeting {
+  [key: string]: unknown;
+}
+
 interface AudienceTargeting {
   mode: AudienceMode
   description?: string
@@ -17,7 +21,7 @@ interface AudienceTargeting {
     gender?: "all" | "male" | "female"
     languages?: string[]
   }
-  detailedTargeting?: any // For future advanced mode
+  detailedTargeting?: DetailedTargeting // For future advanced mode
 }
 
 interface AudienceState {

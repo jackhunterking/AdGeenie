@@ -54,6 +54,71 @@ import { AdReferenceCard } from "@/components/ad-reference-card-example";
 import { AudienceContextCard } from "@/components/audience-context-card";
 import { useRef } from "react";
 
+// Type definitions
+interface MessagePart {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+}
+
+interface ChatMessage {
+  parts: MessagePart[];
+  [key: string]: unknown;
+}
+
+interface LocationInput {
+  name: string;
+  coordinates?: [number, number];
+  radius?: number;
+}
+
+interface LocationToolInput {
+  locations: LocationInput[];
+}
+
+interface LocationOutput {
+  name: string;
+  type: string;
+  mode?: string;
+  radius?: number;
+}
+
+interface AudienceToolInput {
+  description: string;
+  interests?: string;
+  demographics?: string;
+}
+
+interface GoalToolInput {
+  goalType: string;
+  conversionMethod: string;
+}
+
+interface CustomEvent<T = unknown> extends Event {
+  detail: T;
+}
+
+interface AudienceEventDetail {
+  adContent?: { headline?: string; body?: string };
+  locations?: Array<{ name: string }>;
+}
+
+interface AudienceContext {
+  demographics?: string;
+  interests?: string;
+  currentAudience?: {
+    demographics?: string;
+    interests?: string;
+  };
+}
+
+interface ToolResult {
+  tool: string;
+  toolCallId: string;
+  output: string | undefined;
+  errorText?: string;
+}
+
 interface AIChatProps {
   initialPrompt?: string | null;
 }
@@ -70,9 +135,9 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
   const [dislikedMessages, setDislikedMessages] = useState<Set<string>>(new Set());
   const [processingLocations, setProcessingLocations] = useState<Set<string>>(new Set());
-  const [pendingLocationCalls, setPendingLocationCalls] = useState<Array<{ toolCallId: string; input: any }>>([]);
-  const [adEditReference, setAdEditReference] = useState<any>(null);
-  const [audienceContext, setAudienceContext] = useState<any>(null);
+  const [pendingLocationCalls, setPendingLocationCalls] = useState<Array<{ toolCallId: string; input: LocationToolInput }>>([]);
+  const [adEditReference, setAdEditReference] = useState<AudienceContext | null>(null);
+  const [audienceContext, setAudienceContext] = useState<AudienceContext | null>(null);
   const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
@@ -170,10 +235,10 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
     });
   };
 
-  const handleCopy = (message: any) => {
+  const handleCopy = (message: ChatMessage) => {
     const textParts = message.parts
-      .filter((part: any) => part.type === 'text')
-      .map((part: any) => part.text)
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
       .join('\n');
     navigator.clipboard.writeText(textParts);
   };
@@ -196,7 +261,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
           toolCallId,
           output: undefined,
           errorText: 'Failed to generate image',
-        } as any);
+        } as ToolResult);
       } finally {
         // Remove from loading state
         setGeneratingImages(prev => {
@@ -211,7 +276,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
         toolCallId,
         output: undefined,
         errorText: 'Image generation cancelled by user',
-      } as any);
+      } as ToolResult);
     }
   };
 
@@ -233,7 +298,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
           toolCallId,
           output: undefined,
           errorText: 'Failed to edit image',
-        } as any);
+        } as ToolResult);
       } finally {
         // Remove from loading state
         setEditingImages(prev => {
@@ -248,7 +313,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
         toolCallId,
         output: undefined,
         errorText: 'Image editing cancelled by user',
-      } as any);
+      } as ToolResult);
     }
   };
 
@@ -265,7 +330,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
         try {
           // Geocode locations and fetch boundary data from OpenStreetMap
           const locationsWithCoords = await Promise.all(
-            input.locations.map(async (loc: any) => {
+            input.locations.map(async (loc) => {
               let coordinates = loc.coordinates;
               let bbox = null;
               let geometry = null;
@@ -424,7 +489,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
 
   // Listen for audience generation (when user clicks "Find My Audience with AI")
   useEffect(() => {
-    const handleAudienceGeneration = (event: any) => {
+    const handleAudienceGeneration = (event: CustomEvent<AudienceEventDetail>) => {
       const { adContent, locations } = event.detail;
       
       // Build comprehensive context message
@@ -442,7 +507,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
       }
       
       if (locations && locations.length > 0) {
-        const locationNames = locations.map((l: any) => l.name).join(', ');
+        const locationNames = locations.map((l) => l.name).join(', ');
         contextParts.push(`Targeting locations: ${locationNames}`);
       }
       
@@ -471,7 +536,7 @@ Make it conversational and easy to understand for a business owner.`,
 
   // Listen for audience chat opening (when user clicks "Change This")
   useEffect(() => {
-    const handleOpenAudienceChat = (event: any) => {
+    const handleOpenAudienceChat = (event: CustomEvent<AudienceContext>) => {
       const context = event.detail;
       // Store the audience context for display
       setAudienceContext(context.currentAudience);
@@ -496,7 +561,7 @@ Make it conversational and easy to understand for a business owner.`,
 
   // Listen for ad edit events from preview panel
   useEffect(() => {
-    const handleOpenEditInChat = (event: any) => {
+    const handleOpenEditInChat = (event: CustomEvent<AudienceContext>) => {
       const context = event.detail;
       
       // Route to appropriate reference based on type
@@ -749,7 +814,7 @@ Make it conversational and easy to understand for a business owner.`,
                                         className="my-2 rounded-lg max-w-xs shadow-md"
                                       />
                                       <p className="text-sm text-muted-foreground mb-4">
-                                        <span className="font-medium">Changes:</span> "{input.prompt}"
+                                        <span className="font-medium">Changes:</span> &quot;{input.prompt}&quot;
                                       </p>
                                       {isEditing && (
                                         <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
@@ -801,7 +866,7 @@ Make it conversational and easy to understand for a business owner.`,
                             case "tool-locationTargeting": {
                               const callId = part.toolCallId;
                               const isProcessing = processingLocations.has(callId);
-                              const input = part.input as any;
+                              const input = part.input as LocationToolInput;
 
                               switch (part.state) {
                                 case 'input-streaming':
@@ -825,9 +890,9 @@ Make it conversational and easy to understand for a business owner.`,
                                   return null;
                                 
                                 case 'output-available': {
-                                  const output = part.output as { locations: any[]; explanation: string };
+                                  const output = part.output as { locations: LocationOutput[]; explanation: string };
                                   
-                                  const getLocationTypeLabel = (loc: any) => {
+                                  const getLocationTypeLabel = (loc: LocationOutput) => {
                                     switch (loc.type) {
                                       case "radius": return loc.radius ? `${loc.radius} mile radius` : "Radius"
                                       case "city": return "City"
@@ -839,7 +904,7 @@ Make it conversational and easy to understand for a business owner.`,
                                   
                                   return (
                                     <div key={callId} className="w-full my-4 space-y-2">
-                                      {output.locations.map((loc: any, idx: number) => {
+                                      {output.locations.map((loc, idx: number) => {
                                         const isExcluded = loc.mode === "exclude";
                                         
                                         return (
@@ -893,7 +958,7 @@ Make it conversational and easy to understand for a business owner.`,
                             }
                             case "tool-audienceTargeting": {
                               const callId = part.toolCallId;
-                              const input = part.input as any;
+                              const input = part.input as AudienceToolInput;
 
                               switch (part.state) {
                                 case 'input-streaming':
@@ -951,7 +1016,7 @@ Make it conversational and easy to understand for a business owner.`,
                                           </div>
                                           <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
-                                              <p className="font-semibold text-sm">Got it! We'll show your ad to these people</p>
+                                              <p className="font-semibold text-sm">Got it! We&apos;ll show your ad to these people</p>
                                               <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
                                             </div>
                                             <p className="text-xs text-muted-foreground line-clamp-1">{output.description}</p>
@@ -1008,7 +1073,7 @@ Make it conversational and easy to understand for a business owner.`,
                             }
                             case "tool-setupGoal": {
                               const callId = part.toolCallId;
-                              const input = part.input as any;
+                              const input = part.input as GoalToolInput;
 
                               switch (part.state) {
                                 case 'input-streaming':
@@ -1063,13 +1128,13 @@ Make it conversational and easy to understand for a business owner.`,
                                           toolCallId: callId,
                                           output: undefined,
                                           errorText: 'Form selection cancelled by user',
-                                        } as any);
+                                        } as ToolResult);
                                       }}
                                     />
                                   );
                                 
                                 case 'output-available': {
-                                  const output = part.output as any;
+                                  const output = part.output as { success?: boolean; formData?: { formId: string } } | undefined;
                                   
                                   // Handle cancellation or no selection (output is undefined or null)
                                   if (!output || output === null) {

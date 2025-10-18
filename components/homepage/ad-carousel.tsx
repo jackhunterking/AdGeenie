@@ -91,7 +91,7 @@ export function AdCarousel() {
     <section className="w-full py-16 overflow-hidden bg-muted/30">
       <div className="max-w-7xl mx-auto mb-8 px-6">
         <h2 className="text-3xl font-bold text-center mb-3">
-          See What's Possible
+          See What&apos;s Possible
         </h2>
         <p className="text-center text-muted-foreground">
           Real ad examples created with AI in minutes

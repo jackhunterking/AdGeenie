@@ -206,7 +206,7 @@ export function GoalTab() {
           <div className="flex-1 min-w-0 space-y-1">
             <h3 className="text-base font-medium text-foreground">Instant Forms</h3>
             <p className="text-sm text-muted-foreground">
-              Use Meta's built-in forms to collect leads directly on Facebook and Instagram
+              Use Meta&apos;s built-in forms to collect leads directly on Facebook and Instagram
             </p>
             {selectedForm ? (
               <div className="mt-2 pt-2 border-t border-border">

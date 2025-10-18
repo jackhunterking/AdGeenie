@@ -7,7 +7,7 @@ interface Campaign {
   status: string
   current_step: number
   total_steps: number
-  metadata: any
+  metadata: Record<string, unknown> | null
   created_at: string
   updated_at: string
   campaign_states?: CampaignState[]
@@ -16,12 +16,12 @@ interface Campaign {
 interface CampaignState {
   id: string
   campaign_id: string
-  goal_data: any
-  location_data: any
-  audience_data: any
-  ad_copy_data: any
-  ad_preview_data: any
-  budget_data: any
+  goal_data: Record<string, unknown> | null
+  location_data: Record<string, unknown> | null
+  audience_data: Record<string, unknown> | null
+  ad_copy_data: Record<string, unknown> | null
+  ad_preview_data: Record<string, unknown> | null
+  budget_data: Record<string, unknown> | null
   updated_at: string
 }
 
@@ -80,7 +80,7 @@ export function useCampaign() {
 
   // Save specific field of campaign state
   const saveCampaignState = useCallback(
-    async (field: string, value: any) => {
+    async (field: string, value: Record<string, unknown> | null) => {
       if (!campaign?.id) {
         console.warn('No active campaign to save state to')
         return

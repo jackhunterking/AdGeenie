@@ -1,5 +1,24 @@
 "use server"
 
+// Type definitions for Nominatim API responses
+interface NominatimResult {
+  display_name: string;
+  lon: string;
+  lat: string;
+  boundingbox?: string[];
+  type: string;
+}
+
+interface GeoJSONGeometry {
+  type: string;
+  coordinates: number[] | number[][] | number[][][] | number[][][][];
+}
+
+interface GeoJSONFeature {
+  geometry: GeoJSONGeometry;
+  bbox?: number[];
+}
+
 // Use OpenStreetMap Nominatim API for geocoding (FREE!)
 export async function searchLocations(query: string) {
   try {
@@ -16,10 +35,10 @@ export async function searchLocations(query: string) {
       throw new Error("Failed to fetch location suggestions from OpenStreetMap")
     }
 
-    const data = await response.json()
+    const data = await response.json() as NominatimResult[]
     
     // Convert Nominatim format to our expected format
-    return data.map((item: any) => ({
+    return data.map((item) => ({
       place_name: item.display_name,
       center: [parseFloat(item.lon), parseFloat(item.lat)],
       bbox: item.boundingbox ? [
@@ -37,7 +56,7 @@ export async function searchLocations(query: string) {
 }
 
 // Fetch detailed boundary data using OpenStreetMap Nominatim API (FREE!)
-export async function getLocationBoundary(coordinates: [number, number], placeName: string, placeType: string) {
+export async function getLocationBoundary(coordinates: [number, number], placeName: string) {
   try {
     // Use Nominatim to search for the place with polygon data
     const response = await fetch(
@@ -85,13 +104,13 @@ export async function getLocationBoundary(coordinates: [number, number], placeNa
 }
 
 // Helper function to calculate bounding box from GeoJSON geometry
-function calculateBBoxFromGeometry(geometry: any): [number, number, number, number] | null {
+function calculateBBoxFromGeometry(geometry: GeoJSONGeometry): [number, number, number, number] | null {
   if (!geometry || !geometry.coordinates) return null
 
   let minLng = Infinity, minLat = Infinity
   let maxLng = -Infinity, maxLat = -Infinity
 
-  const processCoords = (coords: any): void => {
+  const processCoords = (coords: number[] | number[][] | number[][][] | number[][][][]): void => {
     if (typeof coords[0] === 'number') {
       // It's a coordinate pair [lng, lat]
       minLng = Math.min(minLng, coords[0])

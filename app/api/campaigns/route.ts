@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name = 'Untitled Campaign', tempPromptId, prompt } = body
 
-    let campaignName = name
+    const campaignName = name
     let initialPrompt = prompt
 
     // If tempPromptId is provided, fetch and use that prompt

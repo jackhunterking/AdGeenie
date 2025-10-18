@@ -6,8 +6,12 @@ import { FileText, Plus, Search, Check, Calendar } from "lucide-react";
 import { useState } from "react";
 import { InstantFormBuilder } from "./instant-form-builder";
 
+interface FormField {
+  [key: string]: unknown;
+}
+
 type FormSelectionUIProps = {
-  onCreateNew: (formData: { name: string; fields: any[] }) => void;
+  onCreateNew: (formData: { name: string; fields: FormField[] }) => void;
   onSelectExisting: (formId: string, formName: string) => void;
   onCancel: () => void;
 };

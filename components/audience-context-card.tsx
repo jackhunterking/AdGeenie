@@ -46,13 +46,13 @@ export function AudienceContextCard({ currentAudience, onDismiss }: AudienceCont
         <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-2">💡 Try asking:</p>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="px-2 py-1 rounded bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
-            "Make them younger"
+            &quot;Make them younger&quot;
           </span>
           <span className="px-2 py-1 rounded bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
-            "Focus on families"
+            &quot;Focus on families&quot;
           </span>
           <span className="px-2 py-1 rounded bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
-            "Exclude students"
+            &quot;Exclude students&quot;
           </span>
         </div>
       </div>
