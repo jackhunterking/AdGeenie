@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabase/server'
+import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
 // GET /api/campaigns - List user's campaigns
 export async function GET() {
   try {
+    // Create client that reads user session from cookies
+    const supabase = await createServerClient()
+    
     // Get user from auth
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
       return NextResponse.json(
@@ -47,8 +50,11 @@ export async function GET() {
 // POST /api/campaigns - Create new campaign
 export async function POST(request: NextRequest) {
   try {
+    // Create client that reads user session from cookies
+    const supabase = await createServerClient()
+    
     // Get user from auth
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
       return NextResponse.json(

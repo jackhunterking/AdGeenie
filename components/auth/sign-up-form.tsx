@@ -47,12 +47,17 @@ export function SignUpForm({ onSuccess }: SignUpFormProps) {
 
     setLoading(true)
 
+    // Get temp_prompt_id if exists
+    const tempPromptId = typeof window !== 'undefined' 
+      ? localStorage.getItem('temp_prompt_id')
+      : null
+
     // Get the current URL for redirect after email verification
     const redirectUrl = typeof window !== 'undefined' 
       ? `${window.location.origin}?verified=true`
       : undefined
 
-    const { error } = await signUp(email, password, redirectUrl)
+    const { error } = await signUp(email, password, redirectUrl, tempPromptId || undefined)
 
     if (error) {
       // Provide more user-friendly error messages

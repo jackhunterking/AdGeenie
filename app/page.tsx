@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
 import { AuthModal } from '@/components/auth/auth-modal'
 import { HomepageHeader } from '@/components/homepage/homepage-header'
@@ -10,9 +10,10 @@ import { HeroSection } from '@/components/homepage/hero-section'
 import { AdCarousel } from '@/components/homepage/ad-carousel'
 import { CampaignGrid } from '@/components/homepage/campaign-grid'
 
-export default function Home() {
+function HomeContent() {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signin')
   const [processingPrompt, setProcessingPrompt] = useState(false)
@@ -23,53 +24,97 @@ export default function Home() {
       // Only process if user is authenticated and auth is not loading
       if (!user || loading) return
       
+      // Check if this is a new user from email verification
+      const isVerified = searchParams?.get('verified') === 'true'
       const tempPromptId = localStorage.getItem('temp_prompt_id')
-      if (!tempPromptId) return
+      
+      // If verified (with or without temp prompt), fetch campaigns created by trigger
+      if (isVerified) {
+        // Check if we've already processed this verification to avoid double processing
+        const hasProcessedVerification = sessionStorage.getItem('processed_verification')
+        if (hasProcessedVerification) return
+        
+        sessionStorage.setItem('processed_verification', 'true')
+        setProcessingPrompt(true)
 
-      // Show loading state
-      setProcessingPrompt(true)
-
-      try {
-        // Fetch the temp prompt
-        const promptResponse = await fetch(`/api/temp-prompt?id=${tempPromptId}`)
-        if (promptResponse.ok) {
-          const { promptText } = await promptResponse.json()
+        try {
+          // Fetch campaigns (trigger should have created one if temp_prompt_id existed)
+          const response = await fetch('/api/campaigns')
           
-          // Create campaign with the prompt
-          const campaignResponse = await fetch('/api/campaigns', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: `Campaign: ${promptText.substring(0, 50)}...`,
-              tempPromptId,
-              prompt: promptText,
-            }),
-          })
-
-          if (campaignResponse.ok) {
-            const { campaign } = await campaignResponse.json()
-            // Clear the temp prompt ID
-            localStorage.removeItem('temp_prompt_id')
-            // Redirect to the new campaign with initial prompt flag
-            router.push(`/${campaign.id}?autostart=true`)
+          if (response.ok) {
+            const { campaigns } = await response.json()
+            
+            if (campaigns && campaigns.length > 0) {
+              // Redirect to newest campaign
+              router.push(`/${campaigns[0].id}?autostart=true`)
+            } else {
+              // No campaigns found - user signed up without prompt
+              // Clear localStorage and stay on homepage
+              if (tempPromptId) {
+                localStorage.removeItem('temp_prompt_id')
+              }
+              setProcessingPrompt(false)
+              sessionStorage.removeItem('processed_verification')
+            }
           } else {
-            console.error('Failed to create campaign')
+            console.error('Failed to fetch campaigns')
+            sessionStorage.removeItem('processed_verification')
             setProcessingPrompt(false)
           }
-        } else {
-          console.error('Failed to fetch temp prompt')
+        } catch (error) {
+          console.error('Error fetching campaigns:', error)
+          sessionStorage.removeItem('processed_verification')
+          setProcessingPrompt(false)
+        }
+        return
+      }
+      
+      // Original logic for temp_prompt_id (when user starts on homepage)
+      if (tempPromptId) {
+        setProcessingPrompt(true)
+
+        try {
+          // Fetch the temp prompt
+          const promptResponse = await fetch(`/api/temp-prompt?id=${tempPromptId}`)
+          if (promptResponse.ok) {
+            const { promptText } = await promptResponse.json()
+            
+            // Create campaign with the prompt
+            const campaignResponse = await fetch('/api/campaigns', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: `Campaign: ${promptText.substring(0, 50)}...`,
+                tempPromptId,
+                prompt: promptText,
+              }),
+            })
+
+            if (campaignResponse.ok) {
+              const { campaign } = await campaignResponse.json()
+              // Clear the temp prompt ID
+              localStorage.removeItem('temp_prompt_id')
+              // Redirect to the new campaign with initial prompt flag
+              router.push(`/${campaign.id}?autostart=true`)
+            } else {
+              console.error('Failed to create campaign')
+              setProcessingPrompt(false)
+            }
+          } else {
+            console.error('Failed to fetch temp prompt')
+            localStorage.removeItem('temp_prompt_id')
+            setProcessingPrompt(false)
+          }
+        } catch (error) {
+          console.error('Error creating campaign from temp prompt:', error)
           localStorage.removeItem('temp_prompt_id')
           setProcessingPrompt(false)
         }
-      } catch (error) {
-        console.error('Error creating campaign from temp prompt:', error)
-        localStorage.removeItem('temp_prompt_id')
-        setProcessingPrompt(false)
       }
     }
 
     handlePostAuth()
-  }, [user, loading, router])
+  }, [user, loading, router, searchParams])
 
   const handleSignInClick = () => {
     setAuthTab('signin')
@@ -123,5 +168,17 @@ export default function Home() {
         defaultTab={authTab}
       />
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   )
 }

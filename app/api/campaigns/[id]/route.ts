@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabase/server'
+import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
 // GET /api/campaigns/[id] - Get a specific campaign
 export async function GET(
@@ -8,8 +8,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    
+    // Create client that reads user session from cookies
+    const supabase = await createServerClient()
+    
     // Get user from auth
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
       return NextResponse.json(

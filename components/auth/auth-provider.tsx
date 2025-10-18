@@ -13,7 +13,7 @@ interface AuthContextType {
   profile: Profile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-  signUp: (email: string, password: string, redirectUrl?: string) => Promise<{ error: Error | null }>
+  signUp: (email: string, password: string, redirectUrl?: string, tempPromptId?: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -89,15 +89,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, redirectUrl?: string) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    redirectUrl?: string,
+    tempPromptId?: string
+  ) => {
     try {
+      // Build options object conditionally to satisfy ESLint
+      const signUpOptions: {
+        emailRedirectTo?: string
+        data?: { temp_prompt_id: string }
+      } = {}
+      
+      if (redirectUrl) {
+        signUpOptions.emailRedirectTo = redirectUrl
+      }
+      
+      if (tempPromptId) {
+        signUpOptions.data = { temp_prompt_id: tempPromptId }
+      }
+      
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: redirectUrl ? {
-          emailRedirectTo: redirectUrl,
-        } : undefined,
+        options: Object.keys(signUpOptions).length > 0 ? signUpOptions : undefined,
       })
+      
       if (error) return { error }
       return { error: null }
     } catch (error) {
