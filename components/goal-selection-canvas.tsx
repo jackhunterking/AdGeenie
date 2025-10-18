@@ -1,7 +1,8 @@
 "use client"
 
-import { Phone, Users, CheckCircle2, Loader2, Lock } from "lucide-react"
+import { Phone, Users, CheckCircle2, Loader2, Lock, Flag, Filter, FileText, Check, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { useGoal } from "@/lib/context/goal-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
 
@@ -27,46 +28,78 @@ export function GoalSelectionCanvas() {
   if (isPublished) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
-        <div className="max-w-xl w-full space-y-6 text-center">
-          <div className="h-16 w-16 rounded-full bg-orange-500/10 flex items-center justify-center mx-auto">
-            <Lock className="h-8 w-8 text-orange-600" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold">Goal Locked</h2>
+        <div className="max-w-2xl w-full space-y-6">
+          <div className="text-center space-y-3">
+            <div className="h-16 w-16 rounded-full bg-orange-500/10 flex items-center justify-center mx-auto">
+              <Lock className="h-8 w-8 text-orange-600" />
+            </div>
+            <h2 className="text-2xl font-bold">Goal</h2>
             <p className="text-muted-foreground">
               This ad has been published. Goals cannot be changed once an ad is live.
             </p>
           </div>
           
-          {goalState.formData && (
-            <div className="bg-card border border-border rounded-lg p-6 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Goal:</span>
-                <span className="text-sm capitalize">{goalState.selectedGoal}</span>
+          {/* Goal Configuration Card */}
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <Flag className="h-4 w-4 text-orange-600" />
+                </div>
+                <h3 className="font-semibold text-lg">Goal Configuration</h3>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Lead Type:</span>
-                <span className="text-sm">Instant Form</span>
+              <Badge className="bg-orange-600 text-white">
+                <Lock className="h-3 w-3 mr-1" />
+                Published
+              </Badge>
+            </div>
+
+            {/* Configuration Details */}
+            <div className="space-y-2">
+              {/* Objective */}
+              <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                    <Filter className="h-4 w-4 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Goal</p>
+                    <p className="font-medium text-sm capitalize">{goalState.selectedGoal || "Leads"}</p>
+                  </div>
+                </div>
+                <Lock className="h-4 w-4 text-orange-600" />
               </div>
+
+              {/* Form - Combined with Lead Type */}
               {goalState.formData?.name && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Form:</span>
-                  <span className="text-sm text-blue-600">{goalState.formData.name}</span>
+                <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Instant Form</p>
+                      <p className="font-medium text-sm truncate">{goalState.formData.name}</p>
+                    </div>
+                  </div>
+                  <Lock className="h-4 w-4 text-orange-600" />
                 </div>
               )}
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Status:</span>
-                <span className="text-sm text-orange-600 font-medium flex items-center gap-1">
-                  <Lock className="h-3 w-3" />
-                  Published
-                </span>
+            </div>
+          </div>
+
+          {/* Warning Banner */}
+          <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
+              <div className="text-left text-sm space-y-1">
+                <p className="font-medium text-orange-700 dark:text-orange-400">Goal is Locked</p>
+                <p className="text-orange-600 dark:text-orange-300 text-xs">
+                  To modify goals, you must first unpublish or create a new ad campaign.
+                </p>
               </div>
             </div>
-          )}
-
-          <p className="text-xs text-muted-foreground pt-4">
-            To modify goals, you must first unpublish or create a new ad campaign.
-          </p>
+          </div>
         </div>
       </div>
     )
@@ -220,54 +253,88 @@ export function GoalSelectionCanvas() {
   if (goalState.status === "completed") {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
-        <div className="max-w-xl w-full space-y-6 text-center">
-          <div className="space-y-2">
+        <div className="max-w-2xl w-full space-y-6">
+          <div className="text-center space-y-2">
             <h2 className="text-3xl font-bold">Goal</h2>
             <p className="text-muted-foreground">
               Your goal is ready to use.
             </p>
           </div>
           
-          <div className="bg-card border border-border rounded-lg p-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Goal:</span>
-              <span className="text-sm capitalize">{goalState.selectedGoal}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Lead Type:</span>
-              <span className="text-sm">Instant Form</span>
-            </div>
-            {goalState.formData?.name && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Form:</span>
-                <span className="text-sm text-blue-600">{goalState.formData.name}</span>
+          {/* Goal Configuration Card */}
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Flag className="h-4 w-4 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-lg">Goal Configuration</h3>
               </div>
-            )}
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Status:</span>
-              <span className="text-sm text-green-600 font-medium">Ready to publish</span>
+              <Badge className="bg-green-600 text-white">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Ready
+              </Badge>
+            </div>
+
+            {/* Configuration Details */}
+            <div className="space-y-2">
+              {/* Objective */}
+              <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                    <Filter className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Goal</p>
+                    <p className="font-medium text-sm capitalize">{goalState.selectedGoal || "Leads"}</p>
+                  </div>
+                </div>
+                <Check className="h-4 w-4 text-green-600" />
+              </div>
+
+              {/* Form - Combined with Lead Type */}
+              {goalState.formData?.name && (
+                <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Instant Form</p>
+                      <p className="font-medium text-sm truncate">{goalState.formData.name}</p>
+                    </div>
+                  </div>
+                  <Check className="h-4 w-4 text-green-600" />
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-            <p className="text-sm text-yellow-700 dark:text-yellow-600">
-              ⚠️ Once published, this goal cannot be changed
-            </p>
+          {/* Warning Banner */}
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="text-left text-sm space-y-1">
+                <p className="font-medium text-yellow-700 dark:text-yellow-400">Once published, this goal cannot be changed</p>
+                <p className="text-yellow-600 dark:text-yellow-300 text-xs">
+                  Setup complete. You can now continue to Ad Creation.
+                </p>
+              </div>
+            </div>
           </div>
-
-          <p className="text-sm text-muted-foreground pt-2">
-            Setup complete. You can now continue to Ad Creation.
-          </p>
           
+          {/* Change Goal Button */}
           {!isPublished && (
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={resetGoal}
-              className="mt-4"
-            >
-              Change Goal
-            </Button>
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={resetGoal}
+                className="px-8"
+              >
+                Change Goal
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -303,4 +370,3 @@ export function GoalSelectionCanvas() {
 
   return null
 }
-

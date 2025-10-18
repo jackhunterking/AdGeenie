@@ -50,6 +50,8 @@ import { searchLocations, getLocationBoundary } from "@/app/actions/geocoding";
 import { useGoal } from "@/lib/context/goal-context";
 import { useLocation } from "@/lib/context/location-context";
 import { useAudience } from "@/lib/context/audience-context";
+import { AdReferenceCard } from "@/components/ad-reference-card-example";
+import { useRef } from "react";
 
 const AIChat = () => {
   const [input, setInput] = useState("");
@@ -65,6 +67,9 @@ const AIChat = () => {
   const [showSpyMessage, setShowSpyMessage] = useState(false);
   const [processingLocations, setProcessingLocations] = useState<Set<string>>(new Set());
   const [pendingLocationCalls, setPendingLocationCalls] = useState<Array<{ toolCallId: string; input: any }>>([]);
+  const [adEditReference, setAdEditReference] = useState<any>(null);
+  const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
   
   const transport = useMemo(
     () =>
@@ -105,6 +110,14 @@ const AIChat = () => {
       files: message.files 
     });
     setInput("");
+    
+    // Clear the ad edit reference after sending the first edit message
+    if (adEditReference) {
+      setTimeout(() => {
+        setAdEditReference(null);
+        setCustomPlaceholder("Type your message...");
+      }, 1000);
+    }
   };
 
   const handleLike = (messageId: string) => {
@@ -395,6 +408,41 @@ const AIChat = () => {
     return () => window.removeEventListener('triggerAudienceSetup', handleAudienceSetup);
   }, [sendMessage]);
 
+  // Listen for ad edit events from preview panel
+  useEffect(() => {
+    const handleOpenEditInChat = (event: any) => {
+      const context = event.detail;
+      // Store the reference context for display
+      setAdEditReference(context);
+      
+      // Update placeholder if provided
+      setCustomPlaceholder(`Describe the changes you'd like to make to ${context.variationTitle}...`);
+      
+      // Focus chat input
+      setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+    };
+
+    const handleSendMessageToAI = (event: any) => {
+      const { message, reference } = event.detail;
+      
+      // Only used for other purposes, not for edit button
+      // Edit button only uses openEditInChat event
+      if (message && !reference?.action) {
+        sendMessage({ text: message });
+      }
+    };
+
+    window.addEventListener('openEditInChat', handleOpenEditInChat);
+    window.addEventListener('sendMessageToAI', handleSendMessageToAI);
+    
+    return () => {
+      window.removeEventListener('openEditInChat', handleOpenEditInChat);
+      window.removeEventListener('sendMessageToAI', handleSendMessageToAI);
+    };
+  }, [sendMessage]);
+
   const handleSpyModeClick = () => {
     setShowSpyMessage(true);
     setTimeout(() => setShowSpyMessage(false), 2500);
@@ -404,6 +452,17 @@ const AIChat = () => {
     <div className="relative flex size-full flex-col overflow-hidden">
       <Conversation>
         <ConversationContent>
+            {/* Show ad edit reference card if active */}
+            {adEditReference && (
+              <AdReferenceCard 
+                reference={adEditReference}
+                onDismiss={() => {
+                  setAdEditReference(null);
+                  setCustomPlaceholder("Type your message...");
+                }}
+              />
+            )}
+            
             {messages.map((message, messageIndex) => {
               const isLastMessage = messageIndex === messages.length - 1;
               const isLiked = likedMessages.has(message.id);
@@ -866,8 +925,15 @@ const AIChat = () => {
                                     const currentFormId = goalState.formData?.id;
                                     const newFormId = output.formData?.formId;
                                     
-                                    // Only update if the form is different or we're not in completed state
-                                    if (currentFormId !== newFormId || goalState.status !== 'completed') {
+                                    // Only update if:
+                                    // 1. We're in setup-in-progress state (actively setting up)
+                                    // 2. OR the form is different and we're not in idle/completed state
+                                    const isActiveSetup = goalState.status === 'setup-in-progress';
+                                    const isNewForm = currentFormId !== newFormId && 
+                                                     goalState.status !== 'idle' && 
+                                                     goalState.status !== 'completed';
+                                    
+                                    if (isActiveSetup || isNewForm) {
                                       setTimeout(() => {
                                         setFormData({
                                           id: output.formData?.formId,
@@ -990,8 +1056,10 @@ const AIChat = () => {
                 {(attachment) => <PromptInputAttachment data={attachment} />}
               </PromptInputAttachments>
               <PromptInputTextarea
+                ref={chatInputRef}
                 onChange={(e) => setInput(e.target.value)}
                 value={input}
+                placeholder={customPlaceholder}
               />
             </PromptInputBody>
             <PromptInputToolbar>

@@ -1,8 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Flag, Filter, FileText, ArrowDown, Check, ChevronRight, AlertCircle } from "lucide-react"
+import { Flag, Filter, FileText, ArrowDown, Check, ChevronRight, AlertCircle, CheckCircle } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { CreateFormTab } from "@/components/forms/create-form-tab"
 import { SelectFormTab } from "@/components/forms/select-form-tab"
 
@@ -35,6 +37,14 @@ export function GoalTab() {
   }
 
   const handleBackToGoal = () => {
+    setShowFormSetup(false)
+  }
+
+  const handleChangeGoal = () => {
+    // Reset everything back to initial state
+    setSelectedObjective("leads")
+    setSelectedConversion(null)
+    setSelectedForm(null)
     setShowFormSetup(false)
   }
 
@@ -71,6 +81,66 @@ export function GoalTab() {
     )
   }
 
+  // Show configuration summary if form is selected
+  if (selectedForm && selectedConversion === "instant-forms") {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2 text-center">
+          <h2 className="text-2xl font-bold">Goal</h2>
+          <p className="text-sm text-muted-foreground">Your goal is ready to use.</p>
+        </div>
+
+        {/* Configuration Details */}
+        <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold">Goal Configuration</h3>
+            <Badge className="bg-green-600 text-white text-xs">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Ready
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            {/* Objective */}
+            <div className="flex items-center justify-between p-2 rounded-lg border border-blue-500/30 bg-blue-500/5">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Goal</p>
+                <p className="text-sm font-medium truncate">Leads</p>
+              </div>
+              <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+            </div>
+
+            {/* Form */}
+            <div className="flex items-center justify-between p-2 rounded-lg border border-blue-500/30 bg-blue-500/5">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Instant Form</p>
+                <p className="text-sm font-medium truncate">{selectedForm.name}</p>
+              </div>
+              <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+          <p className="text-sm text-yellow-700 dark:text-yellow-600 text-center">
+            ⚠️ Once published, this goal cannot be changed
+          </p>
+        </div>
+
+        {/* Change Goal Button */}
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handleChangeGoal}
+            className="px-6"
+          >
+            Change Goal
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-lg border p-4 space-y-4 bg-transparent border-transparent">
       <div className="flex items-center gap-2">
@@ -78,12 +148,12 @@ export function GoalTab() {
         <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
           <Flag className="h-4 w-4 text-blue-600" />
         </div>
-        <h1 className="text-xl font-semibold text-foreground">Goal</h1>
+        <h1 className="text-lg font-semibold text-foreground">Goal</h1>
       </div>
 
       <div className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Generate</h2>
+          <h2 className="text-base font-semibold text-foreground">Generate</h2>
           <p className="text-sm text-muted-foreground">Choose what you want to generate</p>
         </div>
 
@@ -118,7 +188,7 @@ export function GoalTab() {
 
       <div className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">With</h2>
+          <h2 className="text-base font-semibold text-foreground">With</h2>
           <p className="text-sm text-muted-foreground">Choose how to collect leads</p>
         </div>
 

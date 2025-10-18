@@ -14,7 +14,6 @@ export function ResultsTab() {
       email: "john.smith@example.com",
       phone: "+1 (555) 123-4567",
       date: "2025-01-10",
-      status: "New",
     },
     {
       id: "2",
@@ -22,7 +21,6 @@ export function ResultsTab() {
       email: "sarah.j@example.com",
       phone: "+1 (555) 234-5678",
       date: "2025-01-10",
-      status: "Contacted",
     },
     {
       id: "3",
@@ -30,14 +28,13 @@ export function ResultsTab() {
       email: "m.brown@example.com",
       phone: "+1 (555) 345-6789",
       date: "2025-01-09",
-      status: "New",
     },
   ])
 
   const hasLeads = leads.length > 0
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8">
+      <div className="flex flex-col items-center justify-center h-full p-8">
       <div className="max-w-4xl w-full space-y-8">
         {/* Header */}
         <div className="text-center space-y-3">
@@ -93,7 +90,6 @@ export function ResultsTab() {
                     <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Email</th>
                     <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Phone</th>
                     <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Date</th>
-                    <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -103,18 +99,6 @@ export function ResultsTab() {
                       <td className="px-6 py-4 text-sm text-muted-foreground">{lead.email}</td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">{lead.phone}</td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">{lead.date}</td>
-                      <td className="px-6 py-4">
-                        <Badge
-                          variant="secondary"
-                          className={`${
-                            lead.status === "New"
-                              ? "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"
-                              : "bg-green-500/10 text-green-600 hover:bg-green-500/20"
-                          }`}
-                        >
-                          {lead.status}
-                        </Badge>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
