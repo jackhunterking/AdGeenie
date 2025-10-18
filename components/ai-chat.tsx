@@ -385,7 +385,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
               
               // For non-radius types, fetch actual boundary geometry from OpenStreetMap
               if (loc.type !== "radius" && coordinates) {
-                const boundaryData = await getLocationBoundary(coordinates, loc.name, loc.type);
+                const boundaryData = await getLocationBoundary(coordinates, loc.name);
                 if (boundaryData) {
                   geometry = boundaryData.geometry;
                   // Update bbox with better boundary data if available
