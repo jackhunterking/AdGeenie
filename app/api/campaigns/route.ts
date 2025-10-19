@@ -106,6 +106,8 @@ export async function POST(request: NextRequest) {
         current_step: 1,
         total_steps: 6,
         metadata,
+        // Explicitly set to FALSE only if there's an initial prompt
+        initial_prompt_consumed: initialPrompt ? false : true,
       })
       .select()
       .single()
