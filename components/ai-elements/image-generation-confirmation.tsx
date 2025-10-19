@@ -24,19 +24,17 @@ export const ImageGenerationConfirmation = ({
     <div className="border rounded-lg p-4 my-2 bg-card max-w-2xl mx-auto">
       <p className="mb-3 font-medium text-lg">Generate this ad?</p>
       
-      <div className="mb-4">
-        <label className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
-          <PenIcon className="size-3.5" />
-          Edit the prompt if needed
-        </label>
-        <Textarea 
-          value={editedPrompt}
-          onChange={(e) => setEditedPrompt(e.target.value)}
-          disabled={isGenerating}
-          className="min-h-[120px] text-sm"
-          placeholder="Describe the ad creative you want to generate..."
-        />
-      </div>
+      <label className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
+        <PenIcon className="size-3.5" />
+        Edit the prompt if needed
+      </label>
+      <Textarea 
+        value={editedPrompt}
+        onChange={(e) => setEditedPrompt(e.target.value)}
+        disabled={isGenerating}
+        className="min-h-[120px] text-sm mb-4"
+        placeholder="Describe the ad creative you want to generate..."
+      />
       
       <div className="flex gap-2">
         <Button 

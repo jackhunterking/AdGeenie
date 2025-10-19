@@ -4,8 +4,8 @@ import { generateText } from 'ai';
 import fs from 'node:fs';
 import { supabaseServer } from '@/lib/supabase/server';
 
-// Upload image buffer to Supabase Storage
-async function uploadToSupabase(
+// Upload image buffer to Supabase Storage (exported for reuse in API routes)
+export async function uploadToSupabase(
     imageBuffer: Buffer,
     fileName: string,
     campaignId?: string

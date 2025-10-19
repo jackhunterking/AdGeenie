@@ -41,7 +41,6 @@ import { Actions, Action } from "@/components/ai-elements/actions";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { Button } from "@/components/ui/button";
 import { generateImage, editImage } from "@/server/images";
-import { SocialPreview } from "@/components/ai-elements/social-preview";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
 import { useAdPreview } from "@/lib/context/ad-preview-context";
@@ -52,6 +51,7 @@ import { useAudience } from "@/lib/context/audience-context";
 import { AdReferenceCard } from "@/components/ad-reference-card-example";
 import { AudienceContextCard } from "@/components/audience-context-card";
 import { useRef } from "react";
+import { useGeneration } from "@/lib/context/generation-context";
 
 // Type definitions
 interface MessagePart {
@@ -153,7 +153,7 @@ interface AIChatProps {
 const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   const [input, setInput] = useState("");
   const [model] = useState<string>("openai/gpt-4o");
-  const { setAdContent } = useAdPreview();
+  const { generateImageVariations } = useAdPreview();
   const { goalState, setFormData, setError, resetGoal } = useGoal();
   const { locationState, addLocations, updateStatus: updateLocationStatus } = useLocation();
   const { setAudienceTargeting, updateStatus: updateAudienceStatus } = useAudience();
@@ -168,6 +168,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
+  const { setIsGenerating, setGenerationMessage } = useGeneration();
   
   const transport = useMemo(
     () =>
@@ -661,6 +662,43 @@ Make it conversational and easy to understand for a business owner.`,
     }
   }, [initialPrompt, hasAutoSubmitted, status, sendMessage]);
 
+  // Track generation state for showing animations on ad mockups
+  useEffect(() => {
+    // Check if AI just asked a question (last message is from assistant)
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      
+      // Check if last message is from assistant and user hasn't responded yet
+      const isWaitingForResponse = lastMessage.role === 'assistant' && status !== 'streaming' && status !== 'submitted';
+      
+      // Or if AI is actively streaming/processing
+      const isActivelyGenerating = status === 'streaming' || status === 'submitted';
+      
+      // Or if generating images
+      const isGeneratingImage = generatingImages.size > 0;
+      
+      // Or if processing locations
+      const isProcessingLocations = processingLocations.size > 0;
+      
+      const shouldShowGenerating = isWaitingForResponse || isActivelyGenerating || isGeneratingImage || isProcessingLocations;
+      
+      setIsGenerating(shouldShowGenerating);
+      
+      // Set appropriate message
+      if (isGeneratingImage) {
+        setGenerationMessage("Generating creative...");
+      } else if (isProcessingLocations) {
+        setGenerationMessage("Setting up locations...");
+      } else if (isActivelyGenerating) {
+        setGenerationMessage("AI is thinking...");
+      } else if (isWaitingForResponse) {
+        setGenerationMessage("Waiting for your input...");
+      }
+    } else {
+      setIsGenerating(false);
+    }
+  }, [messages, status, generatingImages, processingLocations, setIsGenerating, setGenerationMessage]);
+
   return (
     <div className="relative flex size-full flex-col overflow-hidden">
       <Conversation>
@@ -771,45 +809,26 @@ Make it conversational and easy to understand for a business owner.`,
                                     />
                                   );
                                 
-                                case 'output-available':
+                                case 'output-available': {
+                                  const imageUrl = part.output as string;
+                                  
+                                  // Trigger variation generation when image is ready
+                                  setTimeout(() => {
+                                    generateImageVariations(imageUrl);
+                                  }, 100);
+                                  
                                   return (
-                                    <SocialPreview
-                                      key={callId}
-                                      imageUrl={part.output as string}
-                                      originalPrompt={input.prompt}
-                                      brandName={input.brandName || "Your Brand Name"}
-                                      caption={input.caption || "Your caption text goes here..."}
-                                      onApprove={(currentImageUrl) => {
-                                        // Populate preview panel with approved content (using current image URL which may be edited/regenerated)
-                                        setAdContent({
-                                          imageUrl: currentImageUrl,
-                                          headline: input.brandName || "Your Brand Name",
-                                          body: input.caption || "Your caption text goes here...",
-                                          cta: "Learn More"
-                                        });
-                                      }}
-                                      onEdit={async (imageUrl: string, editPrompt: string) => {
-                                        // Call editImage directly and return the new URL
-                                        try {
-                                          const newImageUrl = await editImage(imageUrl, editPrompt);
-                                          return newImageUrl;
-                                        } catch (error) {
-                                          console.error('Edit image failed:', error);
-                                          throw error;
-                                        }
-                                      }}
-                                      onRegenerate={async (prompt: string) => {
-                                        // Call generateImage directly with the same prompt to create a new variation
-                                        try {
-                                          const newImageUrl = await generateImage(prompt);
-                                          return newImageUrl;
-                                        } catch (error) {
-                                          console.error('Regenerate failed:', error);
-                                          throw error;
-                                        }
-                                      }}
-                                    />
+                                    <div key={callId} className="border rounded-lg p-4 my-2 bg-green-500/5 border-green-500/30 max-w-md mx-auto">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                        <p className="font-medium text-green-600">Image Generated!</p>
+                                      </div>
+                                      <p className="text-sm text-muted-foreground">
+                                        Creating 6 variations for you to choose from. Check them out on the canvas →
+                                      </p>
+                                    </div>
                                   );
+                                }
                                 
                                 case 'output-error':
                                   return (

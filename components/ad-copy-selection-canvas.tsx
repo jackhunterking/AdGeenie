@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAdCopy, adCopyVariations } from "@/lib/context/ad-copy-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
+import { useGeneration } from "@/lib/context/generation-context"
 
 export function AdCopySelectionCanvas() {
   const { adCopyState, setSelectedCopyIndex } = useAdCopy()
-  const { adContent, selectedCreativeVariation } = useAdPreview()
+  const { adContent, selectedCreativeVariation, loadingVariations } = useAdPreview()
+  const { isGenerating, generationMessage } = useGeneration()
   const [activeFormat, setActiveFormat] = useState("feed")
   const [showReelMessage, setShowReelMessage] = useState(false)
 
@@ -74,6 +76,25 @@ export function AdCopySelectionCanvas() {
     }))
   }
 
+  // Generating overlay component
+  const GeneratingOverlay = () => (
+    <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-30 flex flex-col items-center justify-center gap-3 animate-in fade-in duration-300">
+      <div className="relative">
+        <div className="h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
+        <div className="absolute inset-0 h-10 w-10 rounded-full border-4 border-transparent border-r-blue-300 animate-spin" style={{ animationDelay: '150ms' }} />
+      </div>
+      <div className="flex flex-col items-center gap-1">
+        <p className="text-xs font-medium text-foreground">{generationMessage}</p>
+        <div className="flex gap-1">
+          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-2">Chat with AI while you wait →</p>
+    </div>
+  )
+
   const renderFeedAdCopyCard = (copyIndex: number) => {
     const copy = adCopyVariations[copyIndex]
     const isSelected = adCopyState.selectedCopyIndex === copyIndex
@@ -87,6 +108,9 @@ export function AdCopySelectionCanvas() {
         )}
         onClick={() => handleSelectCopy(copyIndex)}
       >
+        {/* Generating State Overlay */}
+        {isGenerating && <GeneratingOverlay />}
+
         {/* Selection Indicator */}
         {isSelected && (
           <div className="absolute top-2 right-2 z-10 bg-blue-500 text-white rounded-full p-1">
@@ -145,7 +169,22 @@ export function AdCopySelectionCanvas() {
         </div>
 
         {/* Ad Creative */}
-        {adContent?.imageUrl ? (
+        {loadingVariations[copyIndex] ? (
+          <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-3">
+            <div className="h-8 w-8 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
+            <p className="text-xs text-muted-foreground">
+              Creating variation {copyIndex + 1}...
+            </p>
+          </div>
+        ) : adContent?.imageVariations?.[copyIndex] ? (
+          <div className="aspect-square relative overflow-hidden">
+            <img
+              src={adContent.imageVariations[copyIndex]}
+              alt={copy.headline}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : adContent?.imageUrl ? (
           <div className="aspect-square relative overflow-hidden">
             <img
               src={adContent.imageUrl}
@@ -215,6 +254,9 @@ export function AdCopySelectionCanvas() {
         )}
         onClick={() => handleSelectCopy(copyIndex)}
       >
+        {/* Generating State Overlay */}
+        {isGenerating && <GeneratingOverlay />}
+
         {/* Selection Indicator */}
         {isSelected && (
           <div className="absolute top-2 right-2 z-20 bg-blue-500 text-white rounded-full p-1">
@@ -262,7 +304,19 @@ export function AdCopySelectionCanvas() {
         </div>
 
         {/* Background Creative */}
-        {adContent?.imageUrl ? (
+        {loadingVariations[copyIndex] ? (
+          <div className="absolute inset-0 bg-muted flex flex-col items-center justify-center gap-3">
+            <div className="h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
+            <p className="text-xs text-white drop-shadow-lg">
+              Creating variation {copyIndex + 1}...
+            </p>
+          </div>
+        ) : adContent?.imageVariations?.[copyIndex] ? (
+          <div className="absolute inset-0">
+            <img src={adContent.imageVariations[copyIndex]} alt={copy.headline} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+          </div>
+        ) : adContent?.imageUrl ? (
           <div className="absolute inset-0">
             <img src={adContent.imageUrl} alt={copy.headline} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
@@ -368,9 +422,11 @@ export function AdCopySelectionCanvas() {
       {/* Info Section */}
       <div className="text-center py-6">
         <p className="text-sm text-muted-foreground">
-          {adCopyState.selectedCopyIndex !== null 
-            ? `Copy variation ${adCopyState.selectedCopyIndex + 1} selected - Click Next to continue`
-            : "Select an ad copy variation to continue"}
+          {isGenerating 
+            ? "Answer the AI's questions to generate your ad variations..."
+            : adCopyState.selectedCopyIndex !== null 
+              ? `Copy variation ${adCopyState.selectedCopyIndex + 1} selected - Click Next to continue`
+              : "Select an ad copy variation to continue"}
         </p>
       </div>
     </div>
