@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabase/server'
+import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
 // PATCH /api/campaigns/[id]/state - Update campaign state
 export async function PATCH(
@@ -9,6 +9,39 @@ export async function PATCH(
   try {
     const { id } = await params
     const campaignId = id
+    
+    // Authenticate user
+    const supabase = await createServerClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Verify user owns this campaign
+    const { data: campaign, error: campaignError } = await supabaseServer
+      .from('campaigns')
+      .select('user_id')
+      .eq('id', campaignId)
+      .single()
+
+    if (campaignError || !campaign) {
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 404 }
+      )
+    }
+
+    if (campaign.user_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden - You do not own this campaign' },
+        { status: 403 }
+      )
+    }
+    
     const body = await request.json()
     
     // Validate that at least one field is being updated
@@ -75,6 +108,38 @@ export async function GET(
   try {
     const { id } = await params
     const campaignId = id
+
+    // Authenticate user
+    const supabase = await createServerClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Verify user owns this campaign
+    const { data: campaign, error: campaignError } = await supabaseServer
+      .from('campaigns')
+      .select('user_id')
+      .eq('id', campaignId)
+      .single()
+
+    if (campaignError || !campaign) {
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 404 }
+      )
+    }
+
+    if (campaign.user_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden - You do not own this campaign' },
+        { status: 403 }
+      )
+    }
 
     const { data, error } = await supabaseServer
       .from('campaign_states')
