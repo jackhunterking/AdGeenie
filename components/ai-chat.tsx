@@ -50,7 +50,6 @@ import { useLocation } from "@/lib/context/location-context";
 import { useAudience } from "@/lib/context/audience-context";
 import { AdReferenceCard } from "@/components/ad-reference-card-example";
 import { AudienceContextCard } from "@/components/audience-context-card";
-import { useRef } from "react";
 import { useGeneration } from "@/lib/context/generation-context";
 
 // Type definitions
