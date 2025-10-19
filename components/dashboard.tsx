@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams } from "next/navigation"
 import { PreviewPanel } from "./preview-panel"
 import AiChat from "./ai-chat"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,6 @@ import {
 
 export function Dashboard() {
   const params = useParams()
-  const searchParams = useSearchParams()
   const [credits] = useState(205.5)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [initialPrompt, setInitialPrompt] = useState<string | null>(null)
@@ -30,9 +29,8 @@ export function Dashboard() {
   const { setTheme, resolvedTheme } = useTheme()
   
   const campaignId = params?.campaignId as string
-  const autostart = searchParams?.get('autostart') === 'true'
 
-  // Fetch campaign data to get initial prompt
+  // Fetch campaign - server returns prompt only if unconsumed
   useEffect(() => {
     const fetchCampaign = async () => {
       if (!campaignId) {
@@ -44,7 +42,7 @@ export function Dashboard() {
         const response = await fetch(`/api/campaigns/${campaignId}`)
         if (response.ok) {
           const { campaign } = await response.json()
-          if (campaign?.metadata?.initialPrompt && autostart) {
+          if (campaign?.metadata?.initialPrompt) {
             setInitialPrompt(campaign.metadata.initialPrompt)
           }
         }
@@ -56,7 +54,7 @@ export function Dashboard() {
     }
 
     fetchCampaign()
-  }, [campaignId, autostart])
+  }, [campaignId])
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">

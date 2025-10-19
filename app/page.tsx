@@ -46,7 +46,7 @@ function HomeContent() {
             
             if (campaigns && campaigns.length > 0) {
               // Redirect to newest campaign
-              router.push(`/${campaigns[0].id}?autostart=true`)
+              router.push(`/${campaigns[0].id}`)
             } else {
               // No campaigns found - user signed up without prompt
               // Clear localStorage and stay on homepage
@@ -94,8 +94,8 @@ function HomeContent() {
               const { campaign } = await campaignResponse.json()
               // Clear the temp prompt ID
               localStorage.removeItem('temp_prompt_id')
-              // Redirect to the new campaign with initial prompt flag
-              router.push(`/${campaign.id}?autostart=true`)
+              // Redirect to the new campaign
+              router.push(`/${campaign.id}`)
             } else {
               console.error('Failed to create campaign')
               setProcessingPrompt(false)

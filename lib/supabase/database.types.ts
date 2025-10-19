@@ -63,6 +63,7 @@ export type Database = {
           created_at: string | null
           current_step: number | null
           id: string
+          initial_prompt_consumed: boolean | null
           metadata: Json | null
           name: string
           status: string | null
@@ -74,6 +75,7 @@ export type Database = {
           created_at?: string | null
           current_step?: number | null
           id?: string
+          initial_prompt_consumed?: boolean | null
           metadata?: Json | null
           name: string
           status?: string | null
@@ -85,6 +87,7 @@ export type Database = {
           created_at?: string | null
           current_step?: number | null
           id?: string
+          initial_prompt_consumed?: boolean | null
           metadata?: Json | null
           name?: string
           status?: string | null

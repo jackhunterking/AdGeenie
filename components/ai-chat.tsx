@@ -651,13 +651,14 @@ Make it conversational and easy to understand for a business owner.`,
     };
   }, [adEditReference, audienceContext]);
 
-  // Auto-submit initial prompt if provided (from email verification flow)
+  // Auto-submit initial prompt (server already consumed it when returning)
   useEffect(() => {
     if (initialPrompt && !hasAutoSubmitted && status !== 'streaming') {
       setHasAutoSubmitted(true);
-      // Small delay to ensure everything is ready
+      
       setTimeout(() => {
         sendMessage({ text: initialPrompt });
+        // No server callback needed - already marked as consumed
       }, 500);
     }
   }, [initialPrompt, hasAutoSubmitted, status, sendMessage]);
