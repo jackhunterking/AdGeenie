@@ -21,7 +21,7 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
 import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle } from "lucide-react";
@@ -167,7 +167,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   const [audienceContext, setAudienceContext] = useState<AudienceContext | null>(null);
   const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
-  const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
+  const hasAutoSubmittedRef = useRef(false);
   const { setIsGenerating, setGenerationMessage } = useGeneration();
   
   const transport = useMemo(
@@ -185,6 +185,14 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
     transport,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   });
+
+  // Store latest sendMessage in ref (doesn't cause re-renders)
+  const sendMessageRef = useRef(sendMessage);
+  
+  // Update ref when sendMessage changes (no deps needed elsewhere)
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
 
   const handleSubmit = (message: PromptInputMessage, e: React.FormEvent) => {
     e.preventDefault();
@@ -475,23 +483,21 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
     const handleGoalSetup = (event: CustomEvent<{ goalType: string }>) => {
       const { goalType } = event.detail;
       
-      // Send a message to AI to start goal setup
-      sendMessage({
+      sendMessageRef.current({
         text: `I want to set up ${goalType} goal with instant forms`,
       });
     };
 
     window.addEventListener('triggerGoalSetup', handleGoalSetup as EventListener);
     return () => window.removeEventListener('triggerGoalSetup', handleGoalSetup as EventListener);
-  }, [sendMessage]);
+  }, []);
 
   // Listen for location setup trigger from canvas
   useEffect(() => {
     const handleLocationSetup = () => {
       const hasExistingLocations = locationState.locations.length > 0;
       
-      // Send appropriate message based on whether locations already exist
-      sendMessage({
+      sendMessageRef.current({
         text: hasExistingLocations 
           ? `Add more locations to my current targeting setup`
           : `Help me set up location targeting for my ad`,
@@ -500,20 +506,19 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
 
     window.addEventListener('triggerLocationSetup', handleLocationSetup);
     return () => window.removeEventListener('triggerLocationSetup', handleLocationSetup);
-  }, [sendMessage, locationState.locations.length]);
+  }, [locationState.locations.length]);
 
   // Listen for audience setup trigger from canvas
   useEffect(() => {
     const handleAudienceSetup = () => {
-      // Send a message to AI to start audience targeting
-      sendMessage({
+      sendMessageRef.current({
         text: `Set up AI Advantage+ audience targeting for my ad`,
       });
     };
 
     window.addEventListener('triggerAudienceSetup', handleAudienceSetup);
     return () => window.removeEventListener('triggerAudienceSetup', handleAudienceSetup);
-  }, [sendMessage]);
+  }, []);
 
   // Listen for audience generation (when user clicks "Find My Audience with AI")
   useEffect(() => {
@@ -543,8 +548,7 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
         ? contextParts.join('. ') 
         : 'No specific context provided yet';
       
-      // Send comprehensive message to AI
-      sendMessage({
+      sendMessageRef.current({
         text: `Based on my campaign details, generate an AI Advantage+ audience profile that makes perfect sense for this campaign. 
 
 Campaign Context: ${fullContext}
@@ -560,7 +564,7 @@ Make it conversational and easy to understand for a business owner.`,
 
     window.addEventListener('generateAudience', handleAudienceGeneration as EventListener);
     return () => window.removeEventListener('generateAudience', handleAudienceGeneration as EventListener);
-  }, [sendMessage]);
+  }, []);
 
   // Listen for audience chat opening (when user clicks "Change This")
   useEffect(() => {
@@ -577,15 +581,14 @@ Make it conversational and easy to understand for a business owner.`,
         chatInputRef.current?.focus();
       }, 100);
       
-      // Optionally send a message to AI about updating audience
-      sendMessage({
+      sendMessageRef.current({
         text: `I want to update who sees my ad. Currently targeting: ${context.currentAudience?.demographics || 'general audience'}${context.currentAudience?.interests ? `, ${context.currentAudience.interests}` : ''}`,
       });
     };
 
     window.addEventListener('openAudienceChat', handleOpenAudienceChat as EventListener);
     return () => window.removeEventListener('openAudienceChat', handleOpenAudienceChat as EventListener);
-  }, [sendMessage]);
+  }, []);
 
   // Listen for ad edit events from preview panel
   useEffect(() => {
@@ -615,7 +618,7 @@ Make it conversational and easy to understand for a business owner.`,
       // Only used for other purposes, not for edit button
       // Edit button only uses openEditInChat event
       if (message && !reference?.action) {
-        sendMessage({ text: message });
+        sendMessageRef.current({ text: message });
       }
     };
 
@@ -626,7 +629,7 @@ Make it conversational and easy to understand for a business owner.`,
       window.removeEventListener('openEditInChat', handleOpenEditInChat as EventListener);
       window.removeEventListener('sendMessageToAI', handleSendMessageToAI as EventListener);
     };
-  }, [sendMessage]);
+  }, []);
 
   // Listen for step navigation to clear editing references
   useEffect(() => {
@@ -651,17 +654,16 @@ Make it conversational and easy to understand for a business owner.`,
     };
   }, [adEditReference, audienceContext]);
 
-  // Auto-submit initial prompt (server already consumed it when returning)
+  // Auto-submit initial prompt once
   useEffect(() => {
-    if (initialPrompt && !hasAutoSubmitted && status !== 'streaming') {
-      setHasAutoSubmitted(true);
+    if (initialPrompt && !hasAutoSubmittedRef.current) {
+      hasAutoSubmittedRef.current = true;
       
       setTimeout(() => {
-        sendMessage({ text: initialPrompt });
-        // No server callback needed - already marked as consumed
+        sendMessageRef.current({ text: initialPrompt });
       }, 500);
     }
-  }, [initialPrompt, hasAutoSubmitted, status, sendMessage]);
+  }, [initialPrompt]);
 
   // Track generation state for showing animations on ad mockups
   useEffect(() => {
