@@ -875,6 +875,10 @@ export const PromptInputToolbar = ({
   />
 );
 
+// Alias for AI SDK documentation compatibility
+export type PromptInputFooterProps = PromptInputToolbarProps;
+export const PromptInputFooter = PromptInputToolbar;
+
 export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>;
 
 export const PromptInputTools = ({

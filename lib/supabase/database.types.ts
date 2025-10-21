@@ -21,6 +21,7 @@ export type Database = {
           audience_data: Json | null
           budget_data: Json | null
           campaign_id: string | null
+          generated_images: Json | null
           goal_data: Json | null
           id: string
           location_data: Json | null
@@ -32,6 +33,7 @@ export type Database = {
           audience_data?: Json | null
           budget_data?: Json | null
           campaign_id?: string | null
+          generated_images?: Json | null
           goal_data?: Json | null
           id?: string
           location_data?: Json | null
@@ -43,6 +45,7 @@ export type Database = {
           audience_data?: Json | null
           budget_data?: Json | null
           campaign_id?: string | null
+          generated_images?: Json | null
           goal_data?: Json | null
           id?: string
           location_data?: Json | null
@@ -63,7 +66,6 @@ export type Database = {
           created_at: string | null
           current_step: number | null
           id: string
-          initial_prompt_consumed: boolean | null
           metadata: Json | null
           name: string
           status: string | null
@@ -75,7 +77,6 @@ export type Database = {
           created_at?: string | null
           current_step?: number | null
           id?: string
-          initial_prompt_consumed?: boolean | null
           metadata?: Json | null
           name: string
           status?: string | null
@@ -87,7 +88,6 @@ export type Database = {
           created_at?: string | null
           current_step?: number | null
           id?: string
-          initial_prompt_consumed?: boolean | null
           metadata?: Json | null
           name?: string
           status?: string | null
@@ -97,49 +97,87 @@ export type Database = {
         }
         Relationships: []
       }
-      generated_assets: {
+      conversations: {
         Row: {
-          asset_type: string | null
           campaign_id: string | null
           created_at: string | null
-          dimensions: Json | null
-          file_size: number | null
-          generation_params: Json | null
           id: string
-          public_url: string
-          storage_path: string
-          user_id: string | null
+          message_count: number | null
+          metadata: Json | null
+          title: string | null
+          updated_at: string | null
+          user_id: string
         }
         Insert: {
-          asset_type?: string | null
           campaign_id?: string | null
           created_at?: string | null
-          dimensions?: Json | null
-          file_size?: number | null
-          generation_params?: Json | null
           id?: string
-          public_url: string
-          storage_path: string
-          user_id?: string | null
+          message_count?: number | null
+          metadata?: Json | null
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
         }
         Update: {
-          asset_type?: string | null
           campaign_id?: string | null
           created_at?: string | null
-          dimensions?: Json | null
-          file_size?: number | null
-          generation_params?: Json | null
           id?: string
-          public_url?: string
-          storage_path?: string
-          user_id?: string | null
+          message_count?: number | null
+          metadata?: Json | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "generated_assets_campaign_id_fkey"
+            foreignKeyName: "conversations_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          parts: Json
+          role: string
+          seq: number
+          tool_invocations: Json | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id: string
+          metadata?: Json | null
+          parts?: Json
+          role: string
+          seq?: never
+          tool_invocations?: Json | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          parts?: Json
+          role?: string
+          seq?: never
+          tool_invocations?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -168,6 +206,24 @@ export type Database = {
           email?: string
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      schema_migrations: {
+        Row: {
+          applied_at: string | null
+          description: string | null
+          version: number
+        }
+        Insert: {
+          applied_at?: string | null
+          description?: string | null
+          version: number
+        }
+        Update: {
+          applied_at?: string | null
+          description?: string | null
+          version?: number
         }
         Relationships: []
       }
@@ -203,6 +259,16 @@ export type Database = {
       delete_expired_temp_prompts: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      get_image_variations: {
+        Args: { p_campaign_id: string; p_generation_batch_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          public_url: string
+          variation_index: number
+          variation_type: string
+        }[]
       }
     }
     Enums: {

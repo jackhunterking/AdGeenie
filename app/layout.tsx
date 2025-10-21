@@ -3,13 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
-import { AdPreviewProvider } from "@/lib/context/ad-preview-context";
-import { GoalProvider } from "@/lib/context/goal-context";
-import { LocationProvider } from "@/lib/context/location-context";
-import { AudienceProvider } from "@/lib/context/audience-context";
-import { BudgetProvider } from "@/lib/context/budget-context";
-import { AdCopyProvider } from "@/lib/context/ad-copy-context";
-import { GenerationProvider } from "@/lib/context/generation-context";
+import { CampaignProvider } from "@/lib/context/campaign-context";
 import Script from "next/script";
 import { COMPANY_NAME } from "@/lib/constants";
 
@@ -49,21 +43,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <AdPreviewProvider>
-              <GoalProvider>
-                <LocationProvider>
-                  <AudienceProvider>
-                    <BudgetProvider>
-                      <AdCopyProvider>
-                        <GenerationProvider>
-                          {children}
-                        </GenerationProvider>
-                      </AdCopyProvider>
-                    </BudgetProvider>
-                  </AudienceProvider>
-                </LocationProvider>
-              </GoalProvider>
-            </AdPreviewProvider>
+            <CampaignProvider>
+              {children}
+            </CampaignProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

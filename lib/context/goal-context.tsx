@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useCampaign } from "@/lib/hooks/use-campaign"
-import { useDebounce } from "@/lib/hooks/use-debounce"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
+import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 
 type GoalType = "leads" | "calls" | null
 type GoalStatus = "idle" | "selecting" | "setup-in-progress" | "completed" | "error"
@@ -33,7 +34,7 @@ interface GoalContextType {
 const GoalContext = createContext<GoalContextType | undefined>(undefined)
 
 export function GoalProvider({ children }: { children: ReactNode }) {
-  const { campaign, saveCampaignState } = useCampaign()
+  const { campaign, saveCampaignState } = useCampaignContext()
   const [goalState, setGoalState] = useState<GoalState>({
     selectedGoal: null,
     status: "idle",
@@ -41,23 +42,31 @@ export function GoalProvider({ children }: { children: ReactNode }) {
   })
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load initial state from campaign
+  // Memoize state to prevent unnecessary recreations
+  const memoizedGoalState = useMemo(() => goalState, [goalState])
+
+  // Load initial state from campaign ONCE (even if empty)
   useEffect(() => {
-    if (campaign?.campaign_states?.[0]?.goal_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].goal_data as unknown as GoalState
+    if (!campaign?.id || isInitialized) return
+    
+    // campaign_states is 1-to-1 object, not array
+    const savedData = campaign.campaign_states?.goal_data as unknown as GoalState | null
+    if (savedData) {
+      console.log('[GoalContext] ✅ Restoring goal state:', savedData);
       setGoalState(savedData)
-      setIsInitialized(true)
     }
+    
+    setIsInitialized(true) // Mark initialized regardless of saved data
   }, [campaign, isInitialized])
 
-  // Debounced auto-save
-  const debouncedGoalState = useDebounce(goalState, 1000)
+  // Save function
+  const saveFn = useCallback(async (state: GoalState) => {
+    if (!campaign?.id || !isInitialized) return
+    await saveCampaignState('goal_data', state as unknown as Record<string, unknown>)
+  }, [campaign?.id, saveCampaignState, isInitialized])
 
-  useEffect(() => {
-    if (isInitialized && campaign?.id) {
-      saveCampaignState('goal_data', debouncedGoalState as unknown as Record<string, unknown>)
-    }
-  }, [debouncedGoalState, saveCampaignState, campaign?.id, isInitialized])
+  // Auto-save with NORMAL config (300ms debounce)
+  useAutoSave(memoizedGoalState, saveFn, AUTO_SAVE_CONFIGS.NORMAL)
 
   const setSelectedGoal = (goal: GoalType) => {
     setGoalState(prev => ({ 

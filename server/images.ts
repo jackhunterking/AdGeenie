@@ -2,32 +2,48 @@
 
 import { generateText } from 'ai';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { supabaseServer } from '@/lib/supabase/server';
 
 // Upload image buffer to Supabase Storage (exported for reuse in API routes)
 export async function uploadToSupabase(
     imageBuffer: Buffer,
     fileName: string,
-    campaignId?: string
+    campaignId?: string,
+    metadata?: { variationType: string; category: string }
 ): Promise<string> {
     try {
+        // Validate Supabase is configured
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+            throw new Error('NEXT_PUBLIC_SUPABASE_URL not configured. Please add it to .env.local');
+        }
+        
         // Generate path with campaign folder if provided
         const path = campaignId 
             ? `campaigns/${campaignId}/${fileName}`
             : `temp/${fileName}`;
 
-        // Upload to Supabase Storage
+        console.log(`📤 Uploading to Supabase: ${path} (${imageBuffer.length} bytes)`, metadata ? `[${metadata.category}]` : '');
+
+        // Upload to Supabase Storage with variation metadata
         const { data, error } = await supabaseServer
             .storage
             .from('campaign-assets')
             .upload(path, imageBuffer, {
                 contentType: 'image/png',
                 cacheControl: '3600',
-                upsert: false
+                upsert: false,
+                metadata: metadata || {}
             });
 
         if (error) {
-            console.error('Supabase upload error:', error);
+            console.error('Supabase upload error:', {
+                fileName,
+                campaignId,
+                path,
+                errorMessage: error.message,
+                errorName: error.name,
+            });
             throw new Error(`Failed to upload to Supabase: ${error.message}`);
         }
 
@@ -40,104 +56,172 @@ export async function uploadToSupabase(
         console.log(`✅ Uploaded to Supabase: ${publicUrl}`);
         return publicUrl;
     } catch (error) {
-        console.error('Error uploading to Supabase:', error);
+        console.error('Error uploading to Supabase:', {
+            fileName,
+            campaignId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+        });
         throw error;
     }
 }
 
 // Meta-specific prompt enhancement for visual guardrails
-function enhancePromptWithMetaGuardrails(userPrompt: string, isEdit: boolean = false): string {
+function enhancePromptWithMetaGuardrails(userPrompt: string, variationType?: string): string {
     const baseEnhancement = `
 ${userPrompt}
 
-CRITICAL VISUAL REQUIREMENTS:
-- Style: Super-realistic, natural photography (NOT stock photo or artificial CGI)
-- Quality: High-resolution, professional lighting, authentic human moments
-- Composition: Mobile-optimized, centered or rule-of-thirds subject placement with format flexibility
-- Background: Clean, bright, neutral, non-competing with subject
-- Aesthetic: Native Meta feed style - should not look like an advertisement
-- Format Flexibility: Design should work beautifully in both square (1:1) and vertical (9:16) formats
-- Central Weighting: Keep key visual elements in the center safe zone to allow format adaptation
+HYPER-REALISTIC PHOTOGRAPHY REQUIREMENTS (MANDATORY):
+- Style: HYPER-REALISTIC photography ONLY - must look like real DSLR/mirrorless camera photo
+- NO illustrations, NO digital art, NO 3D renders, NO AI-looking imagery, NO stock photo aesthetics
+- Authenticity: Real textures, natural skin tones, genuine materials, true-to-life lighting
+- Camera: Shot with professional equipment (Canon/Sony/Nikon), shallow depth of field when appropriate
+- Lighting: Natural or professional studio lighting - authentic shadows, highlights, and reflections
+- People: Real human expressions, natural poses, authentic emotions (if people are in the scene)
+- Details: Sharp focus on subject, natural bokeh, realistic grain, proper color grading
+- Quality: Ultra high-resolution, professional-grade photography, editorial quality
 
-SAFE ZONES & PADDING (CRITICAL):
-- ALWAYS maintain 10-12% padding/margins on ALL edges (top, bottom, left, right)
-- This ensures content is never cropped by platform UI elements
-- Keep main subject and important details within the central 80% of the frame
-- Design with breathing room - never position elements at extreme edges
-- Centrally-weighted composition allows seamless adaptation between aspect ratios
+STRICT VISUAL GUARDRAILS:
+- Realism Level: Must be indistinguishable from a real photograph taken by a professional photographer
+- NO cartoon elements, NO illustrated components, NO graphic design overlays
+- NO unrealistic proportions, NO impossible lighting, NO fake-looking scenarios
+- Natural imperfections: Include subtle real-world details (slight texture variations, natural wear, etc.)
+- Believable environment: Real-world settings with authentic props and backgrounds
 
-NO RESTRICTIONS:
-- NO text overlays, NO logos, NO watermarks, NO graphic design elements
-- NO banner layouts, NO heavy borders, NO cluttered compositions
+META FEED AESTHETIC:
+- Native content style: Should look like organic user-generated content, not ads
+- Mobile-first: Optimized for small screens, high visual impact at thumbnail size
+- Scroll-stopping: Compelling composition that captures attention naturally
+- Authentic vibe: Real moments, genuine scenarios, relatable scenes
 
-IMAGE SPECIFICATIONS:
-- Aspect ratio: Typically 1:1 (square feed) unless user specifically requests Stories/Reels format (9:16)
-- Resolution: High quality, sharp focus on main subject
-- Color: Balanced, natural tones with soft contrast
-- Focal point: Clear, unobstructed, positioned in center safe zone to avoid platform UI overlap
+COMPOSITION & FRAMING:
+- Format: 1:1 square aspect ratio (perfect for Instagram/Facebook Feed)
+- Safe zones: 10-12% padding on ALL edges (top, bottom, left, right) - CRITICAL for platform UI
+- Center-weighted: Key elements in central 80% to prevent cropping
+- Rule of thirds: Professional composition with balanced visual weight
+- Clear focal point: Subject should be immediately recognizable and engaging
 
-The image should look like professional, authentic content that stops the scroll naturally and works perfectly across multiple Meta placements.`;
+TECHNICAL SPECIFICATIONS:
+- NO text, NO logos, NO watermarks, NO graphic overlays, NO design elements
+- Clean backgrounds: Uncluttered, complementary to subject, not competing for attention
+- Professional color grading: Natural tones, proper white balance, magazine-quality finish
+- Sharp focus: Crystal clear on main subject, natural depth of field
+- Proper exposure: Well-lit, no blown highlights or crushed shadows
+
+The final image must pass as a professional photograph - indistinguishable from real camera photography.`;
 
     return baseEnhancement;
 }
 
-export async function generateImage(prompt: string, campaignId?: string) {
+export async function generateImage(
+    prompt: string, 
+    campaignId?: string,
+    numberOfImages: number = 6
+): Promise<string[]> {
     try {
-        // Enhance prompt with Meta guardrails
-        const enhancedPrompt = enhancePromptWithMetaGuardrails(prompt);
+        console.log(`🎨 Generating ${numberOfImages} AI-powered image variations...`);
         
-        const result = await generateText({
-            model: 'google/gemini-2.5-flash-image-preview',
-            prompt: enhancedPrompt,
-            providerOptions: {
-                google: { 
-                    responseModalities: ['TEXT', 'IMAGE'] 
-                },
+        // Create unique batch ID to link all variations
+        const batchId = crypto.randomUUID();
+        
+        // Define 6 distinct variation types - each offering a different creative approach
+        // All variations MUST maintain hyper-realistic photography standards
+        const variationPrompts = [
+            { 
+                type: 'hero_shot', 
+                category: 'Classic & Professional',
+                suffix: 'Hero shot: Clean, professional composition with subject centered. Balanced lighting, neutral tones, editorial magazine style. Shot with 50mm lens at f/2.8. Perfect for professional, trustworthy brand image.'
             },
-        });
+            { 
+                type: 'lifestyle_authentic', 
+                category: 'Lifestyle & Authentic',
+                suffix: 'Lifestyle photography: Natural, candid moment captured in real environment. Warm, inviting golden hour lighting. Shot with 35mm lens at f/1.8. Authentic, relatable, human-centric feel - perfect for emotional connection.'
+            },
+            { 
+                type: 'editorial_dramatic', 
+                category: 'Editorial & Bold',
+                suffix: 'Editorial style: High-contrast, dramatic lighting with bold shadows. Cinematic color grading, moody atmosphere. Shot with 85mm lens at f/1.4. Eye-catching, sophisticated, premium brand positioning.'
+            },
+            { 
+                type: 'bright_modern', 
+                category: 'Bright & Contemporary',
+                suffix: 'Modern commercial: Bright, airy, clean aesthetic with soft shadows. Cool color temperature, fresh look. Shot with 24-70mm lens at f/4. Contemporary, optimistic, energetic vibe - perfect for modern brands.'
+            },
+            { 
+                type: 'detail_closeup', 
+                category: 'Detail & Intimate',
+                suffix: 'Macro detail shot: Intimate close-up showcasing textures and details. Shallow depth of field, beautiful bokeh. Shot with 100mm macro lens at f/2. Emphasizes quality, craftsmanship, sensory appeal.'
+            },
+            { 
+                type: 'action_dynamic', 
+                category: 'Dynamic & Energetic',
+                suffix: 'Action photography: Dynamic angle capturing movement and energy. Sharp subject with motion blur in background. Shot with 24mm wide lens at f/5.6. Exciting, engaging, active lifestyle appeal.'
+            }
+        ];
 
-        let publicUrl = '';
+        // Generate all variations in parallel
+        const generationPromises = variationPrompts.slice(0, numberOfImages).map(async (variation, index) => {
+            try {
+                // Enhance prompt with Meta guardrails and variation-specific styling
+                const enhancedPrompt = enhancePromptWithMetaGuardrails(
+                    `${prompt}\n\n${variation.suffix}`,
+                    variation.type
+                );
+                
+                console.log(`  → Generating variation ${index + 1}/${numberOfImages}: ${variation.category} (${variation.type})`);
+                
+                const result = await generateText({
+                    model: 'google/gemini-2.5-flash-image-preview',
+                    prompt: enhancedPrompt,
+                    providerOptions: {
+                        google: { 
+                            responseModalities: ['TEXT', 'IMAGE'] 
+                        },
+                    },
+                });
 
-        // Upload generated images to Supabase
-        for (const file of result.files) {
-            if (file.mediaType.startsWith('image/')) {
-                const timestamp = Date.now();
-                const fileName = `generated-${timestamp}.png`;
-                const imageBuffer = Buffer.from(file.uint8Array);
+                // Process the generated image
+                for (const file of result.files) {
+                    if (file.mediaType.startsWith('image/')) {
+                        const timestamp = Date.now();
+                        const fileName = `generated-${variation.type}-${timestamp}-${index}.png`;
+                        const imageBuffer = Buffer.from(file.uint8Array);
 
-                // Upload to Supabase Storage
-                publicUrl = await uploadToSupabase(imageBuffer, fileName, campaignId);
+                        // Upload to Supabase Storage with variation metadata
+                        const publicUrl = await uploadToSupabase(
+                            imageBuffer, 
+                            fileName, 
+                            campaignId,
+                            {
+                                variationType: variation.type,
+                                category: variation.category
+                            }
+                        );
 
-                // Also save to generated_assets table if we have a campaign
-                if (campaignId) {
-                    try {
-                        await supabaseServer
-                            .from('generated_assets')
-                            .insert({
-                                campaign_id: campaignId,
-                                user_id: 'temp-user-id', // TODO: Replace with actual user ID
-                                asset_type: 'image',
-                                storage_path: campaignId ? `campaigns/${campaignId}/${fileName}` : `temp/${fileName}`,
-                                public_url: publicUrl,
-                                file_size: file.uint8Array.length,
-                                dimensions: { width: null, height: null }, // Could extract if needed
-                                generation_params: { prompt, model: 'gemini-2.5-flash-image-preview' }
-                            });
-                    } catch (dbError) {
-                        console.error('Error saving to generated_assets:', dbError);
-                        // Don't fail the whole operation if DB save fails
+                        // Image URL is tracked in campaign_states.ad_preview_data
+                        // No need for separate asset metadata table
+                        console.log(`  ✅ Variation ${index + 1} saved: ${variation.category} (${variation.type})`);
+
+                        return publicUrl;
                     }
                 }
+
+                throw new Error(`No image generated for variation ${index + 1}`);
+            } catch (error) {
+                console.error(`Error generating variation ${index + 1} (${variation.type}):`, error);
+                throw error;
             }
-        }
+        });
 
-        if (!publicUrl) {
-            throw new Error('No image was generated');
-        }
-
-        return publicUrl;
+        // Wait for all variations to complete
+        const imageUrls = await Promise.all(generationPromises);
+        
+        console.log(`✅ Successfully generated ${imageUrls.length} AI variations!`);
+        console.log(`   Batch ID: ${batchId}`);
+        
+        return imageUrls;
     } catch (error) {
-        console.error('Error generating image:', error);
+        console.error('Error generating images:', error);
         throw error;
     }
 }
@@ -172,7 +256,7 @@ export async function editImage(imageUrl: string, editPrompt: string, campaignId
         }
         
         // Enhance edit prompt with Meta guardrails
-        const enhancedEditPrompt = enhancePromptWithMetaGuardrails(editPrompt, true);
+        const enhancedEditPrompt = enhancePromptWithMetaGuardrails(editPrompt);
         
         // Use messages format with file input
         const result = await generateText({
@@ -214,29 +298,9 @@ IMPORTANT: Maintain Meta's native ad aesthetic - natural, realistic, mobile-opti
                 // Upload to Supabase Storage
                 publicUrl = await uploadToSupabase(editedBuffer, fileName, campaignId);
 
-                // Save to generated_assets table if we have a campaign
-                if (campaignId) {
-                    try {
-                        await supabaseServer
-                            .from('generated_assets')
-                            .insert({
-                                campaign_id: campaignId,
-                                user_id: 'temp-user-id', // TODO: Replace with actual user ID
-                                asset_type: 'image',
-                                storage_path: campaignId ? `campaigns/${campaignId}/${fileName}` : `temp/${fileName}`,
-                                public_url: publicUrl,
-                                file_size: file.uint8Array.length,
-                                dimensions: { width: null, height: null },
-                                generation_params: { 
-                                    editPrompt, 
-                                    originalUrl: imageUrl,
-                                    model: 'gemini-2.5-flash-image-preview' 
-                                }
-                            });
-                    } catch (dbError) {
-                        console.error('Error saving to generated_assets:', dbError);
-                    }
-                }
+                // Image URL is tracked in campaign_states.ad_preview_data
+                // No need for separate asset metadata table
+                console.log('  ✅ Edited image saved to storage');
             }
         }
 

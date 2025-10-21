@@ -10,6 +10,7 @@ import {
   PromptInputSubmit,
 } from '@/components/ai-elements/prompt-input'
 import { useAuth } from '@/components/auth/auth-provider'
+import { useCampaignContext } from '@/lib/context/campaign-context'
 
 interface HeroSectionProps {
   onAuthRequired: () => void
@@ -81,6 +82,7 @@ const useTypewriterPlaceholder = () => {
 
 export function HeroSection({ onAuthRequired }: HeroSectionProps) {
   const { user } = useAuth()
+  const { createCampaign } = useCampaignContext()
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const animatedPlaceholder = useTypewriterPlaceholder()
@@ -110,22 +112,14 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
           console.error('Failed to store prompt')
         }
       } else {
-        // User is logged in - create campaign directly
-        const response = await fetch('/api/campaigns', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            name: `Campaign: ${promptText.substring(0, 50)}...`,
-            prompt: promptText 
-          }),
-        })
-
-        if (response.ok) {
-          const { campaign } = await response.json()
-          // Redirect to campaign builder
+        // User is logged in - create campaign using context
+        const campaign = await createCampaign(
+          `Campaign: ${promptText.substring(0, 50)}...`,
+          promptText
+        )
+        
+        if (campaign) {
           router.push(`/${campaign.id}`)
-        } else {
-          console.error('Failed to create campaign')
         }
       }
     } catch (error) {

@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useCampaign } from "@/lib/hooks/use-campaign"
-import { useDebounce } from "@/lib/hooks/use-debounce"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
+import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 
 interface BudgetState {
   dailyBudget: number
@@ -22,7 +23,7 @@ interface BudgetContextType {
 const BudgetContext = createContext<BudgetContextType | undefined>(undefined)
 
 export function BudgetProvider({ children }: { children: ReactNode }) {
-  const { campaign, saveCampaignState } = useCampaign()
+  const { campaign, saveCampaignState } = useCampaignContext()
   const [budgetState, setBudgetState] = useState<BudgetState>({
     dailyBudget: 20,
     selectedAdAccount: null,
@@ -30,23 +31,31 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   })
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load initial state from campaign
+  // Memoize state to prevent unnecessary recreations
+  const memoizedBudgetState = useMemo(() => budgetState, [budgetState])
+
+  // Load initial state from campaign ONCE (even if empty)
   useEffect(() => {
-    if (campaign?.campaign_states?.[0]?.budget_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].budget_data as unknown as BudgetState
+    if (!campaign?.id || isInitialized) return
+    
+    // campaign_states is 1-to-1 object, not array
+    const savedData = campaign.campaign_states?.budget_data as unknown as BudgetState | null
+    if (savedData) {
+      console.log('[BudgetContext] ✅ Restoring budget state:', savedData);
       setBudgetState(savedData)
-      setIsInitialized(true)
     }
+    
+    setIsInitialized(true) // Mark initialized regardless of saved data
   }, [campaign, isInitialized])
 
-  // Debounced auto-save
-  const debouncedBudgetState = useDebounce(budgetState, 1000)
+  // Save function
+  const saveFn = useCallback(async (state: BudgetState) => {
+    if (!campaign?.id || !isInitialized) return
+    await saveCampaignState('budget_data', state as unknown as Record<string, unknown>)
+  }, [campaign?.id, saveCampaignState, isInitialized])
 
-  useEffect(() => {
-    if (isInitialized && campaign?.id) {
-      saveCampaignState('budget_data', debouncedBudgetState as unknown as Record<string, unknown>)
-    }
-  }, [debouncedBudgetState, saveCampaignState, campaign?.id, isInitialized])
+  // Auto-save with NORMAL config (300ms debounce)
+  useAutoSave(memoizedBudgetState, saveFn, AUTO_SAVE_CONFIGS.NORMAL)
 
   const setDailyBudget = (budget: number) => {
     setBudgetState(prev => ({ ...prev, dailyBudget: budget }))

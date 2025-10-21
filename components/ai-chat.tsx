@@ -18,13 +18,13 @@ import {
   type PromptInputMessage,
   PromptInputSubmit,
   PromptInputTextarea,
-  PromptInputToolbar,
+  PromptInputFooter,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { useState, useEffect, useMemo, Fragment, useRef } from "react";
-import { useChat } from "@ai-sdk/react";
+import { useChat, type UIMessage } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X } from "lucide-react";
 import {
   Source,
   Sources,
@@ -38,7 +38,7 @@ import {
 } from "@/components/ai-elements/reasoning";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
 import { generateImage, editImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
@@ -51,6 +51,7 @@ import { useAudience } from "@/lib/context/audience-context";
 import { AdReferenceCard } from "@/components/ad-reference-card-example";
 import { AudienceContextCard } from "@/components/audience-context-card";
 import { useGeneration } from "@/lib/context/generation-context";
+import { useCampaignContext } from "@/lib/context/campaign-context";
 
 // Type definitions
 interface MessagePart {
@@ -62,6 +63,30 @@ interface MessagePart {
 interface ChatMessage {
   parts: MessagePart[];
   [key: string]: unknown;
+}
+
+// AI SDK v5 Message Metadata interface (for proper typing)
+interface MessageMetadata {
+  timestamp: string;
+  source: 'chat_input' | 'auto_submit' | 'tool_response';
+  editMode?: boolean;
+  editingReference?: {
+    type: string;
+    variationTitle: string;
+    variationNumber: number;
+    format: 'feed' | 'story' | 'reel';
+    imageUrl?: string;
+    content?: {
+      primaryText?: string;
+      headline?: string;
+      description?: string;
+    };
+    gradient?: string;
+  };
+  audienceContext?: {
+    demographics?: string;
+    interests?: string;
+  };
 }
 
 interface LocationInput {
@@ -141,18 +166,22 @@ interface AudienceContext {
 interface ToolResult {
   tool: string;
   toolCallId: string;
-  output: string | undefined;
+  output: string | object | undefined;  // Allow objects for complex tool results
   errorText?: string;
 }
 
 interface AIChatProps {
-  initialPrompt?: string | null;
+  campaignId?: string;
+  conversationId?: string | null;  // Stable conversation ID from server (AI SDK native pattern)
+  messages?: UIMessage[];  // AI SDK v5 prop name
+  campaignMetadata?: any;
 }
 
-const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
+const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], campaignMetadata }: AIChatProps = {}) => {
   const [input, setInput] = useState("");
   const [model] = useState<string>("openai/gpt-4o");
-  const { generateImageVariations } = useAdPreview();
+  const { campaign } = useCampaignContext();
+  const { generateImageVariations, setAdContent } = useAdPreview();
   const { goalState, setFormData, setError, resetGoal } = useGoal();
   const { locationState, addLocations, updateStatus: updateLocationStatus } = useLocation();
   const { setAudienceTargeting, updateStatus: updateAudienceStatus } = useAudience();
@@ -166,24 +195,108 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   const [audienceContext, setAudienceContext] = useState<AudienceContext | null>(null);
   const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
-  const hasAutoSubmittedRef = useRef(false);
-  const { setIsGenerating, setGenerationMessage } = useGeneration();
+  const { setIsGenerating, setGenerationMessage, generationMessage } = useGeneration();
   
+  // AI SDK Native Pattern: Use stable conversationId from server
+  // This prevents ID changes that would cause useChat to reset
+  // Priority: conversationId from server > campaign.conversationId > campaignId
+  const chatId = conversationId || campaign?.conversationId || campaignId;
+  
+  // Simple transport following AI SDK pattern
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: '/api/chat',
-        body: {
-          model: model,
+        prepareSendMessagesRequest({ messages, id }) {
+          const lastMessage = messages[messages.length - 1];
+          
+          // DEBUG: Log what we're sending (AI SDK v5 pattern - metadata field)
+          console.log(`[TRANSPORT] ========== SENDING MESSAGE ==========`);
+          console.log(`[TRANSPORT] message.id:`, lastMessage.id);
+          console.log(`[TRANSPORT] message.role:`, lastMessage.role);
+          console.log(`[TRANSPORT] message.metadata:`, (lastMessage as any).metadata);
+          console.log(`[TRANSPORT] message structure:`, Object.keys(lastMessage));
+          
+          return {
+            body: {
+              message: lastMessage,
+              id,
+              model: model,
+            },
+          };
         },
       }),
     [model]
   );
   
-  const { messages, sendMessage, addToolResult, status, stop } = useChat({
+  console.log(`[AI-CHAT] ========== INITIALIZATION ==========`);
+  console.log(`[AI-CHAT] conversationId (from server):`, conversationId);
+  console.log(`[AI-CHAT] campaignId:`, campaignId);
+  console.log(`[AI-CHAT] campaign?.conversationId:`, campaign?.conversationId);
+  console.log(`[AI-CHAT] STABLE chatId being used:`, chatId);
+  console.log(`[AI-CHAT] messages.length:`, initialMessages.length);
+  console.log(`[AI-CHAT] messages:`, initialMessages.map(m => {
+    const firstTextPart = m.parts?.find((p: any) => p.type === 'text') as any;
+    return {
+      id: m.id, 
+      role: m.role,
+      textPreview: firstTextPart?.text?.substring(0, 50) || 'no-text',
+      partsCount: m.parts?.length || 0
+    };
+  }));
+
+  // Simple useChat initialization - AI SDK native pattern (following docs exactly)
+  // Uses conversationId for proper AI SDK conversation history
+  const chatHelpers = useChat({
+    id: chatId, // Use conversationId (or campaignId for backward compat)
+    messages: initialMessages,  // AI SDK v5 prop name
     transport,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-  });
+  } as any);
+  
+  const { messages, sendMessage, addToolResult, status, stop } = chatHelpers;
+  
+  console.log(`[AI-CHAT] useChat returned ${messages.length} messages immediately`);
+
+  // Debug logging for message display
+  useEffect(() => {
+    console.log(`[CLIENT] ========== MESSAGES STATE ==========`);
+    console.log(`[CLIENT] Current messages.length: ${messages.length}`);
+    console.log(`[CLIENT] loaded messages.length: ${initialMessages.length}`);
+    console.log(`[CLIENT] chatId: ${chatId}`);
+    console.log(`[CLIENT] status: ${status}`);
+    
+    if (messages.length > 0) {
+      console.log(`[CLIENT] ✅ Messages are displaying:`, messages.map(m => ({
+        id: m.id,
+        role: m.role,
+        partsCount: m.parts?.length || 0
+      })));
+      console.log(`[CLIENT] First message details:`, {
+        id: messages[0].id,
+        role: messages[0].role,
+        partsCount: messages[0].parts?.length || 0,
+        parts: messages[0].parts
+      });
+    } else if (initialMessages.length > 0) {
+      console.error(`[CLIENT] ❌ MESSAGES LOST! Loaded ${initialMessages.length} but messages array is EMPTY`);
+      console.error(`[CLIENT] This means useChat cleared the messages. Possible causes:`);
+      console.error(`[CLIENT] 1. ID mismatch between save and load`);
+      console.error(`[CLIENT] 2. ID changed after useChat initialization`);
+      console.error(`[CLIENT] 3. Message format incompatible with AI SDK`);
+    } else {
+      console.log(`[CLIENT] No messages (expected for new campaign)`);
+    }
+  }, [messages.length, initialMessages.length, chatId, status]);
+
+  // Track chatId changes (which would cause useChat to reset)
+  const prevChatIdRef = useRef(chatId);
+  useEffect(() => {
+    if (prevChatIdRef.current !== chatId) {
+      console.warn(`[CLIENT] ⚠️ chatId CHANGED from ${prevChatIdRef.current} to ${chatId}`);
+      console.warn(`[CLIENT] This will cause useChat to RESET and clear messages!`);
+      prevChatIdRef.current = chatId;
+    }
+  }, [chatId]);
 
   // Store latest sendMessage in ref (doesn't cause re-renders)
   const sendMessageRef = useRef(sendMessage);
@@ -192,6 +305,38 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
   useEffect(() => {
     sendMessageRef.current = sendMessage;
   }, [sendMessage]);
+
+  // AUTO-SUBMIT INITIAL PROMPT (AI SDK Native Pattern)
+  useEffect(() => {
+    // Only run once when component mounts with campaign metadata
+    if (!campaignId || !campaignMetadata?.initialPrompt) return
+    
+    // Don't auto-submit if messages already exist
+    if (initialMessages.length > 0) {
+      console.log(`[CLIENT] Campaign has ${initialMessages.length} messages - skipping auto-submit`)
+      return
+    }
+    
+    // Don't auto-submit if already streaming
+    if (status === 'streaming') return
+    
+    // Check if we've already auto-submitted for this campaign
+    const autoSubmitKey = `auto-submitted-${campaignId}`
+    if (sessionStorage.getItem(autoSubmitKey)) {
+      console.log('[CLIENT] Already auto-submitted for this campaign')
+      return
+    }
+    
+    console.log('[CLIENT] Auto-submitting initial prompt:', campaignMetadata.initialPrompt)
+    
+    // Mark as submitted BEFORE calling sendMessage
+    sessionStorage.setItem(autoSubmitKey, 'true')
+    
+    // Use AI SDK's sendMessage() to submit the message
+    sendMessage({
+      text: campaignMetadata.initialPrompt,
+    })
+  }, [campaignId, campaignMetadata, initialMessages.length, status, sendMessage]);
 
   const handleSubmit = (message: PromptInputMessage, e: React.FormEvent) => {
     e.preventDefault();
@@ -210,10 +355,45 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
       return;
     }
     
-    // Send the message with files
+    // Build metadata for message (AI SDK v5 native pattern)
+    const messageMetadata: MessageMetadata = {
+      timestamp: new Date().toISOString(),
+      source: 'chat_input',
+    };
+    
+    if (adEditReference) {
+      console.log(`[SUBMIT] ========== AD EDIT REFERENCE ==========`);
+      console.log(`[SUBMIT] adEditReference:`, adEditReference);
+      
+      messageMetadata.editingReference = {
+        type: adEditReference.type,
+        variationTitle: adEditReference.variationTitle,
+        variationNumber: adEditReference.variationNumber,
+        format: adEditReference.format,
+        imageUrl: adEditReference.imageUrl, // Include image URL for AI to use in editImage tool
+        content: adEditReference.content,
+        gradient: adEditReference.gradient,
+      };
+      messageMetadata.editMode = true;
+      
+      console.log(`[SUBMIT] messageMetadata.editingReference:`, messageMetadata.editingReference);
+    }
+    
+    if (audienceContext) {
+      messageMetadata.audienceContext = {
+        demographics: audienceContext.demographics,
+        interests: audienceContext.interests,
+      };
+      messageMetadata.editMode = true;
+    }
+    
+    console.log(`[SUBMIT] Sending message with metadata:`, messageMetadata);
+    
+    // Send the message with metadata (AI SDK v5 native - preserved through entire flow)
     sendMessage({ 
       text: message.text || 'Sent with attachments',
-      files: message.files 
+      files: message.files,
+      metadata: messageMetadata, // ✅ This field is preserved by AI SDK v5
     });
     setInput("");
     
@@ -283,19 +463,45 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
       // Add to loading state
       setGeneratingImages(prev => new Set(prev).add(toolCallId));
       
+      // Set generation message
+      setIsGenerating(true);
+      setGenerationMessage("Generating 6 AI-powered creative variations...");
+      
       try {
-        const imageUrl = await generateImage(prompt);
+        // Generate 6 unique AI variations in one call
+        const imageUrls = await generateImage(prompt, campaignId, 6);
+        
+        console.log('✅ Generated 6 variations:', imageUrls);
+        
+        // Set all 6 variations immediately
+        setAdContent(prev => ({
+          ...prev,
+          headline: prev?.headline || '',
+          body: prev?.body || '',
+          cta: prev?.cta || 'Learn More',
+          baseImageUrl: imageUrls[0],
+          imageVariations: imageUrls, // All 6 URLs
+        }));
+        
+        // Auto-switch to ad copy canvas to show the variations
+        window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'copy' }));
+        
         addToolResult({
           tool: 'generateImage',
           toolCallId,
-          output: imageUrl,
+          output: {
+            success: true,
+            variations: imageUrls,
+            count: imageUrls.length
+          },
         });
-      } catch {
+      } catch (error) {
+        console.error('Image generation error:', error);
         addToolResult({
           tool: 'generateImage',
           toolCallId,
           output: undefined,
-          errorText: 'Failed to generate image',
+          errorText: 'Failed to generate images',
         } as ToolResult);
       } finally {
         // Remove from loading state
@@ -304,13 +510,18 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
           newSet.delete(toolCallId);
           return newSet;
         });
+        setIsGenerating(false);
       }
     } else {
+      // User cancelled - send cancellation result
+      // The AI will respond with text confirmation
       addToolResult({
         tool: 'generateImage',
         toolCallId,
-        output: undefined,
-        errorText: 'Image generation cancelled by user',
+        output: {
+          cancelled: true,
+          message: 'User cancelled the image generation'
+        },
       } as ToolResult);
     }
   };
@@ -343,11 +554,14 @@ const AIChat = ({ initialPrompt }: AIChatProps = {}) => {
         });
       }
     } else {
+      // User cancelled - send cancellation result
       addToolResult({
         tool: 'editImage',
         toolCallId,
-        output: undefined,
-        errorText: 'Image editing cancelled by user',
+        output: {
+          cancelled: true,
+          message: 'User cancelled the image edit'
+        },
       } as ToolResult);
     }
   };
@@ -653,17 +867,6 @@ Make it conversational and easy to understand for a business owner.`,
     };
   }, [adEditReference, audienceContext]);
 
-  // Auto-submit initial prompt once
-  useEffect(() => {
-    if (initialPrompt && !hasAutoSubmittedRef.current) {
-      hasAutoSubmittedRef.current = true;
-      
-      setTimeout(() => {
-        sendMessageRef.current({ text: initialPrompt });
-      }, 500);
-    }
-  }, [initialPrompt]);
-
   // Track generation state for showing animations on ad mockups
   useEffect(() => {
     // Check if AI just asked a question (last message is from assistant)
@@ -705,28 +908,6 @@ Make it conversational and easy to understand for a business owner.`,
     <div className="relative flex size-full flex-col overflow-hidden">
       <Conversation>
         <ConversationContent>
-            {/* Show ad edit reference card if active */}
-            {adEditReference && (
-              <AdReferenceCard 
-                reference={adEditReference}
-                onDismiss={() => {
-                  setAdEditReference(null);
-                  setCustomPlaceholder("Type your message...");
-                }}
-              />
-            )}
-            
-            {/* Show audience context card if active */}
-            {audienceContext && (
-              <AudienceContextCard 
-                currentAudience={audienceContext}
-                onDismiss={() => {
-                  setAudienceContext(null);
-                  setCustomPlaceholder("Type your message...");
-                }}
-              />
-            )}
-            
             {messages.map((message, messageIndex) => {
               const isLastMessage = messageIndex === messages.length - 1;
               const isLiked = likedMessages.has(message.id);
@@ -763,14 +944,81 @@ Make it conversational and easy to understand for a business owner.`,
                     )}
                     <Message from={message.role}>
                       <MessageContent>
-                        {message.parts.map((part, i) => {
-                          switch (part.type) {
-                            case "text":
+                        {/* Show tool attempt info for empty assistant messages (AI SDK best practice) */}
+                        {message.role === "assistant" && message.parts.length === 0 && (message as any).toolInvocations?.length > 0 ? (
+                          <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+                            {(message as any).toolInvocations.map((inv: any, idx: number) => {
+                              const toolName = inv.toolName || 'unknown';
+                              const toolIcons: Record<string, string> = {
+                                generateImage: '🎨',
+                                editImage: '✏️',
+                                locationTargeting: '📍',
+                                audienceTargeting: '👥',
+                                setupGoal: '🎯'
+                              };
+                              const icon = toolIcons[toolName] || '🔧';
+                              
+                              const toolLabels: Record<string, string> = {
+                                generateImage: 'Image generation requested',
+                                editImage: 'Image edit requested',
+                                locationTargeting: 'Location targeting configured',
+                                audienceTargeting: 'Audience targeting configured',
+                                setupGoal: 'Goal setup requested'
+                              };
+                              const label = toolLabels[toolName] || `Tool "${toolName}" invoked`;
+                              
                               return (
-                                <Response key={`${message.id}-${i}`}>
-                                  {part.text}
-                                </Response>
+                                <div key={idx} className="flex items-center gap-2 text-sm">
+                                  <span className="text-lg">{icon}</span>
+                                  <span className="text-muted-foreground">{label}</span>
+                                </div>
                               );
+                            })}
+                            <span className="text-xs text-muted-foreground italic mt-1">
+                              This interaction required additional processing
+                            </span>
+                          </div>
+                        ) : (
+                          message.parts
+                            // Filter out cancelled tool invocations (AI SDK best practice)
+                            .filter((part) => {
+                              const partAny = part as any;
+                              
+                              // Hide tool-result parts that indicate cancellation
+                              if (part.type === 'tool-result') {
+                                const output = partAny.output;
+                                if (output && typeof output === 'object' && output.cancelled === true) {
+                                  return false; // Don't render cancelled tool results
+                                }
+                              }
+                              
+                              // Hide tool-call parts if their corresponding result was cancelled
+                              if (part.type === 'tool-call') {
+                                const toolCallId = partAny.toolCallId;
+                                // Check if there's a cancelled result for this tool call
+                                const hasCancelledResult = message.parts.some((p: any) => 
+                                  p.type === 'tool-result' && 
+                                  p.toolCallId === toolCallId &&
+                                  p.output?.cancelled === true
+                                );
+                                if (hasCancelledResult) {
+                                  return false; // Don't render tool call if it was cancelled
+                                }
+                              }
+                              
+                              return true; // Render all other parts
+                            })
+                            .map((part, i) => {
+                            switch (part.type) {
+                              case "text":
+                                return (
+                                  <Response 
+                                    key={`${message.id}-${i}`}
+                                    isAnimating={status === "streaming" && isLastMessage}
+                                  >
+                                    {part.text}
+                                  </Response>
+                                );
                             case "reasoning":
                               return (
                                 <Reasoning
@@ -787,6 +1035,8 @@ Make it conversational and easy to understand for a business owner.`,
                               const isGenerating = generatingImages.has(callId);
                               const input = part.input as { prompt: string; brandName?: string; caption?: string };
                               
+                              console.log('[CLIENT] generateImage tool state:', part.state, 'isGenerating:', isGenerating);
+                              
                               switch (part.state) {
                                 case 'input-streaming':
                                   return <div key={callId} className="text-sm text-muted-foreground">Preparing...</div>;
@@ -795,9 +1045,19 @@ Make it conversational and easy to understand for a business owner.`,
                                   // Show native Loader when generating
                                   if (isGenerating) {
                                     return (
-                                      <div key={callId} className="flex items-center gap-3 justify-center p-6 my-2 border rounded-lg bg-card max-w-md mx-auto">
-                                        <Loader size={20} />
-                                        <span className="text-sm text-muted-foreground">Generating your social media ad...</span>
+                                      <div key={callId} className="flex flex-col items-center gap-3 justify-center p-6 my-2 border rounded-lg bg-card max-w-md mx-auto">
+                                        <div className="relative">
+                                          <div className="h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
+                                          <div className="absolute inset-0 h-10 w-10 rounded-full border-4 border-transparent border-r-blue-300 animate-spin" style={{ animationDelay: '150ms' }} />
+                                        </div>
+                                        <div className="flex flex-col items-center gap-1">
+                                          <span className="text-sm font-medium text-foreground">{generationMessage}</span>
+                                          <div className="flex gap-1">
+                                            <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                            <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                            <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                          </div>
+                                        </div>
                                       </div>
                                     );
                                   }
@@ -812,24 +1072,30 @@ Make it conversational and easy to understand for a business owner.`,
                                   );
                                 
                                 case 'output-available': {
-                                  const imageUrl = part.output as string;
+                                  const output = part.output as { success?: boolean; variations?: string[]; count?: number; cancelled?: boolean };
                                   
-                                  // Trigger variation generation when image is ready
-                                  setTimeout(() => {
-                                    generateImageVariations(imageUrl);
-                                  }, 100);
+                                  // Don't show anything if cancelled
+                                  if (output?.cancelled) {
+                                    return null;
+                                  }
                                   
-                                  return (
-                                    <div key={callId} className="border rounded-lg p-4 my-2 bg-green-500/5 border-green-500/30 max-w-md mx-auto">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                                        <p className="font-medium text-green-600">Image Generated!</p>
+                                  // Only show success if we actually have generated images
+                                  if (output?.success && output?.variations && output.variations.length > 0) {
+                                    return (
+                                      <div key={callId} className="border rounded-lg p-4 my-2 bg-green-500/5 border-green-500/30 max-w-md mx-auto">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                          <p className="font-medium text-green-600">{output.count} Variations Created!</p>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                          Check them out on the canvas →
+                                        </p>
                                       </div>
-                                      <p className="text-sm text-muted-foreground">
-                                        Creating 6 variations for you to choose from. Check them out on the canvas →
-                                      </p>
-                                    </div>
-                                  );
+                                    );
+                                  }
+                                  
+                                  // If output exists but no variations yet, don't show anything (still processing)
+                                  return null;
                                 }
                                 
                                 case 'output-error':
@@ -846,70 +1112,122 @@ Make it conversational and easy to understand for a business owner.`,
                             }
                             case "tool-editImage": {
                               const callId = part.toolCallId;
-                              const isEditing = editingImages.has(callId);
                               
                               switch (part.state) {
                                 case 'input-streaming':
-                                  return <div key={callId} className="text-sm text-muted-foreground">Preparing image edit...</div>;
-                                case 'input-available': {
-                                  const input = part.input as { imageUrl: string; prompt: string };
+                                case 'tool-executing':
+                                  // Server-side execution - show loading state
                                   return (
-                                    <div key={callId} className="border rounded-lg p-4 my-2 bg-card">
-                                      <p className="mb-2 font-medium">Edit this image?</p>
-                                      <img 
-                                        src={input.imageUrl} 
-                                        alt="Image to edit" 
-                                        className="my-2 rounded-lg max-w-xs shadow-md"
-                                      />
-                                      <p className="text-sm text-muted-foreground mb-4">
-                                        <span className="font-medium">Changes:</span> &quot;{input.prompt}&quot;
-                                      </p>
-                                      {isEditing && (
-                                        <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
-                                          <Loader size={14} />
-                                          <span>Editing image...</span>
-                                        </div>
-                                      )}
-                                      <div className="flex gap-2">
-                                        <Button 
-                                          onClick={() => handleImageEdit(callId, input.imageUrl, input.prompt, true)}
-                                          disabled={isEditing}
-                                        >
-                                          {isEditing ? (
-                                            <span className="flex items-center gap-2">
-                                              <Loader size={14} />
-                                              Editing...
-                                            </span>
-                                          ) : (
-                                            'Apply Edit'
-                                          )}
-                                        </Button>
-                                        <Button 
-                                          variant="outline" 
-                                          onClick={() => handleImageEdit(callId, input.imageUrl, input.prompt, false)}
-                                          disabled={isEditing}
-                                        >
-                                          Cancel
-                                        </Button>
+                                    <div key={callId} className="flex items-center gap-3 p-4 border rounded-lg bg-card my-2">
+                                      <div className="relative">
+                                        <div className="h-8 w-8 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
                                       </div>
+                                      <span className="text-sm text-muted-foreground">Editing image...</span>
                                     </div>
                                   );
-                                }
-                                case 'output-available':
+                                
+                                case 'output-available': {
+                                  const output = part.output as { success?: boolean; editedImageUrl?: string; error?: string };
+                                  
+                                  if (!output.success || output.error) {
+                                    return (
+                                      <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
+                                        Error: {output.error || 'Failed to edit image'}
+                                      </div>
+                                    );
+                                  }
+                                  
                                   return (
                                     <div key={callId} className="my-4">
-                                      <p className="text-sm font-medium text-muted-foreground mb-2">Edited image:</p>
+                                      <p className="text-sm font-medium text-muted-foreground mb-2">✨ Edited image:</p>
                                       <img
-                                        src={part.output as string}
+                                        src={output.editedImageUrl}
                                         alt="Edited image"
                                         className="rounded-lg shadow-lg max-w-full h-auto"
                                       />
                                     </div>
                                   );
+                                }
+                                
                                 case 'output-error':
-                                  return <div key={callId} className="text-sm text-destructive">Error: {part.errorText}</div>;
+                                  return (
+                                    <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
+                                      Error: {part.errorText || 'Failed to edit image'}
+                                    </div>
+                                  );
+                                
+                                default:
+                                  return null;
                               }
-                              break;
+                            }
+                            case "tool-regenerateImage": {
+                              const callId = part.toolCallId;
+                              
+                              switch (part.state) {
+                                case 'input-streaming':
+                                case 'tool-executing':
+                                  // Server-side execution - show loading state
+                                  return (
+                                    <div key={callId} className="flex flex-col items-center gap-3 justify-center p-6 my-2 border rounded-lg bg-card max-w-md mx-auto">
+                                      <div className="relative">
+                                        <div className="h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
+                                        <div className="absolute inset-0 h-10 w-10 rounded-full border-4 border-transparent border-r-blue-300 animate-spin" style={{ animationDelay: '150ms' }} />
+                                      </div>
+                                      <div className="flex flex-col items-center gap-1">
+                                        <span className="text-sm font-medium text-foreground">Regenerating 6 new variations...</span>
+                                        <div className="flex gap-1">
+                                          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                
+                                case 'output-available': {
+                                  const output = part.output as { success?: boolean; imageUrls?: string[]; count?: number; error?: string };
+                                  
+                                  if (!output.success || output.error) {
+                                    return (
+                                      <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
+                                        Error: {output.error || 'Failed to regenerate images'}
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  if (!output.imageUrls || output.imageUrls.length === 0) {
+                                    return null;
+                                  }
+                                  
+                                  return (
+                                    <div key={callId} className="my-4">
+                                      <p className="text-sm font-medium text-green-600 mb-3">
+                                        ✨ Successfully generated {output.count || output.imageUrls.length} new variations!
+                                      </p>
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {output.imageUrls.map((url, idx) => (
+                                          <img
+                                            key={`${callId}-${idx}`}
+                                            src={url}
+                                            alt={`Variation ${idx + 1}`}
+                                            className="rounded-lg shadow-md w-full h-auto"
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                
+                                case 'output-error':
+                                  return (
+                                    <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
+                                      Error: {part.errorText || 'Failed to regenerate images'}
+                                    </div>
+                                  );
+                                
+                                default:
+                                  return null;
+                              }
                             }
                             case "tool-locationTargeting": {
                               const callId = part.toolCallId;
@@ -1276,7 +1594,8 @@ Make it conversational and easy to understand for a business owner.`,
                             default:
                               return null;
                           }
-                        })}
+                        })
+                        )}
                       </MessageContent>
                     </Message>
                   </div>
@@ -1312,6 +1631,29 @@ Make it conversational and easy to understand for a business owner.`,
                 </Fragment>
               );
             })}
+            
+            {/* Show ad edit reference card if active - appears at bottom after all messages */}
+            {adEditReference && (
+              <AdReferenceCard 
+                reference={adEditReference}
+                onDismiss={() => {
+                  setAdEditReference(null);
+                  setCustomPlaceholder("Type your message...");
+                }}
+              />
+            )}
+            
+            {/* Show audience context card if active - appears at bottom after all messages */}
+            {audienceContext && (
+              <AudienceContextCard 
+                currentAudience={audienceContext}
+                onDismiss={() => {
+                  setAudienceContext(null);
+                  setCustomPlaceholder("Type your message...");
+                }}
+              />
+            )}
+            
             {status === "submitted" && <Loader />}
           </ConversationContent>
         <ConversationScrollButton />
@@ -1331,6 +1673,36 @@ Make it conversational and easy to understand for a business owner.`,
             }}
           >
             <PromptInputBody>
+              {/* Reference Badge - shows when editing */}
+              {(adEditReference || audienceContext) && (
+                <div className="w-full px-3 pt-3 pb-1">
+                  <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-2 w-fit">
+                    <Reply className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {adEditReference 
+                        ? `Editing: ${adEditReference.variationTitle}` 
+                        : `Editing: Audience Targeting`}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (adEditReference) {
+                          setAdEditReference(null);
+                        }
+                        if (audienceContext) {
+                          setAudienceContext(null);
+                        }
+                        setCustomPlaceholder("Type your message...");
+                      }}
+                      className="p-0.5 rounded hover:bg-blue-500/10 transition-colors"
+                      aria-label="Clear reference"
+                      type="button"
+                    >
+                      <X className="h-3 w-3 text-blue-500" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               <PromptInputAttachments>
                 {(attachment) => <PromptInputAttachment data={attachment} />}
               </PromptInputAttachments>
@@ -1341,7 +1713,7 @@ Make it conversational and easy to understand for a business owner.`,
                 placeholder={customPlaceholder}
               />
             </PromptInputBody>
-            <PromptInputToolbar>
+            <PromptInputFooter>
               <PromptInputTools>
                 <PromptInputActionMenu>
                   <PromptInputActionMenuTrigger />
@@ -1356,7 +1728,7 @@ Make it conversational and easy to understand for a business owner.`,
                 type={status === 'streaming' ? 'button' : 'submit'}
                 onClick={status === 'streaming' ? stop : undefined}
               />
-            </PromptInputToolbar>
+            </PromptInputFooter>
           </PromptInput>
         </div>
       </div>

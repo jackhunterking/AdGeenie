@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useCampaign } from "@/lib/hooks/use-campaign"
-import { useDebounce } from "@/lib/hooks/use-debounce"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
+import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 
 interface AdContent {
   imageUrl?: string // Legacy single image support
@@ -27,105 +28,87 @@ interface AdPreviewContextType {
   setSelectedCreativeVariation: (variation: CreativeVariation | null) => void
   loadingVariations: boolean[]
   generateImageVariations: (baseImageUrl: string, campaignId?: string) => Promise<void>
+  isSaving: boolean
+  lastSaved: Date | null
+  saveError: Error | null
 }
 
 const AdPreviewContext = createContext<AdPreviewContextType | undefined>(undefined)
 
 export function AdPreviewProvider({ children }: { children: ReactNode }) {
-  const { campaign, saveCampaignState } = useCampaign()
+  const { campaign, saveCampaignState } = useCampaignContext()
   const [adContent, setAdContent] = useState<AdContent | null>(null)
   const [isPublished, setIsPublished] = useState(false)
   const [selectedCreativeVariation, setSelectedCreativeVariation] = useState<CreativeVariation | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [loadingVariations, setLoadingVariations] = useState<boolean[]>([false, false, false, false, false, false])
 
-  // Combine all state for saving
-  const adPreviewState = { adContent, isPublished, selectedCreativeVariation }
+  // CRITICAL: Memoize state to prevent unnecessary recreations
+  const adPreviewState = useMemo(() => ({ 
+    adContent, 
+    isPublished, 
+    selectedCreativeVariation 
+  }), [adContent, isPublished, selectedCreativeVariation])
 
-  // Load initial state from campaign
+  // Load initial state from campaign ONCE (even if empty)
   useEffect(() => {
-    if (campaign?.campaign_states?.[0]?.ad_preview_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].ad_preview_data as unknown as {
-        adContent?: AdContent | null;
-        isPublished?: boolean;
-        selectedCreativeVariation?: CreativeVariation | null;
+    if (!campaign?.id || isInitialized) return
+    
+    console.log(`[AdPreviewContext] Attempting to restore state for campaign ${campaign.id}`);
+    console.log(`[AdPreviewContext] campaign_states available:`, !!campaign.campaign_states);
+    console.log(`[AdPreviewContext] campaign_states is object:`, typeof campaign.campaign_states === 'object');
+    
+    // campaign_states is 1-to-1 object, not array
+    const savedData = campaign.campaign_states?.ad_preview_data as unknown as {
+      adContent?: AdContent | null;
+      isPublished?: boolean;
+      selectedCreativeVariation?: CreativeVariation | null;
+    } | null
+    
+    console.log(`[AdPreviewContext] Saved ad_preview_data:`, savedData ? {
+      hasAdContent: !!savedData.adContent,
+      adContentKeys: savedData.adContent ? Object.keys(savedData.adContent) : [],
+      imageVariationsCount: savedData.adContent?.imageVariations?.length || 0
+    } : 'null');
+    
+    if (savedData) {
+      if (savedData.adContent) {
+        console.log(`[AdPreviewContext] ✅ Restoring adContent with ${savedData.adContent.imageVariations?.length || 0} image variations`);
+        setAdContent(savedData.adContent);
       }
-      if (savedData.adContent) setAdContent(savedData.adContent)
       if (savedData.isPublished !== undefined) setIsPublished(savedData.isPublished)
       if (savedData.selectedCreativeVariation) setSelectedCreativeVariation(savedData.selectedCreativeVariation)
-      setIsInitialized(true)
+    } else {
+      console.warn(`[AdPreviewContext] ⚠️ No saved ad_preview_data found!`);
     }
+    
+    setIsInitialized(true) // Mark initialized regardless of saved data
   }, [campaign, isInitialized])
 
-  // Debounced auto-save
-  const debouncedAdPreviewState = useDebounce(adPreviewState, 1000)
+  // Save function with proper return type
+  const saveFn = useCallback(async (state: typeof adPreviewState) => {
+    if (!campaign?.id || !isInitialized) return
+    await saveCampaignState('ad_preview_data', state)
+  }, [campaign?.id, saveCampaignState, isInitialized])
 
-  useEffect(() => {
-    if (isInitialized && campaign?.id) {
-      saveCampaignState('ad_preview_data', debouncedAdPreviewState)
-    }
-  }, [debouncedAdPreviewState, saveCampaignState, campaign?.id, isInitialized])
+  // Determine if we have critical data (images)
+  const hasImages = !!(adContent?.imageVariations?.length || adContent?.baseImageUrl)
+  
+  // Auto-save with IMMEDIATE mode for images (no debounce!)
+  const { isSaving, lastSaved, error } = useAutoSave(
+    adPreviewState, 
+    saveFn, 
+    hasImages ? AUTO_SAVE_CONFIGS.CRITICAL : AUTO_SAVE_CONFIGS.NORMAL
+  )
 
   // Function to generate image variations from base image
+  // NOTE: This function is now a no-op since AI generates all 6 variations upfront
+  // Keeping it for backward compatibility
   const generateImageVariations = async (baseImageUrl: string, campaignId?: string) => {
-    try {
-      console.log('🎨 Starting variation generation...')
-      
-      // Set all variations as loading
-      setLoadingVariations([true, true, true, true, true, true])
-      
-      // Update ad content with base image immediately
-      setAdContent(prev => ({
-        ...prev,
-        headline: prev?.headline || '',
-        body: prev?.body || '',
-        cta: prev?.cta || 'Learn More',
-        baseImageUrl,
-        imageVariations: undefined, // Clear old variations
-      }))
-
-      // Call the variations API
-      const response = await fetch('/api/images/variations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          baseImageUrl,
-          campaignId: campaignId || campaign?.id,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to generate variations')
-      }
-
-      const data = await response.json()
-      
-      if (data.success && data.variations) {
-        console.log(`✅ Received ${data.variations.length} variations`)
-        
-        // Update ad content with all variations
-        setAdContent(prev => ({
-          ...prev,
-          headline: prev?.headline || '',
-          body: prev?.body || '',
-          cta: prev?.cta || 'Learn More',
-          baseImageUrl,
-          imageVariations: data.variations,
-        }))
-        
-        // Mark all variations as loaded
-        setLoadingVariations([false, false, false, false, false, false])
-        
-        // Switch to ad copy canvas
-        window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'copy' }))
-      }
-    } catch (error) {
-      console.error('Error generating variations:', error)
-      // Mark all as not loading on error
-      setLoadingVariations([false, false, false, false, false, false])
-    }
+    console.log('⚠️ generateImageVariations called but AI already generated all 6 variations');
+    // All 6 variations are generated by AI in handleImageGeneration
+    // This function is kept for backward compatibility but does nothing
+    return Promise.resolve();
   }
 
   return (
@@ -137,7 +120,10 @@ export function AdPreviewProvider({ children }: { children: ReactNode }) {
       selectedCreativeVariation,
       setSelectedCreativeVariation,
       loadingVariations,
-      generateImageVariations
+      generateImageVariations,
+      isSaving,
+      lastSaved,
+      saveError: error
     }}>
       {children}
     </AdPreviewContext.Provider>

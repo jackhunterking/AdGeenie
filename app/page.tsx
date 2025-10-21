@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
+import { useCampaignContext } from '@/lib/context/campaign-context'
 import { AuthModal } from '@/components/auth/auth-modal'
 import { HomepageHeader } from '@/components/homepage/homepage-header'
 import { LoggedInHeader } from '@/components/homepage/logged-in-header'
@@ -12,6 +13,7 @@ import { CampaignGrid } from '@/components/homepage/campaign-grid'
 
 function HomeContent() {
   const { user, loading } = useAuth()
+  const { createCampaign } = useCampaignContext()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -21,100 +23,86 @@ function HomeContent() {
   // Check for temp_prompt_id after login and create campaign
   useEffect(() => {
     const handlePostAuth = async () => {
-      // Only process if user is authenticated and auth is not loading
       if (!user || loading) return
       
-      // Check if this is a new user from email verification
       const isVerified = searchParams?.get('verified') === 'true'
-      const tempPromptId = localStorage.getItem('temp_prompt_id')
+      if (!isVerified) return
       
-      // If verified (with or without temp prompt), fetch campaigns created by trigger
-      if (isVerified) {
-        // Check if we've already processed this verification to avoid double processing
-        const hasProcessedVerification = sessionStorage.getItem('processed_verification')
-        if (hasProcessedVerification) return
+      // CHECK FOR SUPABASE ERRORS FIRST
+      const error = searchParams?.get('error')
+      const errorCode = searchParams?.get('error_code')
+      const errorDescription = searchParams?.get('error_description')
+      
+      if (error || errorCode) {
+        console.error('[HOMEPAGE] Verification error:', { error, errorCode, errorDescription })
         
-        sessionStorage.setItem('processed_verification', 'true')
-        setProcessingPrompt(true)
-
-        try {
-          // Fetch campaigns (trigger should have created one if temp_prompt_id existed)
-          const response = await fetch('/api/campaigns')
-          
-          if (response.ok) {
-            const { campaigns } = await response.json()
-            
-            if (campaigns && campaigns.length > 0) {
-              // Redirect to newest campaign
-              router.push(`/${campaigns[0].id}`)
-            } else {
-              // No campaigns found - user signed up without prompt
-              // Clear localStorage and stay on homepage
-              if (tempPromptId) {
-                localStorage.removeItem('temp_prompt_id')
-              }
-              setProcessingPrompt(false)
-              sessionStorage.removeItem('processed_verification')
-            }
-          } else {
-            console.error('Failed to fetch campaigns')
-            sessionStorage.removeItem('processed_verification')
-            setProcessingPrompt(false)
-          }
-        } catch (error) {
-          console.error('Error fetching campaigns:', error)
-          sessionStorage.removeItem('processed_verification')
-          setProcessingPrompt(false)
+        // Show user-friendly error message
+        if (errorCode === 'otp_expired') {
+          alert('Your verification link has expired. Please sign up again to receive a new verification email.')
+        } else {
+          alert(`Verification failed: ${errorDescription || error || 'Unknown error'}`)
         }
+        
+        // Clean up URL and stop processing
+        window.history.replaceState({}, '', '/')
         return
       }
       
-      // Original logic for temp_prompt_id (when user starts on homepage)
-      if (tempPromptId) {
-        setProcessingPrompt(true)
-
-        try {
-          // Fetch the temp prompt
-          const promptResponse = await fetch(`/api/temp-prompt?id=${tempPromptId}`)
-          if (promptResponse.ok) {
-            const { promptText } = await promptResponse.json()
-            
-            // Create campaign with the prompt
-            const campaignResponse = await fetch('/api/campaigns', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: `Campaign: ${promptText.substring(0, 50)}...`,
-                tempPromptId,
-                prompt: promptText,
-              }),
-            })
-
-            if (campaignResponse.ok) {
-              const { campaign } = await campaignResponse.json()
-              // Clear the temp prompt ID
-              localStorage.removeItem('temp_prompt_id')
-              // Redirect to the new campaign
-              router.push(`/${campaign.id}`)
-            } else {
-              console.error('Failed to create campaign')
-              setProcessingPrompt(false)
-            }
-          } else {
-            console.error('Failed to fetch temp prompt')
-            localStorage.removeItem('temp_prompt_id')
-            setProcessingPrompt(false)
-          }
-        } catch (error) {
-          console.error('Error creating campaign from temp prompt:', error)
-          localStorage.removeItem('temp_prompt_id')
+      // Prevent double-processing
+      const hasProcessed = sessionStorage.getItem('processed_verification')
+      if (hasProcessed) return
+      sessionStorage.setItem('processed_verification', 'true')
+      
+      setProcessingPrompt(true)
+      
+      try {
+        // Get temp_prompt_id from user metadata (NOT localStorage)
+        const tempPromptId = user.user_metadata?.temp_prompt_id
+        
+        if (!tempPromptId) {
+          // User verified but no temp prompt - just stay on homepage
+          console.log('[HOMEPAGE] User verified without temp prompt')
+          sessionStorage.removeItem('processed_verification')
+          setProcessingPrompt(false)
+          return
+        }
+        
+        // Fetch the temp prompt
+        const promptResponse = await fetch(`/api/temp-prompt?id=${tempPromptId}`)
+        
+        if (!promptResponse.ok) {
+          // Prompt expired/used - redirect to homepage
+          console.warn('[HOMEPAGE] Temp prompt expired or already used')
+          sessionStorage.removeItem('processed_verification')
+          setProcessingPrompt(false)
+          return
+        }
+        
+        const { promptText } = await promptResponse.json()
+        
+        // Create campaign using context
+        const campaign = await createCampaign(
+          `Campaign: ${promptText.substring(0, 50)}...`,
+          promptText
+        )
+        
+        if (campaign) {
+          // Redirect to campaign - client will auto-submit
+          router.push(`/${campaign.id}`)
+        } else {
+          console.error('[HOMEPAGE] Failed to create campaign')
+          sessionStorage.removeItem('processed_verification')
           setProcessingPrompt(false)
         }
+      } catch (error) {
+        console.error('[HOMEPAGE] Error:', error)
+        sessionStorage.removeItem('processed_verification')
+        setProcessingPrompt(false)
       }
     }
-
+    
     handlePostAuth()
-  }, [user, loading, router, searchParams])
+  }, [user, loading, router, searchParams, createCampaign])
 
   const handleSignInClick = () => {
     setAuthTab('signin')

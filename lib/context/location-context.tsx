@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useCampaign } from "@/lib/hooks/use-campaign"
-import { useDebounce } from "@/lib/hooks/use-debounce"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
+import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 
 interface GeoJSONGeometry {
   type: string;
@@ -41,30 +42,38 @@ interface LocationContextType {
 const LocationContext = createContext<LocationContextType | undefined>(undefined)
 
 export function LocationProvider({ children }: { children: ReactNode }) {
-  const { campaign, saveCampaignState } = useCampaign()
+  const { campaign, saveCampaignState } = useCampaignContext()
   const [locationState, setLocationState] = useState<LocationState>({
     locations: [],
     status: "idle",
   })
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load initial state from campaign
+  // Memoize state to prevent unnecessary recreations
+  const memoizedLocationState = useMemo(() => locationState, [locationState])
+
+  // Load initial state from campaign ONCE (even if empty)
   useEffect(() => {
-    if (campaign?.campaign_states?.[0]?.location_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].location_data as unknown as LocationState
+    if (!campaign?.id || isInitialized) return
+    
+    // campaign_states is 1-to-1 object, not array
+    const savedData = campaign.campaign_states?.location_data as unknown as LocationState | null
+    if (savedData) {
+      console.log('[LocationContext] ✅ Restoring location state:', savedData);
       setLocationState(savedData)
-      setIsInitialized(true)
     }
+    
+    setIsInitialized(true) // Mark initialized regardless of saved data
   }, [campaign, isInitialized])
 
-  // Debounced auto-save
-  const debouncedLocationState = useDebounce(locationState, 1000)
+  // Save function
+  const saveFn = useCallback(async (state: LocationState) => {
+    if (!campaign?.id || !isInitialized) return
+    await saveCampaignState('location_data', state as unknown as Record<string, unknown>)
+  }, [campaign?.id, saveCampaignState, isInitialized])
 
-  useEffect(() => {
-    if (isInitialized && campaign?.id) {
-      saveCampaignState('location_data', debouncedLocationState as unknown as Record<string, unknown>)
-    }
-  }, [debouncedLocationState, saveCampaignState, campaign?.id, isInitialized])
+  // Auto-save with NORMAL config (300ms debounce)
+  useAutoSave(memoizedLocationState, saveFn, AUTO_SAVE_CONFIGS.NORMAL)
 
   const addLocations = (newLocations: Location[], shouldMerge: boolean = true) => {
     setLocationState(prev => {

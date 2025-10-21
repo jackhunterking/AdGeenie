@@ -1,5 +1,13 @@
+/**
+ * Feature: Campaign State API
+ * Purpose: Get and update campaign state with state-manager service
+ * References:
+ *  - Supabase: https://supabase.com/docs/guides/database
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import { stateManager } from '@/lib/services/state-manager'
 
 // PATCH /api/campaigns/[id]/state - Update campaign state
 export async function PATCH(
@@ -52,6 +60,7 @@ export async function PATCH(
       'ad_copy_data',
       'ad_preview_data',
       'budget_data',
+      'generated_images',
     ]
     
     const updateData: Record<string, unknown> = {}
@@ -68,21 +77,11 @@ export async function PATCH(
       )
     }
 
-    // Update campaign state
-    const { data, error } = await supabaseServer
-      .from('campaign_states')
-      .update({
-        ...updateData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('campaign_id', campaignId)
-      .select()
-      .single()
+    // Update campaign state using state-manager service
+    await stateManager.updateMultipleFields(campaignId, updateData as any)
 
-    if (error) {
-      console.error('Error updating campaign state:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    // Get updated state
+    const state = await stateManager.getCampaignState(campaignId)
 
     // Also update the campaign's updated_at timestamp
     await supabaseServer
@@ -90,7 +89,7 @@ export async function PATCH(
       .update({ updated_at: new Date().toISOString() })
       .eq('id', campaignId)
 
-    return NextResponse.json({ state: data })
+    return NextResponse.json({ state })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

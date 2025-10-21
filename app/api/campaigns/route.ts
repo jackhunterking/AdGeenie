@@ -1,5 +1,14 @@
+/**
+ * Feature: Campaigns API
+ * Purpose: List and create campaigns with linked conversations
+ * References:
+ *  - AI SDK Core: https://ai-sdk.dev/docs/ai-sdk-core/conversation-history
+ *  - Supabase: https://supabase.com/docs/guides/database
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import { conversationManager } from '@/lib/services/conversation-manager'
 
 // GET /api/campaigns - List user's campaigns
 export async function GET() {
@@ -21,13 +30,7 @@ export async function GET() {
       .from('campaigns')
       .select(`
         *,
-        campaign_states (*),
-        generated_assets (
-          id,
-          public_url,
-          asset_type,
-          created_at
-        )
+        campaign_states (*)
       `)
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
@@ -106,8 +109,6 @@ export async function POST(request: NextRequest) {
         current_step: 1,
         total_steps: 6,
         metadata,
-        // Explicitly set to FALSE only if there's an initial prompt
-        initial_prompt_consumed: initialPrompt ? false : true,
       })
       .select()
       .single()
@@ -143,6 +144,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Create conversation for this campaign (AI SDK pattern)
+    try {
+      const conversation = await conversationManager.createConversation(
+        user.id,
+        campaign.id,
+        {
+          title: `Chat: ${campaignName}`,
+          metadata: {
+            campaign_name: campaignName,
+            initial_prompt: initialPrompt,
+          },
+        }
+      )
+      console.log(`Created conversation ${conversation.id} for campaign ${campaign.id}`)
+    } catch (convError) {
+      console.error('Error creating conversation:', convError)
+      // Don't fail campaign creation if conversation fails - it can be created later
+    }
+
     return NextResponse.json({ campaign }, { status: 201 })
   } catch (error) {
     console.error('Unexpected error:', error)
@@ -152,4 +172,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

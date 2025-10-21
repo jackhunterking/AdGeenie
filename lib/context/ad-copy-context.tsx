@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useCampaign } from "@/lib/hooks/use-campaign"
-import { useDebounce } from "@/lib/hooks/use-debounce"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
+import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 
 interface AdCopyVariation {
   id: string
@@ -25,30 +26,38 @@ interface AdCopyContextType {
 const AdCopyContext = createContext<AdCopyContextType | undefined>(undefined)
 
 export function AdCopyProvider({ children }: { children: ReactNode }) {
-  const { campaign, saveCampaignState } = useCampaign()
+  const { campaign, saveCampaignState } = useCampaignContext()
   const [adCopyState, setAdCopyState] = useState<AdCopyState>({
     selectedCopyIndex: null,
     status: "idle",
   })
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load initial state from campaign
+  // Memoize state to prevent unnecessary recreations
+  const memoizedAdCopyState = useMemo(() => adCopyState, [adCopyState])
+
+  // Load initial state from campaign ONCE (even if empty)
   useEffect(() => {
-    if (campaign?.campaign_states?.[0]?.ad_copy_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].ad_copy_data as unknown as AdCopyState
+    if (!campaign?.id || isInitialized) return
+    
+    // campaign_states is 1-to-1 object, not array
+    const savedData = campaign.campaign_states?.ad_copy_data as unknown as AdCopyState | null
+    if (savedData) {
+      console.log('[AdCopyContext] ✅ Restoring ad copy state:', savedData);
       setAdCopyState(savedData)
-      setIsInitialized(true)
     }
+    
+    setIsInitialized(true) // Mark initialized regardless of saved data
   }, [campaign, isInitialized])
 
-  // Debounced auto-save
-  const debouncedAdCopyState = useDebounce(adCopyState, 1000)
+  // Save function
+  const saveFn = useCallback(async (state: AdCopyState) => {
+    if (!campaign?.id || !isInitialized) return
+    await saveCampaignState('ad_copy_data', state as unknown as Record<string, unknown>)
+  }, [campaign?.id, saveCampaignState, isInitialized])
 
-  useEffect(() => {
-    if (isInitialized && campaign?.id) {
-      saveCampaignState('ad_copy_data', debouncedAdCopyState as unknown as Record<string, unknown>)
-    }
-  }, [debouncedAdCopyState, saveCampaignState, campaign?.id, isInitialized])
+  // Auto-save with NORMAL config (300ms debounce)
+  useAutoSave(memoizedAdCopyState, saveFn, AUTO_SAVE_CONFIGS.NORMAL)
 
   const setSelectedCopyIndex = (index: number | null) => {
     setAdCopyState({

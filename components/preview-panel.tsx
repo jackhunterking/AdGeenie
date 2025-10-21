@@ -120,6 +120,9 @@ export function PreviewPanel() {
     const variation = adVariations[index]
     const currentFormat = activeFormat
     
+    // Get the actual generated image for this variation if it exists
+    const variationImageUrl = adContent?.imageVariations?.[index]
+    
     // Create reference context for the AI chat to render
     const referenceContext = {
       type: 'ad_variation_reference',
@@ -129,13 +132,24 @@ export function PreviewPanel() {
       variationTitle: variation.title,
       format: currentFormat,
       gradient: variation.gradient,
-      imageUrl: adContent?.imageUrl,
+      imageUrl: variationImageUrl, // Use the specific variation's image
+      
+      // Ad copy content for the reference card
+      content: {
+        primaryText: adContent?.body,
+        headline: adContent?.headline,
+        description: adContent?.body,
+      },
       
       // Visual preview data
       preview: {
         format: currentFormat,
         gradient: variation.gradient,
         title: variation.title,
+        imageUrl: variationImageUrl, // Include in preview as well
+        brandName: 'Your Brand',
+        headline: adContent?.headline,
+        body: adContent?.body,
         dimensions: currentFormat === 'story' 
           ? { width: 360, height: 640, aspect: '9:16' }
           : { width: 500, height: 500, aspect: '1:1' }
@@ -211,6 +225,11 @@ export function PreviewPanel() {
     const isSelected = selectedAdIndex === index
     const isRegenerating = regeneratingIndex === index
     const isProcessing = isRegenerating
+    
+    // Debug logging
+    if (adContent?.imageVariations && index === 0) {
+      console.log('[PREVIEW] Image variations available:', adContent.imageVariations.length);
+    }
     
     return (
       <div 
@@ -302,10 +321,10 @@ export function PreviewPanel() {
           </div>
         </div>
 
-        {adContent?.imageUrl ? (
+        {adContent?.imageVariations?.[index] ? (
           <div className="aspect-square relative overflow-hidden">
             <img
-              src={adContent.imageUrl}
+              src={adContent.imageVariations[index]}
               alt={adContent.headline}
               className="w-full h-full object-cover"
             />
@@ -424,9 +443,9 @@ export function PreviewPanel() {
           </div>
         )}
 
-        {adContent?.imageUrl ? (
+        {adContent?.imageVariations?.[index] ? (
           <div className="absolute inset-0">
-            <img src={adContent.imageUrl} alt={adContent.headline} className="w-full h-full object-cover" />
+            <img src={adContent.imageVariations[index]} alt={adContent.headline} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
           </div>
         ) : (
@@ -515,7 +534,7 @@ export function PreviewPanel() {
       </div>
 
       {/* Info Section */}
-      {!adContent?.imageUrl && (
+      {!adContent?.imageVariations && (
         <div className="text-center py-6">
           <p className="text-sm text-muted-foreground">
             Hover over any ad to select, edit, or regenerate

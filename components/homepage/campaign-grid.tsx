@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tables } from '@/lib/supabase/database.types'
 
 type Campaign = Tables<'campaigns'> & {
-  generated_assets?: Tables<'generated_assets'>[]
+  campaign_states?: Tables<'campaign_states'>
 }
 
 export function CampaignGrid() {
@@ -42,8 +42,13 @@ export function CampaignGrid() {
   }
 
   const getThumbnail = (campaign: Campaign) => {
-    if (campaign.generated_assets && campaign.generated_assets.length > 0) {
-      return campaign.generated_assets[0].public_url
+    // Images are stored in campaign_states.ad_preview_data
+    const adPreviewData = campaign.campaign_states?.ad_preview_data as any
+    if (adPreviewData?.adContent?.baseImageUrl) {
+      return adPreviewData.adContent.baseImageUrl
+    }
+    if (adPreviewData?.adContent?.imageVariations && adPreviewData.adContent.imageVariations.length > 0) {
+      return adPreviewData.adContent.imageVariations[0]
     }
     return '/placeholder.svg'
   }

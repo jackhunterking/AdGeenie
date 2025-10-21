@@ -47,16 +47,22 @@ export function SignUpForm({ onSuccess }: SignUpFormProps) {
 
     setLoading(true)
 
-    // Get temp_prompt_id if exists
+    // Get temp_prompt_id from localStorage ONE LAST TIME
     const tempPromptId = typeof window !== 'undefined' 
       ? localStorage.getItem('temp_prompt_id')
       : null
+
+    // Clear it immediately - we'll rely on Supabase metadata
+    if (tempPromptId && typeof window !== 'undefined') {
+      localStorage.removeItem('temp_prompt_id')
+    }
 
     // Get the current URL for redirect after email verification
     const redirectUrl = typeof window !== 'undefined' 
       ? `${window.location.origin}?verified=true`
       : undefined
 
+    // Supabase stores tempPromptId in user.user_metadata.temp_prompt_id
     const { error } = await signUp(email, password, redirectUrl, tempPromptId || undefined)
 
     if (error) {

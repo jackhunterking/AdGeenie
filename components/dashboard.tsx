@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { PreviewPanel } from "./preview-panel"
 import AiChat from "./ai-chat"
 import { Button } from "@/components/ui/button"
@@ -18,43 +18,38 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
+import { UIMessage } from "ai"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { SaveIndicator } from "./save-indicator"
 
-export function Dashboard() {
-  const params = useParams()
+interface DashboardProps {
+  messages?: UIMessage[]  // AI SDK v5 prop name
+  campaignId?: string
+  conversationId?: string | null  // Stable conversation ID from server
+}
+
+export function Dashboard({ 
+  messages = [],
+  campaignId,
+  conversationId,
+}: DashboardProps = {}) {
+  const router = useRouter()
   const [credits] = useState(205.5)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [initialPrompt, setInitialPrompt] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
   const dailyCredits = 500
   const { setTheme, resolvedTheme } = useTheme()
-  
-  const campaignId = params?.campaignId as string
+  const { campaign } = useCampaignContext()
 
-  // Fetch campaign - server returns prompt only if unconsumed
-  useEffect(() => {
-    const fetchCampaign = async () => {
-      if (!campaignId) {
-        setLoading(false)
-        return
-      }
+  console.log(`[DASHBOARD] Received ${messages.length} messages`, messages.map(m => ({ 
+    id: m.id, 
+    role: m.role, 
+    partsCount: m.parts?.length || 0 
+  })));
+  console.log(`[DASHBOARD] Campaign:`, campaign ? { id: campaign.id, hasStates: !!campaign.campaign_states } : 'null');
+  console.log(`[DASHBOARD] conversationId from server:`, conversationId);
 
-      try {
-        const response = await fetch(`/api/campaigns/${campaignId}`)
-        if (response.ok) {
-          const { campaign } = await response.json()
-          if (campaign?.metadata?.initialPrompt) {
-            setInitialPrompt(campaign.metadata.initialPrompt)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching campaign:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchCampaign()
-  }, [campaignId])
+  // Note: Campaign loading is now handled by the nested CampaignProvider in app/[campaignId]/page.tsx
+  // No need to manually call loadCampaign here
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
@@ -65,12 +60,14 @@ export function Dashboard() {
           {/* Header - Only for left section */}
           <div className="flex h-12 items-center justify-between px-4 bg-preview-panel text-preview-panel-foreground shrink-0">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="relative h-5 w-5">
-                  <img src="/vibeads-logo.png" alt="AdGeenie" className="h-5 w-5" />
+              <div className="flex items-center gap-2 my-4">
+                <div className="relative h-8 w-8">
+                  <img src="/vibeads-logo.png" alt="AdGeenie" className="h-8 w-8" />
                 </div>
-                <span className="text-xs font-semibold">{COMPANY_NAME}</span>
+                <span className="text-lg font-semibold">{COMPANY_NAME}</span>
               </div>
+              
+              <SaveIndicator />
               
               {/* Dropdown Menu */}
               <DropdownMenu onOpenChange={setIsDropdownOpen}>
@@ -80,7 +77,7 @@ export function Dashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" alignOffset={-140} className="w-56">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/')}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Dashboard
                   </DropdownMenuItem>
@@ -135,7 +132,12 @@ export function Dashboard() {
           </div>
           
           {/* AI Chat Content */}
-          {!loading && <AiChat initialPrompt={initialPrompt} />}
+          <AiChat 
+            campaignId={campaignId}
+            conversationId={conversationId}
+            messages={messages}
+            campaignMetadata={campaign?.metadata}
+          />
         </div>
 
         {/* Preview Panel - Takes 3/4 width */}

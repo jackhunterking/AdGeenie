@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { useCampaign } from "@/lib/hooks/use-campaign"
-import { useDebounce } from "@/lib/hooks/use-debounce"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { useAutoSave } from "@/lib/hooks/use-auto-save"
+import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 
 type AudienceMode = "ai" | "advanced"
 type AudienceStatus = "idle" | "generating" | "setup-in-progress" | "completed" | "error"
@@ -43,7 +44,7 @@ interface AudienceContextType {
 const AudienceContext = createContext<AudienceContextType | undefined>(undefined)
 
 export function AudienceProvider({ children }: { children: ReactNode }) {
-  const { campaign, saveCampaignState } = useCampaign()
+  const { campaign, saveCampaignState } = useCampaignContext()
   const [audienceState, setAudienceState] = useState<AudienceState>({
     status: "idle",
     targeting: {
@@ -53,23 +54,31 @@ export function AudienceProvider({ children }: { children: ReactNode }) {
   })
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Load initial state from campaign
+  // Memoize state to prevent unnecessary recreations
+  const memoizedAudienceState = useMemo(() => audienceState, [audienceState])
+
+  // Load initial state from campaign ONCE (even if empty)
   useEffect(() => {
-    if (campaign?.campaign_states?.[0]?.audience_data && !isInitialized) {
-      const savedData = campaign.campaign_states[0].audience_data as unknown as AudienceState
+    if (!campaign?.id || isInitialized) return
+    
+    // campaign_states is 1-to-1 object, not array
+    const savedData = campaign.campaign_states?.audience_data as unknown as AudienceState | null
+    if (savedData) {
+      console.log('[AudienceContext] ✅ Restoring audience state:', savedData);
       setAudienceState(savedData)
-      setIsInitialized(true)
     }
+    
+    setIsInitialized(true) // Mark initialized regardless of saved data
   }, [campaign, isInitialized])
 
-  // Debounced auto-save
-  const debouncedAudienceState = useDebounce(audienceState, 1000)
+  // Save function
+  const saveFn = useCallback(async (state: AudienceState) => {
+    if (!campaign?.id || !isInitialized) return
+    await saveCampaignState('audience_data', state as unknown as Record<string, unknown>)
+  }, [campaign?.id, saveCampaignState, isInitialized])
 
-  useEffect(() => {
-    if (isInitialized && campaign?.id) {
-      saveCampaignState('audience_data', debouncedAudienceState as unknown as Record<string, unknown>)
-    }
-  }, [debouncedAudienceState, saveCampaignState, campaign?.id, isInitialized])
+  // Auto-save with NORMAL config (300ms debounce)
+  useAutoSave(memoizedAudienceState, saveFn, AUTO_SAVE_CONFIGS.NORMAL)
 
   const setAudienceTargeting = (targeting: Partial<AudienceTargeting>) => {
     setAudienceState(prev => ({

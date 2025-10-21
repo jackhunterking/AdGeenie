@@ -26,52 +26,43 @@ export async function GET(
       .from('campaigns')
       .select(`
         *,
-        campaign_states (*),
-        generated_assets (
-          id,
-          public_url,
-          asset_type,
-          created_at
-        )
+        campaign_states (*)
       `)
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
 
     if (error || !campaign) {
+      console.error(`[API] Campaign fetch error:`, error);
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
       )
     }
 
-    // Auto-consume: Return prompt only if not consumed, then mark as consumed
-    let shouldReturnPrompt = false
-    if (!campaign.initial_prompt_consumed && campaign.metadata?.initialPrompt) {
-      shouldReturnPrompt = true
-      
-      // Mark as consumed (fire-and-forget, non-blocking)
-      supabaseServer
-        .from('campaigns')
-        .update({ initial_prompt_consumed: true })
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .then(() => console.log(`Campaign ${id}: Initial prompt consumed`))
-        .catch(err => console.error(`Failed to mark prompt consumed:`, err))
+    // DEBUG: Log what Supabase returned
+    console.log(`[API] Campaign loaded:`, {
+      id: campaign.id,
+      name: campaign.name,
+      hasCampaignStates: !!campaign.campaign_states,
+      campaignStatesType: Array.isArray(campaign.campaign_states) ? 'array' : typeof campaign.campaign_states,
+      campaignStatesKeys: campaign.campaign_states ? Object.keys(campaign.campaign_states) : []
+    });
+    
+    if (campaign.campaign_states && typeof campaign.campaign_states === 'object') {
+      console.log(`[API] ✅ campaign_states exists as object:`, {
+        hasAdPreviewData: !!(campaign.campaign_states as any).ad_preview_data,
+        hasGoalData: !!(campaign.campaign_states as any).goal_data,
+        hasLocationData: !!(campaign.campaign_states as any).location_data,
+        hasAudienceData: !!(campaign.campaign_states as any).audience_data,
+        adPreviewDataSample: (campaign.campaign_states as any).ad_preview_data ? 
+          JSON.stringify((campaign.campaign_states as any).ad_preview_data).substring(0, 200) : null
+      });
+    } else {
+      console.warn(`[API] ⚠️ campaign_states is NULL or wrong type!`);
     }
 
-    // Return prompt only if should be returned (first read)
-    const responseData = {
-      ...campaign,
-      metadata: campaign.metadata 
-        ? {
-            ...campaign.metadata,
-            initialPrompt: shouldReturnPrompt ? campaign.metadata.initialPrompt : null
-          }
-        : null
-    }
-
-    return NextResponse.json({ campaign: responseData })
+    return NextResponse.json({ campaign })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

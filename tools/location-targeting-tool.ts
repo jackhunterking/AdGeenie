@@ -25,6 +25,22 @@ export const locationTargetingTool = tool({
     })).describe('Array of locations to target'),
     explanation: z.string().describe('Brief explanation of the targeting strategy in conversational tone'),
   }),
-  // No execute - client-side tool requiring geocoding and map updates
+  // Server-side execution for location targeting
+  // Note: Still requires client-side geocoding and map updates via event system
+  execute: async (input, { toolCallId }) => {
+    // Return input for client to handle geocoding
+    // Client will:
+    // 1. Geocode locations
+    // 2. Fetch boundaries
+    // 3. Update map
+    // 4. Call addToolResult with final data
+    return {
+      status: 'requires_geocoding',
+      toolCallId,
+      locations: input.locations,
+      explanation: input.explanation,
+      message: 'Locations ready for geocoding and mapping',
+    };
+  },
 });
 

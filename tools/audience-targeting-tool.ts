@@ -39,7 +39,27 @@ export const audienceTargetingTool = tool({
       gender: z.enum(['all', 'male', 'female']).optional().describe('Gender targeting only if the product/service is gender-specific'),
     }).optional().describe('Demographics that make logical sense for this business and campaign goal'),
   }),
-  // Client-side tool - no execute function
+  // Server-side execution for audience targeting
+  // Returns structured data for client to apply to UI state
+  execute: async (input, { toolCallId }) => {
+    // Validate and structure the audience data
+    const audienceData = {
+      mode: input.mode,
+      description: input.description,
+      interests: input.interests || [],
+      demographics: input.demographics || {},
+    };
+    
+    return {
+      success: true,
+      mode: input.mode,
+      description: input.description,
+      interests: input.interests,
+      demographics: input.demographics,
+      toolCallId,
+      message: `AI Advantage+ audience configured: ${input.description}`,
+    };
+  },
 });
 
 

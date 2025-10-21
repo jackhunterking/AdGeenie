@@ -1,3 +1,12 @@
+/**
+ * Feature: AI Chat Streaming Route
+ * Purpose: Handle chat streaming with AI Gateway and optimized message persistence
+ * References:
+ *  - AI SDK Core: https://ai-sdk.dev/docs/ai-sdk-core/streaming
+ *  - AI Gateway: https://vercel.com/docs/ai-gateway
+ *  - Conversation History: https://ai-sdk.dev/docs/ai-sdk-core/conversation-history
+ */
+
 import { 
   convertToModelMessages, 
   streamText, 
@@ -11,66 +20,81 @@ import {
 } from 'ai';
 import { generateImageTool } from '@/tools/generate-image-tool';
 import { editImageTool } from '@/tools/edit-image-tool';
+import { regenerateImageTool } from '@/tools/regenerate-image-tool';
 import { locationTargetingTool } from '@/tools/location-targeting-tool';
 import { audienceTargetingTool } from '@/tools/audience-targeting-tool';
 import { setupGoalTool } from '@/tools/setup-goal-tool';
-import { supabaseServer } from '@/lib/supabase/server';
+import { getModel } from '@/lib/ai/gateway-provider';
+import { messageStore } from '@/lib/services/message-store';
+import { conversationManager } from '@/lib/services/conversation-manager';
+import { autoSummarizeIfNeeded } from '@/lib/ai/summarization';
+import { createServerClient } from '@/lib/supabase/server';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
-// Store complete UIMessage as recommended by AI SDK docs
-// "We recommend storing the messages in the useChat message format"
-function messageToStorage(msg: UIMessage) {
-  // Extract text content for the content field (for querying)
-  const textParts = (msg.parts as any[])?.filter((part: any) => part.type === 'text') || [];
-  const content = textParts.map((p: any) => p.text).join('\n');
-  
-  return {
-    id: msg.id,
-    role: msg.role,
-    content,
-    parts: (msg.parts || []) as any,  // Store complete parts array (AI SDK format) - cast to Json
-    tool_invocations: ((msg as any).toolInvocations || []) as any,  // Store complete toolInvocations (AI SDK format) - cast to Json
-  };
-}
-
-// Convert back to UIMessage (restore complete message)
-function storageToMessage(stored: any): UIMessage {
-  return {
-    id: stored.id,
-    role: stored.role,
-    content: stored.content,
-    parts: stored.parts || [],  // Restore complete parts array
-    toolInvocations: stored.tool_invocations || [],  // Restore complete toolInvocations
-  } as UIMessage;
-}
-
 export async function POST(req: Request) {
   const { message, id, model } = await req.json();
+  
+  // DEBUG: Log incoming message structure (AI SDK v5 pattern - metadata field)
+  console.log(`[API] ========== INCOMING MESSAGE ==========`);
+  console.log(`[API] message.id:`, message?.id);
+  console.log(`[API] message.role:`, message?.role);
+  console.log(`[API] message.metadata:`, JSON.stringify(message?.metadata || null));
+  console.log(`[API] message has editingReference:`, !!(message?.metadata?.editingReference));
+  if (message?.metadata?.editingReference) {
+    console.log(`[API] editingReference content:`, message.metadata.editingReference);
+  }
+  
+  // Authenticate user
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError || !user) {
+    return new Response('Unauthorized', { status: 401 });
+  }
   
   const tools = {
     generateImage: generateImageTool,
     editImage: editImageTool,
+    regenerateImage: regenerateImageTool,
     locationTargeting: locationTargetingTool,
     audienceTargeting: audienceTargetingTool,
     setupGoal: setupGoalTool,
   };
 
+  // Get or create conversation
+  // The 'id' can be either a campaign ID or conversation ID
+  // For backwards compatibility, we first check if it's a campaign ID
+  let conversationId = id;
+  let conversation = null;
+  
+  if (id) {
+    // Try to get conversation by ID first
+    conversation = await conversationManager.getConversation(id);
+    
+    // If not found, check if it's a campaign ID
+    if (!conversation) {
+      conversation = await conversationManager.getOrCreateForCampaign(user.id, id);
+      conversationId = conversation.id;
+      console.log(`[API] Created/found conversation ${conversationId} for campaign ${id}`);
+    } else {
+      console.log(`[API] Using existing conversation ${conversationId}`);
+    }
+  }
+
   // Load and validate messages from database (AI SDK docs pattern)
   let validatedMessages: UIMessage[];
   
   // Load previous messages + append new one
-  if (message && id) {
-    console.log(`[API] Loading messages for campaign ${id}`);
+  if (message && conversationId) {
+    console.log(`[API] Loading messages for conversation ${conversationId}`);
     
-    const { data: dbMessages } = await supabaseServer
-      .from('chat_messages')
-      .select('*')
-      .eq('campaign_id', id)
-      .order('sequence_number', { ascending: true });
-
-    const previousMessages = (dbMessages || []).map(storageToMessage);
+    // Use message store service (optimized query with seq-based ordering)
+    const previousMessages = await messageStore.loadMessages(conversationId, {
+      limit: 80, // Load last 80 messages (configurable window)
+    });
+    
     const messages = [...previousMessages, message];
     
     console.log(`[API] Total messages: ${messages.length} (${previousMessages.length} loaded + 1 new)`);
@@ -100,8 +124,51 @@ export async function POST(req: Request) {
   // Only o1 models support reasoning parameters
   const isOpenAIReasoningModel = model.includes('o1-preview') || model.includes('o1-mini');
 
+  // Extract reference context from message metadata (AI SDK v5 native pattern)
+  let referenceContext = '';
+  let isEditMode = false;
+  
+  if (message?.metadata) {
+    const metadata = message.metadata as Record<string, any>;
+    isEditMode = Boolean(metadata.editMode);
+    
+    // Handle ad editing reference
+    if (metadata.editingReference) {
+      const ref = metadata.editingReference;
+      referenceContext += `\n\n[USER IS EDITING: ${ref.variationTitle}`;
+      if (ref.format) referenceContext += ` (${ref.format} format)`;
+      referenceContext += `]\n`;
+      
+      if (ref.imageUrl) {
+        referenceContext += `Image URL: ${ref.imageUrl}\n`;
+      }
+      
+      if (ref.content) {
+        referenceContext += `Current content:\n`;
+        if (ref.content.primaryText) referenceContext += `- Primary Text: "${ref.content.primaryText}"\n`;
+        if (ref.content.headline) referenceContext += `- Headline: "${ref.content.headline}"\n`;
+        if (ref.content.description) referenceContext += `- Description: "${ref.content.description}"\n`;
+      }
+      
+      referenceContext += `\nThe user's message below describes the changes they want to make to this ad.\n`;
+    }
+    
+    // Handle audience context reference
+    if (metadata.audienceContext) {
+      const ctx = metadata.audienceContext;
+      referenceContext += `\n\n[USER IS EDITING AUDIENCE TARGETING]\n`;
+      referenceContext += `Current targeting: ${ctx.demographics || 'general audience'}`;
+      if (ctx.interests) referenceContext += `, interested in: ${ctx.interests}`;
+      referenceContext += `\n\nThe user's message below describes how they want to change the audience targeting.\n`;
+    }
+  }
+
+  // Use AI Gateway for model routing and observability
+  // AI SDK v5 automatically uses AI Gateway when AI_GATEWAY_API_KEY is set
+  const modelId = getModel(model || 'openai/gpt-4o');
+  
   const result = streamText({
-    model: model,
+    model: modelId, // Pass model string - AI SDK auto-routes through gateway
     messages: convertToModelMessages(validatedMessages),
     
     // Enable multi-step agentic behavior (AI SDK best practice)
@@ -111,20 +178,56 @@ export async function POST(req: Request) {
     onStepFinish: ({ text, toolCalls, toolResults, finishReason, usage }) => {
       console.log(`[STEP] Finished step with ${toolCalls.length} tool calls, ${toolResults.length} results`);
       if (toolCalls.length > 0) {
-        console.log(`[STEP] Tool calls:`, toolCalls.map(tc => tc.toolName));
+        console.log(`[STEP] Tool calls:`, toolCalls.map(tc => ({ 
+          name: tc.toolName, 
+          hasExecute: tc.toolName === 'generateImage' ? 'NO (client-side)' : 'varies' 
+        })));
+      }
+      if (toolResults.length > 0) {
+        console.log(`[STEP] Tool results:`, toolResults.map(tr => ({ 
+          tool: tr.toolName, 
+          hasResult: !!(tr as any).result 
+        })));
       }
     },
     
     system: `You are Meta Marketing Pro, an expert Meta ads creative director. Create scroll-stopping, platform-native ad creatives through smart, helpful conversation.
+${referenceContext}
+
+${isEditMode ? `
+## 🎨 EDITING MODE ACTIVE
+
+You are currently helping the user edit an existing ad creative. The context above shows what they're editing.
+
+**Your Response Pattern**:
+1. **Acknowledge** what they want to change specifically
+2. **If editing IMAGE**: Use the editImage tool with:
+   - The Image URL from the editing context above
+   - Their requested changes as the edit prompt
+   - Be specific about what to modify/remove/add
+3. **If editing COPY**: Provide the improved text directly
+4. **Be decisive**: Don't ask questions - use the tools immediately based on their request
+
+**Example Responses**:
+User: "remove the square from this image"
+You: "I'll remove the square element from Variation 1 for you." → [CALL editImage tool with imageUrl and prompt "remove the white square overlay"]
+
+User: "make the background darker"  
+You: "I'll darken the background in this image." → [CALL editImage tool with imageUrl and prompt "darken the background, increase shadows"]
+
+User: "change the headline to something more exciting"
+You: "Here's a more exciting headline: [provide new headline]"
+
+**CRITICAL**: When editing images, you MUST call the editImage tool with the imageUrl from the editing context. Don't just explain - ACT!
+` : ''}
 
 ## Core Behavior: Smart Conversation, Then Action
-- **Conversation-first, not tool-first**: Understand context before executing tools
 - **Smart questions**: Ask ONE helpful question that gathers multiple details at once
 - **Don't overwhelm**: Never ask more than 1-2 questions before acting
-- **Be decisive**: Once you have enough context, act immediately
+- **Be decisive**: Once you have enough context, USE TOOLS immediately
 - **Be friendly, brief, enthusiastic**
 
-## When to Ask vs. When to Generate
+## When to Ask vs. When to CALL generateImage Tool
 
 **ASK (max 1-2 questions total) when:**
 - User says generic requests: "create an ad", "help me with an ad", "make something for my business"
@@ -133,14 +236,18 @@ export async function POST(req: Request) {
   - ✅ GOOD: "I'd love to help! Tell me about your hair salon - what's the vibe (modern, luxury, edgy?) and what's the main offer or message you want to promote?"
   - ❌ BAD: "What's your business?" then "What style?" then "What's the offer?" (too many questions)
 
-**GENERATE IMMEDIATELY when:**
+**CALL generateImage TOOL IMMEDIATELY when:**
 - User provides enough context: business type + style/tone OR specific offer/message
-- Examples that have enough context:
-  - "Create a modern ad for my hair salon" ✓ (has business + style)
-  - "Generate an ad for a luxury spa targeting women" ✓ (has business + audience + tone)
-  - "Make an ad for my pizza delivery special" ✓ (has business + offer)
-- After asking ONE question and getting an answer
-- User explicitly confirms: "go ahead", "create it", "yes, generate that"
+- Examples that require you to CALL THE TOOL:
+  - "Create a modern ad for my hair salon" ✓ → CALL generateImage tool NOW
+  - "Generate an ad for a luxury spa targeting women" ✓ → CALL generateImage tool NOW
+  - "Make an ad for my pizza delivery special" ✓ → CALL generateImage tool NOW
+  - "modern shisha lounge" ✓ → CALL generateImage tool NOW
+  - "life insurance modern" ✓ → CALL generateImage tool NOW
+- After asking ONE question and getting an answer → CALL generateImage tool NOW
+- User explicitly confirms: "go ahead", "create it", "yes, generate that" → CALL generateImage tool NOW
+
+**CRITICAL**: When you see "generate", "create", or "make" + enough context, you MUST CALL the generateImage tool. Do NOT just explain what you're going to do - ACTUALLY USE THE TOOL!
 
 ## Tool Cancellation Handling
 When a tool is cancelled by the user (tool result contains "cancelled: true"):
@@ -152,17 +259,63 @@ When a tool is cancelled by the user (tool result contains "cancelled: true"):
 - DO NOT show any tool UI elements for cancelled actions
 - Move on to help with the next task
 
-## Image Generation (Critical)
+## Image Generation (Critical Flow)
 **Format:** Always 1080×1080 square, works universally across Feed/Stories/Reels
-**Style:** Super-realistic, natural, human-centric, mobile-optimized
+**Style:** HYPER-REALISTIC photography ONLY - must look like professional DSLR photos
 **Safe Zones:** 10-12% margins on ALL sides (prevents UI overlap)
 **Default:** Text-free, no logos/watermarks unless requested
+**Variations:** Always generates 6 unique AI-powered creative variations, each with distinct style:
+
+1. **Classic & Professional** - Hero shot with balanced lighting, editorial magazine style
+2. **Lifestyle & Authentic** - Natural, candid moment with warm golden hour feel
+3. **Editorial & Bold** - High-contrast dramatic lighting with cinematic color grading
+4. **Bright & Contemporary** - Modern bright aesthetic with fresh, optimistic vibe
+5. **Detail & Intimate** - Close-up macro shot showcasing textures and quality
+6. **Dynamic & Energetic** - Action photography capturing movement and energy
+
+All variations are HYPER-REALISTIC - no illustrations, digital art, or AI-looking imagery. Every image must be indistinguishable from professional camera photography.
+
+**CRITICAL - Image Generation Response Pattern:**
+When user provides enough context (business type + style), you MUST do BOTH in ONE response:
+
+**Step 1:** Provide brief contextual explanation (1-2 sentences)
+**Step 2:** CALL THE generateImage TOOL (not just explain - actually invoke the tool!)
+
+**Correct Examples That CALL THE TOOL:**
+
+Example 1:
+- User: "modern shisha lounge"
+- You provide text: "Great! Setting up a modern shisha lounge ad with sleek, contemporary vibes."
+- You CALL TOOL: generateImage with prompt: "Modern upscale shisha lounge interior, sleek contemporary design..."
+- Result: User sees your text + confirmation dialog appears
+
+Example 2:
+- User: "life insurance modern"
+- You provide text: "Perfect! Creating a modern, trustworthy life insurance ad."
+- You CALL TOOL: generateImage with prompt: "Modern professional life insurance ad showing diverse happy family..."
+- Result: User sees your text + confirmation dialog appears
+
+**What Happens After You Call The Tool:**
+- Confirmation dialog shows automatically with editable prompt
+- User can edit prompt and click "Generate" → images created
+- User can click "Cancel" → nothing happens
+- DO NOT generate additional text after calling the tool
+- Only respond with text if user sends a NEW message
+
+**REMEMBER**: You must ACTUALLY INVOKE the generateImage tool in your response, not just say you're setting it up! The tool call triggers the confirmation dialog.
 
 **Smart Defaults**: When generating, use context to make intelligent choices:
 - "Hair salon" → assume professional, modern aesthetic with salon setting
 - "Pizza delivery" → assume appetizing food imagery, casual/fun tone
 - "Law firm" → assume professional, trustworthy, authoritative
 - Use audience hints to inform demographics in the image
+
+**Editing Existing Images:**
+When user wants to edit images after variations already exist:
+1. First ask: "Would you like to update all 6 variations or just specific ones?"
+2. If they choose specific: "Which variation(s)? (1-6)"
+3. Only regenerate the requested variations (future implementation)
+4. For now, regenerating will create 6 new variations
 
 ## Location Targeting
 Parse natural language:
@@ -292,136 +445,78 @@ CRITICAL - NO TEXT RESPONSES AFTER SETUP GOAL:
         }
       });
       
-      if (id) {
-        await saveMessages(id, finalMessages);
+      // Save messages using message store service (append-only pattern)
+      if (conversationId) {
+        try {
+          // Filter messages to ensure complete tool executions
+          // Per AI SDK docs: https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling#response-messages
+          // AI SDK uses tool-specific types like "tool-generateImage", "tool-editImage", etc.
+          // NOT generic "tool-call" type. We need to check for incomplete tool invocations.
+          const validMessages = finalMessages.filter(msg => {
+            // User and system messages are always valid
+            if (msg.role !== 'assistant') return true;
+            
+            const parts = (msg.parts as any[]) || [];
+            
+            // Don't save empty assistant messages
+            if (parts.length === 0) {
+              console.log(`[SAVE] Filtering empty assistant message ${msg.id}`);
+              return false;
+            }
+            
+            // Check for tool invocation parts (any part with type starting with "tool-")
+            // AI SDK pattern: tool parts have types like "tool-generateImage", "tool-editImage", etc.
+            const toolParts = parts.filter((p: any) => 
+              typeof p.type === 'string' && p.type.startsWith('tool-')
+            );
+            
+            if (toolParts.length > 0) {
+              // Check if any tool parts are incomplete (have toolCallId but no result/output)
+              // Complete tools have either:
+              // 1. result property (server-executed tools)
+              // 2. output property (client-executed tools)
+              // Incomplete tools only have toolCallId (pending execution)
+              const incompleteTools = toolParts.filter((p: any) => 
+                p.toolCallId && // Has a tool call ID (indicates invocation)
+                !p.result &&    // No result from server execution
+                !p.output &&    // No output from client execution
+                p.type !== 'tool-result' // Not a tool result part
+              );
+              
+              if (incompleteTools.length > 0) {
+                console.log(`[SAVE] Filtering message with incomplete tool invocations ${msg.id}`);
+                incompleteTools.forEach((t: any) => {
+                  console.log(`[SAVE]   - Incomplete tool: ${t.type}, ID: ${t.toolCallId}`);
+                });
+                return false;
+              }
+            }
+            
+            return true;
+          });
+          
+          console.log(`[SAVE] Filtered ${finalMessages.length} → ${validMessages.length} valid messages`);
+          
+          // Use message store service for append-only saves
+          await messageStore.saveMessages(conversationId, validMessages);
+          
+          // Auto-generate conversation title from first message (if not set)
+          if (conversation && !conversation.title && validMessages.length > 0) {
+            await conversationManager.autoGenerateTitle(conversationId);
+          }
+          
+          console.log(`[FINISH] ✅ Saved ${validMessages.length} messages to conversation ${conversationId}`);
+          
+          // Auto-summarize if conversation reached threshold (non-blocking)
+          // Runs in background to avoid delaying response
+          autoSummarizeIfNeeded(conversationId).catch(error => {
+            console.error('[FINISH] ⚠️ Auto-summarization failed:', error);
+          });
+        } catch (error) {
+          console.error('[FINISH] ❌ Failed to save messages:', error);
+          // Don't throw - message persistence failure shouldn't break the stream
+        }
       }
     },
   });
-}
-
-// Save function following AI SDK docs pattern
-// "Storing messages is done in the onFinish callback"
-async function saveMessages(campaignId: string, messages: UIMessage[]) {
-  try {
-    console.log(`[SAVE] Campaign ${campaignId}: ${messages.length} messages (before filtering)`);
-    
-    // CRITICAL: Filter parts within messages to preserve text while removing incomplete tool invocations
-    // This ensures text content is always saved, even if tool calls are incomplete
-    const completeMessages = messages.map(msg => {
-      // User messages are always complete
-      if (msg.role === 'user') return msg;
-      
-      // For assistant messages, filter parts and tool invocations
-      const parts = (msg.parts as any[]) || [];
-      const toolInvocations = (msg as any).toolInvocations || [];
-      
-      // Keep text parts and reasoning, filter tool parts to only complete ones
-      const completeParts = parts.filter((part: any) => {
-        // Always keep text and reasoning parts
-        if (part.type === 'text' || part.type === 'reasoning') return true;
-        
-        // For tool parts, only keep if they have results
-        if (part.type?.startsWith('tool-')) {
-          const isComplete = part.state === 'result' || part.state === 'call';
-          if (!isComplete) {
-            console.log(`[SAVE] ⚠️  Filtering incomplete tool part: ${part.type}, state: ${part.state}`);
-          }
-          return isComplete;
-        }
-        
-        // Keep other part types (source-url, etc)
-        return true;
-      });
-      
-      // Preserve tool invocation metadata (AI SDK best practice)
-      // Mark incomplete invocations instead of removing them entirely
-      // This maintains conversation history and allows UI to show what was attempted
-      const preservedToolInvocations = toolInvocations.map((inv: any) => {
-        const isComplete = inv.state === 'result' || inv.state === 'call';
-        if (!isComplete) {
-          console.log(`[SAVE] ⚠️  Marking incomplete tool invocation: ${inv.toolName}, state: ${inv.state}`);
-          // Keep minimal metadata for display purposes
-          return {
-            toolName: inv.toolName,
-            toolCallId: inv.toolCallId,
-            state: 'incomplete',
-            args: inv.args, // Preserve arguments for context
-          };
-        }
-        return inv;
-      });
-      
-      return {
-        ...msg,
-        parts: completeParts,
-        toolInvocations: preservedToolInvocations, // Preserve all tool invocations (AI SDK pattern)
-      } as UIMessage;
-    }).filter(msg => {
-      // Only filter out messages that are completely empty (no parts AND no tool invocations)
-      // Following AI SDK best practice: preserve conversation history including tool attempts
-      const parts = (msg.parts as any[]) || [];
-      const toolInvocations = (msg as any).toolInvocations || [];
-      
-      // Keep message if it has either parts OR tool invocations
-      if (parts.length === 0 && toolInvocations.length === 0) {
-        console.log(`[SAVE] ⚠️  Filtering out completely empty message ${msg.id}`);
-        return false;
-      }
-      
-      return true;
-    });
-    
-    console.log(`[SAVE] Filtered to ${completeMessages.length} complete messages`);
-    
-    // Validate messages have IDs
-    const invalidMessages = completeMessages.filter(m => !m.id);
-    if (invalidMessages.length > 0) {
-      console.error(`[SAVE] ❌ Found ${invalidMessages.length} messages without IDs!`, invalidMessages);
-      throw new Error('All messages must have IDs');
-    }
-    
-    // First, delete all existing messages for this campaign
-    const { error: deleteError } = await supabaseServer
-      .from('chat_messages')
-      .delete()
-      .eq('campaign_id', campaignId);
-    
-    if (deleteError) {
-      console.error(`[SAVE] Delete error:`, deleteError);
-      throw deleteError;
-    }
-    
-    console.log(`[SAVE] Deleted old messages, now inserting ${completeMessages.length} new ones`);
-    
-    // Store complete UIMessage data (following AI SDK docs)
-    const messagesToInsert = completeMessages.map((msg, index) => {
-      const stored = messageToStorage(msg);
-      console.log(`[SAVE] Message ${index}: id=${msg.id}, role=${msg.role}, content length=${(msg as any).content?.length || 0}`);
-      return {
-        ...stored,
-        campaign_id: campaignId,
-        sequence_number: index,
-        // Don't override parts - it's already set by messageToStorage
-      };
-    });
-    
-    // Insert all messages (only if we have any)
-    if (messagesToInsert.length > 0) {
-      const { error: insertError } = await supabaseServer
-        .from('chat_messages')
-        .insert(messagesToInsert);
-      
-      if (insertError) {
-        console.error(`[SAVE] Insert error:`, insertError);
-        console.error(`[SAVE] Failed to insert messages:`, messagesToInsert.map(m => ({ id: m.id, role: m.role })));
-        throw insertError;
-      }
-      
-      console.log(`[SAVE] ✅ Success - stored ${completeMessages.length} complete UIMessages`);
-    } else {
-      console.log(`[SAVE] ⚠️  No complete messages to store`);
-    }
-  } catch (error) {
-    console.error(`[SAVE] ❌ Error:`, error);
-  }
 }

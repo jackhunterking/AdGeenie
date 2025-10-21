@@ -12,10 +12,10 @@ export function HomepageHeader({ onSignInClick, onSignUpClick }: HomepageHeaderP
   return (
     <header className="flex h-16 items-center justify-between px-6 border-b border-border bg-background">
       <div className="flex items-center gap-2">
-        <div className="relative h-6 w-6">
-          <img src="/vibeads-logo.png" alt="AdGeenie" className="h-6 w-6" />
+        <div className="relative h-10 w-10">
+          <img src="/vibeads-logo.png" alt="AdGeenie" className="h-10 w-10" />
         </div>
-        <span className="text-lg font-semibold">{COMPANY_NAME}</span>
+        <span className="text-2xl font-semibold">{COMPANY_NAME}</span>
       </div>
       <div className="flex items-center gap-3">
         <Button variant="ghost" onClick={onSignInClick}>

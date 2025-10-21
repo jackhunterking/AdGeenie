@@ -1,3 +1,10 @@
+/**
+ * Feature: Setup Goal Tool
+ * Purpose: Configure campaign goals with server-side execution
+ * References:
+ *  - AI SDK Core: https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling
+ */
+
 import { tool } from 'ai';
 import { z } from 'zod';
 
@@ -11,6 +18,17 @@ export const setupGoalTool = tool({
     createNew: z.boolean().optional().describe('Leave empty - user will select in the UI'),
     explanation: z.string().describe('Brief explanation like "Setting up your leads goal with instant forms"'),
   }),
-  // Client-side tool - no execute function, handled in UI
+  // Server-side execution for goal setup
+  // Returns data for client form selection UI
+  execute: async (input, { toolCallId }) => {
+    return {
+      status: 'requires_form_selection',
+      goalType: input.goalType,
+      conversionMethod: input.conversionMethod,
+      explanation: input.explanation,
+      toolCallId,
+      message: 'Goal setup ready - awaiting form selection from user',
+    };
+  },
 });
 

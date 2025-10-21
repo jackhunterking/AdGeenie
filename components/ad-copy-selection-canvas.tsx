@@ -169,20 +169,22 @@ export function AdCopySelectionCanvas() {
         </div>
 
         {/* Ad Creative */}
-        {loadingVariations[copyIndex] ? (
-          <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-3">
-            <div className="h-8 w-8 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
-            <p className="text-xs text-muted-foreground">
-              Creating variation {copyIndex + 1}...
-            </p>
-          </div>
-        ) : adContent?.imageVariations?.[copyIndex] ? (
+        {adContent?.imageVariations?.[copyIndex] ? (
           <div className="aspect-square relative overflow-hidden">
             <img
               src={adContent.imageVariations[copyIndex]}
               alt={copy.headline}
               className="w-full h-full object-cover"
             />
+            {/* Loading overlay with transparent blur */}
+            {loadingVariations[copyIndex] && (
+              <div className="absolute inset-0 bg-white/40 dark:bg-black/40 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center">
+                <div className="bg-background/90 rounded-lg px-4 py-2 flex items-center gap-2 shadow-lg border border-border/50">
+                  <div className="h-4 w-4 rounded-full border-2 border-blue-200 border-t-blue-500 animate-spin" />
+                  <span className="text-xs font-medium">Creating variation...</span>
+                </div>
+              </div>
+            )}
           </div>
         ) : adContent?.imageUrl ? (
           <div className="aspect-square relative overflow-hidden">
@@ -304,17 +306,19 @@ export function AdCopySelectionCanvas() {
         </div>
 
         {/* Background Creative */}
-        {loadingVariations[copyIndex] ? (
-          <div className="absolute inset-0 bg-muted flex flex-col items-center justify-center gap-3">
-            <div className="h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
-            <p className="text-xs text-white drop-shadow-lg">
-              Creating variation {copyIndex + 1}...
-            </p>
-          </div>
-        ) : adContent?.imageVariations?.[copyIndex] ? (
+        {adContent?.imageVariations?.[copyIndex] ? (
           <div className="absolute inset-0">
             <img src={adContent.imageVariations[copyIndex]} alt={copy.headline} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+            {/* Loading overlay with transparent blur */}
+            {loadingVariations[copyIndex] && (
+              <div className="absolute inset-0 bg-white/40 dark:bg-black/40 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center">
+                <div className="bg-background/90 rounded-lg px-4 py-2 flex items-center gap-2 shadow-lg border border-border/50">
+                  <div className="h-4 w-4 rounded-full border-2 border-blue-200 border-t-blue-500 animate-spin" />
+                  <span className="text-xs font-medium">Creating variation...</span>
+                </div>
+              </div>
+            )}
           </div>
         ) : adContent?.imageUrl ? (
           <div className="absolute inset-0">
