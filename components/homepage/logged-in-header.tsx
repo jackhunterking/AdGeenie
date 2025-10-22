@@ -32,7 +32,7 @@ export function LoggedInHeader() {
     <header className="flex h-16 items-center justify-between px-6 border-b border-border bg-background">
       <div className="flex items-center gap-2">
         <div className="relative h-10 w-10">
-          <img src="/vibeads-logo.png" alt="AdPilot" className="h-10 w-10" />
+          <img src="/adpilot-logo.svg" alt="AdPilot" className="h-10 w-10" />
         </div>
         <span className="text-2xl font-semibold">{COMPANY_NAME}</span>
       </div>
