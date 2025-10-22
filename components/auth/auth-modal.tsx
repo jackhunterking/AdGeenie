@@ -88,7 +88,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
               </div>
               <DialogHeader className="space-y-3 relative">
                 <DialogTitle className="text-3xl font-bold text-white">
-                  Welcome to AdGeenie
+                  Welcome to AdPilot
                 </DialogTitle>
                 <DialogDescription className="text-blue-50 text-base">
                   Create stunning AI-powered ad campaigns in minutes

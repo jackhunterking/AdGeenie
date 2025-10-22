@@ -21,7 +21,7 @@ export async function searchLocations(query: string) {
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
       {
         headers: {
-          'User-Agent': 'AdGeenie-LocationTargeting/1.0'
+          'User-Agent': 'AdPilot-LocationTargeting/1.0'
         }
       }
     )
@@ -58,7 +58,7 @@ export async function getLocationBoundary(coordinates: [number, number], placeNa
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(placeName)}&format=geojson&polygon_geojson=1&limit=1`,
       {
         headers: {
-          'User-Agent': 'AdGeenie-LocationTargeting/1.0' // Required by Nominatim
+          'User-Agent': 'AdPilot-LocationTargeting/1.0' // Required by Nominatim
         }
       }
     )
