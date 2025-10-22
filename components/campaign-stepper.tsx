@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Check, ChevronLeft, ChevronRight, LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -56,6 +56,24 @@ interface CampaignStepperProps {
 export function CampaignStepper({ steps }: CampaignStepperProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
+  const hasInitializedRef = useRef(false)
+
+  // Auto-jump once to the appropriate step AFTER restored completion flags land
+  useEffect(() => {
+    if (hasInitializedRef.current) return
+
+    // Wait until any step reports completed (signals restore landed)
+    const hasAnyCompletion = steps.some(s => s.completed)
+    if (!hasAnyCompletion) return
+
+    // If some step is incomplete, jump to the first incomplete
+    // If all are complete, jump to the last step
+    const firstIncomplete = steps.findIndex(s => !s.completed)
+    const targetIndex = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete
+
+    setCurrentStepIndex(targetIndex)
+    hasInitializedRef.current = true
+  }, [steps])
 
   const currentStep = steps[currentStepIndex]
   const isFirstStep = currentStepIndex === 0

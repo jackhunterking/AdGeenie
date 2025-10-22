@@ -27,9 +27,8 @@ const mockAdAccounts = [
 
 export function PreviewPanel() {
   const [activeFormat, setActiveFormat] = useState("feed")
-  const [selectedAdIndex, setSelectedAdIndex] = useState<number | null>(null)
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
-  const { adContent, setAdContent, isPublished, setIsPublished, setSelectedCreativeVariation } = useAdPreview()
+  const { adContent, setAdContent, isPublished, setIsPublished, selectedImageIndex, setSelectedCreativeVariation, setSelectedImageIndex } = useAdPreview()
   const { budgetState, setDailyBudget, setSelectedAdAccount, setIsConnected, isComplete } = useBudget()
   const { locationState } = useLocation()
   const { audienceState } = useAudience()
@@ -147,15 +146,15 @@ export function PreviewPanel() {
   }
 
   const handleSelectAd = (index: number) => {
-    // Toggle selection: clicking the selected card unselects it
-    if (selectedAdIndex === index) {
-      setSelectedAdIndex(null)
+    // Toggle selection against persisted selectedImageIndex
+    if (selectedImageIndex === index) {
       setSelectedCreativeVariation(null)
+      setSelectedImageIndex(null)
       return
     }
-    setSelectedAdIndex(index)
     const variation = adVariations[index]
     setSelectedCreativeVariation(variation)
+    setSelectedImageIndex(index)
   }
 
   const handleEditAd = (index: number) => {
@@ -252,7 +251,7 @@ export function PreviewPanel() {
 
   // Check if all steps are complete
   const allStepsComplete = 
-    selectedAdIndex !== null &&
+    selectedImageIndex !== null &&
     adCopyState.status === "completed" &&
     locationState.status === "completed" &&
     audienceState.status === "completed" &&
@@ -271,7 +270,7 @@ export function PreviewPanel() {
 
   // Render single Feed ad mockup
   const renderFeedAd = (variation: typeof adVariations[0], index: number) => {
-    const isSelected = selectedAdIndex === index
+    const isSelected = selectedImageIndex === index
     const isRegenerating = regeneratingIndex === index
     const isProcessing = isRegenerating
     
@@ -394,7 +393,7 @@ export function PreviewPanel() {
 
   // Render single Story ad mockup
   const renderStoryAd = (variation: typeof adVariations[0], index: number) => {
-    const isSelected = selectedAdIndex === index
+    const isSelected = selectedImageIndex === index
     const isRegenerating = regeneratingIndex === index
     const isProcessing = isRegenerating
     
@@ -725,7 +724,7 @@ export function PreviewPanel() {
       number: 1,
       title: "Ad Creative",
       description: "Select your ad creative design",
-      completed: selectedAdIndex !== null,
+      completed: selectedImageIndex !== null,
       content: adsContent,
       icon: Palette,
     },

@@ -26,6 +26,8 @@ interface AdPreviewContextType {
   setIsPublished: (published: boolean) => void
   selectedCreativeVariation: CreativeVariation | null
   setSelectedCreativeVariation: (variation: CreativeVariation | null) => void
+  selectedImageIndex: number | null
+  setSelectedImageIndex: (index: number | null) => void
   loadingVariations: boolean[]
   generateImageVariations: (baseImageUrl: string, campaignId?: string) => Promise<void>
   isSaving: boolean
@@ -42,13 +44,15 @@ export function AdPreviewProvider({ children }: { children: ReactNode }) {
   const [selectedCreativeVariation, setSelectedCreativeVariation] = useState<CreativeVariation | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [loadingVariations, setLoadingVariations] = useState<boolean[]>([false, false, false, false, false, false])
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
 
   // CRITICAL: Memoize state to prevent unnecessary recreations
   const adPreviewState = useMemo(() => ({ 
     adContent, 
     isPublished, 
-    selectedCreativeVariation 
-  }), [adContent, isPublished, selectedCreativeVariation])
+    selectedCreativeVariation,
+    selectedImageIndex,
+  }), [adContent, isPublished, selectedCreativeVariation, selectedImageIndex])
 
   // Load initial state from campaign ONCE (even if empty)
   useEffect(() => {
@@ -63,6 +67,7 @@ export function AdPreviewProvider({ children }: { children: ReactNode }) {
       adContent?: AdContent | null;
       isPublished?: boolean;
       selectedCreativeVariation?: CreativeVariation | null;
+      selectedImageIndex?: number | null;
     } | null
     
     console.log(`[AdPreviewContext] Saved ad_preview_data:`, savedData ? {
@@ -78,6 +83,7 @@ export function AdPreviewProvider({ children }: { children: ReactNode }) {
       }
       if (savedData.isPublished !== undefined) setIsPublished(savedData.isPublished)
       if (savedData.selectedCreativeVariation) setSelectedCreativeVariation(savedData.selectedCreativeVariation)
+      if (savedData.selectedImageIndex !== undefined) setSelectedImageIndex(savedData.selectedImageIndex ?? null)
     } else {
       console.warn(`[AdPreviewContext] ⚠️ No saved ad_preview_data found!`);
     }
@@ -134,6 +140,8 @@ export function AdPreviewProvider({ children }: { children: ReactNode }) {
       setIsPublished,
       selectedCreativeVariation,
       setSelectedCreativeVariation,
+      selectedImageIndex,
+      setSelectedImageIndex,
       loadingVariations,
       generateImageVariations,
       isSaving,
