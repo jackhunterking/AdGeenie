@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * Feature: Generation state scoping for overlays
+ * Purpose: Limit global generating overlay to active work only so ad-copy selection remains visible when the assistant is idle.
+ * References:
+ *  - AI SDK Core: https://ai-sdk.dev/docs/introduction
+ *  - AI Elements: https://ai-sdk.dev/elements/overview
+ *  - Vercel AI Gateway (streaming semantics): https://vercel.com/docs/ai-gateway/openai-compat
+ *  - Supabase Next.js SSR (state persistence): https://supabase.com/docs/guides/auth/server-side/nextjs
+ */
+
 import {
   Conversation,
   ConversationContent,
@@ -938,7 +948,8 @@ Make it conversational and easy to understand for a business owner.`,
       // Or if processing locations
       const isProcessingLocations = processingLocations.size > 0;
       
-      const shouldShowGenerating = isWaitingForResponse || isActivelyGenerating || isGeneratingImage || isProcessingLocations;
+      // Only show global generating overlay during active work; do not block UI when merely awaiting user input
+      const shouldShowGenerating = isActivelyGenerating || isGeneratingImage || isProcessingLocations;
       
       setIsGenerating(shouldShowGenerating);
       
@@ -949,8 +960,6 @@ Make it conversational and easy to understand for a business owner.`,
         setGenerationMessage("Setting up locations...");
       } else if (isActivelyGenerating) {
         setGenerationMessage("AI is thinking...");
-      } else if (isWaitingForResponse) {
-        setGenerationMessage("Waiting for your input...");
       }
     } else {
       setIsGenerating(false);
@@ -1232,6 +1241,7 @@ Make it conversational and easy to understand for a business owner.`,
                                   // Centralized renderer: success card + one-liner + mockup preview
                                   return renderEditImageResult({
                                     callId,
+                                    keyId: `${callId}-output-available`,
                                     input: input as any,
                                     output: output as any,
                                     isSubmitting,
@@ -1325,7 +1335,7 @@ Make it conversational and easy to understand for a business owner.`,
                                           console.log(`[REGEN-COMPLETE] ✅ Dispatched imageEdited event for variation ${finalVariationIndex}`);
                                         }, 0);
                                       }
-                                      return renderRegenerateImageResult({ callId, output: output as any });
+                                      return renderRegenerateImageResult({ callId, keyId: `${callId}-regen-output`, output: output as any });
                                     } else {
                                       console.error(`[REGEN-COMPLETE] ❌ Could not determine variationIndex for canvas update`);
                                       return (
