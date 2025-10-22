@@ -34,7 +34,7 @@ export function ProjectDropdown() {
         className="flex items-center gap-2 hover:opacity-80 transition-opacity my-4"
       >
         <div className="relative h-8 w-8">
-          <img src="/adpilot-logo.svg" alt="AdPilot" className="h-8 w-8" />
+          <img src="/AdPilot-Logomark.svg" alt="AdPilot" className="h-8 w-8" />
         </div>
         <span className="text-lg font-semibold">AdPilot</span>
         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
