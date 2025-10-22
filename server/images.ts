@@ -67,9 +67,20 @@ export async function uploadToSupabase(
 }
 
 // Meta-specific prompt enhancement for visual guardrails
-function enhancePromptWithMetaGuardrails(userPrompt: string, variationType?: string): string {
-    const baseEnhancement = `
-${userPrompt}
+function enhancePromptWithMetaGuardrails(userPrompt: string, variationType?: string, goalType?: string): string {
+let goalSpecificGuidance = '';
+if (goalType) {
+  if (goalType === 'calls') {
+    goalSpecificGuidance = `\n\nGOAL CONTEXT (Calls): Create visuals that suggest personal connection, accessibility, and trust. Imagery should contextually imply calling/contact as the natural next action without being too literal.\n`;
+  } else if (goalType === 'leads') {
+    goalSpecificGuidance = `\n\nGOAL CONTEXT (Leads): Create visuals that suggest information gathering, professional consultation, or value exchange. Imagery should inspire trust and convey expertise that makes viewers want to learn more.\n`;
+  } else if (goalType === 'website-visits') {
+    goalSpecificGuidance = `\n\nGOAL CONTEXT (Website Visits): Create visuals that suggest browsing, discovery, and digital engagement. Imagery should inspire curiosity and showcase products/services that viewers want to explore online.\n`;
+  }
+}
+
+const baseEnhancement = `
+${userPrompt}${goalSpecificGuidance}
 
 HYPER-REALISTIC PHOTOGRAPHY REQUIREMENTS (MANDATORY):
 - Style: HYPER-REALISTIC photography ONLY - must look like real DSLR/mirrorless camera photo
@@ -116,7 +127,8 @@ The final image must pass as a professional photograph - indistinguishable from 
 export async function generateImage(
     prompt: string, 
     campaignId?: string,
-    numberOfImages: number = 6
+    numberOfImages: number = 6,
+    goalType?: string
 ): Promise<string[]> {
     try {
         console.log(`🎨 Generating ${numberOfImages} AI-powered image variations...`);
@@ -165,7 +177,8 @@ export async function generateImage(
                 // Enhance prompt with Meta guardrails and variation-specific styling
                 const enhancedPrompt = enhancePromptWithMetaGuardrails(
                     `${prompt}\n\n${variation.suffix}`,
-                    variation.type
+                    variation.type,
+                    goalType
                 );
                 
                 console.log(`  → Generating variation ${index + 1}/${numberOfImages}: ${variation.category} (${variation.type})`);

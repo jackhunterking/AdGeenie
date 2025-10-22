@@ -8,7 +8,13 @@ import {
   PromptInputTextarea,
   PromptInputToolbar,
   PromptInputSubmit,
+  PromptInputModelSelect,
+  PromptInputModelSelectTrigger,
+  PromptInputModelSelectContent,
+  PromptInputModelSelectItem,
+  PromptInputModelSelectValue,
 } from '@/components/ai-elements/prompt-input'
+import { Flag } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 
@@ -85,21 +91,22 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
   const { createCampaign } = useCampaignContext()
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedGoal, setSelectedGoal] = useState<string>('leads')
   const animatedPlaceholder = useTypewriterPlaceholder()
 
   const handleSubmit = async (message: { text?: string }) => {
     const promptText = message.text?.trim()
-    if (!promptText) return
+    if (!promptText || !selectedGoal) return
 
     setIsSubmitting(true)
 
     try {
       if (!user) {
-        // User is not logged in - store prompt temporarily
+        // User is not logged in - store prompt temporarily with goal
         const response = await fetch('/api/temp-prompt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ promptText }),
+          body: JSON.stringify({ promptText, goalType: selectedGoal }),
         })
 
         if (response.ok) {
@@ -112,10 +119,11 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
           console.error('Failed to store prompt')
         }
       } else {
-        // User is logged in - create campaign using context
+        // User is logged in - create campaign using context with goal
         const campaign = await createCampaign(
           `Campaign: ${promptText.substring(0, 50)}...`,
-          promptText
+          promptText,
+          selectedGoal
         )
         
         if (campaign) {
@@ -177,6 +185,24 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
               />
             </PromptInputBody>
             <PromptInputToolbar>
+              <PromptInputModelSelect value={selectedGoal} onValueChange={setSelectedGoal}>
+                <PromptInputModelSelectTrigger className="w-auto gap-2">
+                  <Flag className="size-4" />
+                  <span className="text-muted-foreground text-sm">Goal:</span>
+                  <PromptInputModelSelectValue />
+                </PromptInputModelSelectTrigger>
+                <PromptInputModelSelectContent>
+                  <PromptInputModelSelectItem value="leads">
+                    Leads
+                  </PromptInputModelSelectItem>
+                  <PromptInputModelSelectItem value="calls">
+                    Calls
+                  </PromptInputModelSelectItem>
+                  <PromptInputModelSelectItem value="website-visits">
+                    Website Visits
+                  </PromptInputModelSelectItem>
+                </PromptInputModelSelectContent>
+              </PromptInputModelSelect>
               <div className="flex-1" />
               <PromptInputSubmit 
                 disabled={isSubmitting}

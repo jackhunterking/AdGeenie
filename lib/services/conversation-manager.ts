@@ -379,5 +379,67 @@ export const conversationManager = {
       throw error;
     }
   },
+
+  /**
+   * Update conversation goal in metadata
+   * Goal is stored at the conversation level for persistence across sessions
+   */
+  async updateConversationGoal(
+    conversationId: string,
+    goalType: string
+  ): Promise<void> {
+    try {
+      await this.updateMetadata(conversationId, {
+        current_goal: goalType,
+        goal_updated_at: new Date().toISOString(),
+      });
+
+      console.log(`[ConversationManager] Updated goal to "${goalType}" for conversation ${conversationId}`);
+    } catch (error) {
+      console.error('[ConversationManager] Update goal exception:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Inject a system message into the conversation
+   * Used for goal changes and other system notifications
+   * System messages inform the AI of context changes transparently
+   */
+  async injectSystemMessage(
+    conversationId: string,
+    systemText: string
+  ): Promise<void> {
+    try {
+      // Generate unique ID for system message
+      const systemMessageId = `sys-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Insert system message (seq is auto-incremented by database)
+      const { error } = await supabaseServer
+        .from('messages')
+        .insert({
+          id: systemMessageId,
+          conversation_id: conversationId,
+          role: 'system',
+          content: systemText,
+          parts: [{ type: 'text', text: systemText }],
+          tool_invocations: [],
+          metadata: {
+            injected: true,
+            injected_at: new Date().toISOString(),
+          },
+        });
+
+      if (error) {
+        console.error('[ConversationManager] Inject system message error:', error);
+        throw new Error(`Failed to inject system message: ${error.message}`);
+      }
+
+      console.log(`[ConversationManager] Injected system message to conversation ${conversationId}`);
+    } catch (error) {
+      console.error('[ConversationManager] Inject system message exception:', error);
+      throw error;
+    }
+  },
 };
 

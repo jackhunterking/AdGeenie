@@ -26,12 +26,14 @@ interface DashboardProps {
   messages?: UIMessage[]  // AI SDK v5 prop name
   campaignId?: string
   conversationId?: string | null  // Stable conversation ID from server
+  campaignMetadata?: any
 }
 
 export function Dashboard({ 
   messages = [],
   campaignId,
   conversationId,
+  campaignMetadata,
 }: DashboardProps = {}) {
   const router = useRouter()
   const [credits] = useState(205.5)
@@ -62,7 +64,7 @@ export function Dashboard({
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 my-4">
                 <div className="relative h-8 w-8">
-                  <img src="/vibeads-logo.png" alt="AdGeenie" className="h-8 w-8" />
+                  <img src="/AdPilot-Logomark.svg" alt="AdPilot" className="h-8 w-8" />
                 </div>
                 <span className="text-lg font-semibold">{COMPANY_NAME}</span>
               </div>
@@ -136,7 +138,7 @@ export function Dashboard({
             campaignId={campaignId}
             conversationId={conversationId}
             messages={messages}
-            campaignMetadata={campaign?.metadata}
+            campaignMetadata={campaignMetadata}
           />
         </div>
 

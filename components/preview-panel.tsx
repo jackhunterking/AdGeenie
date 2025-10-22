@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Play, ImageIcon, Video, Layers, Sparkles, DollarSign, Plus, Minus, Building2, Check, Facebook, Loader2, Edit2, RefreshCw, Palette, Type, MapPin, Target, Rocket, Flag } from "lucide-react"
 import { LocationSelectionCanvas } from "./location-selection-canvas"
@@ -17,6 +17,7 @@ import { useAudience } from "@/lib/context/audience-context"
 import { useGoal } from "@/lib/context/goal-context"
 import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { cn } from "@/lib/utils"
+import { newEditSession } from "@/lib/utils/edit-session"
 
 const mockAdAccounts = [
   { id: "act_123456789", name: "Main Business Account", currency: "USD" },
@@ -28,7 +29,7 @@ export function PreviewPanel() {
   const [activeFormat, setActiveFormat] = useState("feed")
   const [selectedAdIndex, setSelectedAdIndex] = useState<number | null>(null)
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
-  const { adContent, isPublished, setIsPublished, setSelectedCreativeVariation } = useAdPreview()
+  const { adContent, setAdContent, isPublished, setIsPublished, setSelectedCreativeVariation } = useAdPreview()
   const { budgetState, setDailyBudget, setSelectedAdAccount, setIsConnected, isComplete } = useBudget()
   const { locationState } = useLocation()
   const { audienceState } = useAudience()
@@ -37,6 +38,43 @@ export function PreviewPanel() {
   const [showReelMessage, setShowReelMessage] = useState(false)
   const [isEditingBudget, setIsEditingBudget] = useState(false)
   const [budgetInputValue, setBudgetInputValue] = useState(budgetState.dailyBudget.toString())
+  
+  // Listen for image edit events from AI chat (always mounted)
+  useEffect(() => {
+    const handleImageEdited = (event: Event) => {
+      const customEvent = event as CustomEvent<{ sessionId?: string; variationIndex: number; newImageUrl: string }>;
+      const { sessionId, variationIndex, newImageUrl } = customEvent.detail;
+      // Only accept tool-originated updates that carry a sessionId
+      if (!sessionId) return;
+      
+      console.log(`[CANVAS] Received imageEdited event for variation ${variationIndex}:`, newImageUrl);
+      
+      // Update ad content with new image URL
+      setAdContent(prev => {
+        if (!prev?.imageVariations) {
+          console.warn(`[CANVAS] No imageVariations to update`);
+          return prev;
+        }
+        
+        const updatedVariations = [...prev.imageVariations];
+        updatedVariations[variationIndex] = newImageUrl;
+        
+        console.log(`[CANVAS] ✅ Updated variation ${variationIndex} with new image`);
+        console.log(`[CANVAS] 📤 Auto-save will trigger (context change)`);
+        
+        return {
+          ...prev,
+          imageVariations: updatedVariations,
+        };
+      });
+    };
+    
+    window.addEventListener('imageEdited', handleImageEdited);
+    
+    return () => {
+      window.removeEventListener('imageEdited', handleImageEdited);
+    };
+  }, [setAdContent]);
   
   const minBudget = 5
   const maxBudget = 100
@@ -109,8 +147,13 @@ export function PreviewPanel() {
   }
 
   const handleSelectAd = (index: number) => {
+    // Toggle selection: clicking the selected card unselects it
+    if (selectedAdIndex === index) {
+      setSelectedAdIndex(null)
+      setSelectedCreativeVariation(null)
+      return
+    }
     setSelectedAdIndex(index)
-    // Store the selected creative variation
     const variation = adVariations[index]
     setSelectedCreativeVariation(variation)
   }
@@ -124,15 +167,21 @@ export function PreviewPanel() {
     const variationImageUrl = adContent?.imageVariations?.[index]
     
     // Create reference context for the AI chat to render
+    const editSession = newEditSession({
+      variationIndex: index,
+      imageUrl: variationImageUrl,
+      campaignId: (adContent as any)?.campaignId,
+    })
+
     const referenceContext = {
       type: 'ad_variation_reference',
       action: 'edit',
       variationIndex: index,
-      variationNumber: index + 1,
       variationTitle: variation.title,
       format: currentFormat,
       gradient: variation.gradient,
       imageUrl: variationImageUrl, // Use the specific variation's image
+      editSession,
       
       // Ad copy content for the reference card
       content: {
@@ -226,11 +275,6 @@ export function PreviewPanel() {
     const isRegenerating = regeneratingIndex === index
     const isProcessing = isRegenerating
     
-    // Debug logging
-    if (adContent?.imageVariations && index === 0) {
-      console.log('[PREVIEW] Image variations available:', adContent.imageVariations.length);
-    }
-    
     return (
       <div 
         key={index} 
@@ -271,14 +315,7 @@ export function PreviewPanel() {
                 )}
                 disabled={regeneratingIndex === index}
               >
-                {isSelected ? (
-                  <>
-                    <Check className="h-3 w-3 mr-1.5" />
-                    Selected
-                  </>
-                ) : (
-                  'Select'
-                )}
+                {isSelected ? 'Unselect' : 'Select'}
               </Button>
               <Button
                 size="sm"

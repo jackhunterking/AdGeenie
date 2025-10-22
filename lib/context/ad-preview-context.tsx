@@ -88,17 +88,32 @@ export function AdPreviewProvider({ children }: { children: ReactNode }) {
   // Save function with proper return type
   const saveFn = useCallback(async (state: typeof adPreviewState) => {
     if (!campaign?.id || !isInitialized) return
+    console.log(`[AdPreviewContext] 💾 Saving ad_preview_data:`, {
+      hasImageVariations: !!state.adContent?.imageVariations?.length,
+      imageCount: state.adContent?.imageVariations?.length || 0,
+      hasBaseImage: !!state.adContent?.baseImageUrl,
+    })
     await saveCampaignState('ad_preview_data', state)
   }, [campaign?.id, saveCampaignState, isInitialized])
 
-  // Determine if we have critical data (images)
-  const hasImages = !!(adContent?.imageVariations?.length || adContent?.baseImageUrl)
+  // Memoize save config to force CRITICAL mode when images present
+  // This ensures images save immediately (0ms) instead of 300ms debounce
+  const saveConfig = useMemo(() => {
+    const hasImages = !!(adContent?.imageVariations?.length || adContent?.baseImageUrl)
+    const config = hasImages ? AUTO_SAVE_CONFIGS.CRITICAL : AUTO_SAVE_CONFIGS.NORMAL
+    console.log(`[AdPreviewContext] Save config:`, {
+      hasImages,
+      configType: hasImages ? 'CRITICAL (immediate)' : 'NORMAL (300ms debounce)',
+      imageCount: adContent?.imageVariations?.length || 0
+    })
+    return config
+  }, [adContent?.imageVariations?.length, adContent?.baseImageUrl])
   
-  // Auto-save with IMMEDIATE mode for images (no debounce!)
+  // Auto-save with dynamic config based on whether images are present
   const { isSaving, lastSaved, error } = useAutoSave(
     adPreviewState, 
     saveFn, 
-    hasImages ? AUTO_SAVE_CONFIGS.CRITICAL : AUTO_SAVE_CONFIGS.NORMAL
+    saveConfig
   )
 
   // Function to generate image variations from base image

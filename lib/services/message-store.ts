@@ -7,6 +7,7 @@
  */
 
 import { UIMessage } from 'ai';
+import { sanitizeParts } from '@/lib/ai/schema';
 import { supabaseServer } from '@/lib/supabase/server';
 
 // ============================================
@@ -70,7 +71,8 @@ function messageToStorage(msg: UIMessage, conversationId: string): Omit<MessageR
  * Filters incomplete tool invocations for data integrity
  */
 function storageToMessage(stored: MessageRow): UIMessage {
-  let parts = stored.parts || [];
+  // Sanitize all parts from storage to guarantee invariants
+  let parts = sanitizeParts(stored.parts);
   
   // For assistant messages, filter incomplete tool invocations
   // Per AI SDK docs: https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling#response-messages
@@ -86,26 +88,17 @@ function storageToMessage(stored: MessageRow): UIMessage {
       // Complete tools have either result or output properties
       // Incomplete tools only have toolCallId (pending execution)
       parts = parts.filter((part: any) => {
-        // Keep all non-tool parts (text, reasoning, step-start, etc.)
-        if (!part.type?.startsWith('tool-')) return true;
-        
-        // For tool parts: keep only if they are complete
-        // Complete = has result OR output, OR is a tool-result part
-        if (part.type === 'tool-result') {
-          return true; // Tool result parts are always complete
+        if (typeof part?.type !== 'string') return false;
+        if (!part.type.startsWith('tool-')) return true;
+        const hasToolCallId = typeof part.toolCallId === 'string' && part.toolCallId.length > 0;
+        const hasOutputOrResult = Boolean(part.result || part.output);
+        if (part.type === 'tool-result') return hasToolCallId;
+        if (!hasToolCallId || !hasOutputOrResult) {
+          console.log(`[MessageStore] Filtering invalid tool part in ${stored.id}:`, {
+            type: part.type, toolCallId: part.toolCallId, hasOutputOrResult
+          });
+          return false;
         }
-        
-        // For tool invocation parts (tool-generateImage, tool-editImage, etc.)
-        // Keep only if they have result or output
-        if (part.toolCallId) {
-          const isComplete = Boolean(part.result || part.output);
-          if (!isComplete) {
-            console.log(`[MessageStore] Filtering incomplete tool invocation: ${part.type}, ID: ${part.toolCallId} in message ${stored.id}`);
-          }
-          return isComplete;
-        }
-        
-        // Keep other tool-related parts (shouldn't normally reach here)
         return true;
       });
     }

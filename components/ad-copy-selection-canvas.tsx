@@ -1,16 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Check, ImageIcon, Layers, Video, Sparkles, Edit2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { useAdCopy, adCopyVariations } from "@/lib/context/ad-copy-context"
+import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
 import { useGeneration } from "@/lib/context/generation-context"
+import { newEditSession } from "@/lib/utils/edit-session"
 
 export function AdCopySelectionCanvas() {
-  const { adCopyState, setSelectedCopyIndex } = useAdCopy()
-  const { adContent, selectedCreativeVariation, loadingVariations } = useAdPreview()
+  const { adCopyState, setSelectedCopyIndex, getActiveVariations } = useAdCopy()
+  const activeVariations = getActiveVariations()
+  const { adContent, setAdContent, selectedCreativeVariation, loadingVariations } = useAdPreview()
   const { isGenerating, generationMessage } = useGeneration()
   const [activeFormat, setActiveFormat] = useState("feed")
   const [showReelMessage, setShowReelMessage] = useState(false)
@@ -32,16 +34,28 @@ export function AdCopySelectionCanvas() {
 
   const handleEditCopy = (index: number) => {
     // Send copy to AI chat for editing
-    const copy = adCopyVariations[index]
+    const copy = activeVariations[index]
     const currentFormat = activeFormat
     
+    // Get the specific variation's image URL
+    const variationImageUrl = adContent?.imageVariations?.[index] || adContent?.imageUrl
+    
     // Create reference context for the AI chat to render
+    const editSession = newEditSession({
+      variationIndex: index,
+      imageUrl: variationImageUrl,
+      campaignId: (adContent as any)?.campaignId,
+    })
+
     const referenceContext = {
-      type: 'ad_copy_reference',
+      type: 'ad_variation_reference',
       action: 'edit',
-      copyIndex: index,
-      copyNumber: index + 1,
+      variationIndex: index,
+      variationTitle: `Variation ${index + 1}`,
       format: currentFormat,
+      
+      // Include image URL for editing
+      imageUrl: variationImageUrl,
       
       // Copy content to edit
       content: {
@@ -51,14 +65,8 @@ export function AdCopySelectionCanvas() {
       },
       
       // Visual preview data
-      preview: {
-        format: currentFormat,
-        gradient: selectedCreativeVariation?.gradient || "from-blue-600 via-blue-500 to-cyan-500",
-        imageUrl: adContent?.imageUrl,
-        dimensions: currentFormat === 'story' 
-          ? { width: 360, height: 640, aspect: '9:16' }
-          : { width: 500, height: 500, aspect: '1:1' }
-      },
+      gradient: selectedCreativeVariation?.gradient || "from-blue-600 via-blue-500 to-cyan-500",
+      editSession,
       
       // Metadata
       metadata: {
@@ -96,7 +104,7 @@ export function AdCopySelectionCanvas() {
   )
 
   const renderFeedAdCopyCard = (copyIndex: number) => {
-    const copy = adCopyVariations[copyIndex]
+    const copy = activeVariations[copyIndex]
     const isSelected = adCopyState.selectedCopyIndex === copyIndex
     
     return (
@@ -172,6 +180,7 @@ export function AdCopySelectionCanvas() {
         {adContent?.imageVariations?.[copyIndex] ? (
           <div className="aspect-square relative overflow-hidden">
             <img
+              key={`feed-${copyIndex}-${adContent.imageVariations[copyIndex]}`}
               src={adContent.imageVariations[copyIndex]}
               alt={copy.headline}
               className="w-full h-full object-cover"
@@ -244,7 +253,7 @@ export function AdCopySelectionCanvas() {
   }
 
   const renderStoryAdCopyCard = (copyIndex: number) => {
-    const copy = adCopyVariations[copyIndex]
+    const copy = activeVariations[copyIndex]
     const isSelected = adCopyState.selectedCopyIndex === copyIndex
     
     return (
@@ -308,7 +317,12 @@ export function AdCopySelectionCanvas() {
         {/* Background Creative */}
         {adContent?.imageVariations?.[copyIndex] ? (
           <div className="absolute inset-0">
-            <img src={adContent.imageVariations[copyIndex]} alt={copy.headline} className="w-full h-full object-cover" />
+            <img 
+              key={`story-${copyIndex}-${adContent.imageVariations[copyIndex]}`}
+              src={adContent.imageVariations[copyIndex]} 
+              alt={copy.headline} 
+              className="w-full h-full object-cover" 
+            />
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
             {/* Loading overlay with transparent blur */}
             {loadingVariations[copyIndex] && (
@@ -419,8 +433,8 @@ export function AdCopySelectionCanvas() {
 
       {/* 3x2 Grid of Ad Copy Variations */}
       <div className="grid grid-cols-3 gap-4 max-w-6xl mx-auto">
-        {activeFormat === "feed" && adCopyVariations.map((_, index) => renderFeedAdCopyCard(index))}
-        {activeFormat === "story" && adCopyVariations.map((_, index) => renderStoryAdCopyCard(index))}
+        {activeFormat === "feed" && activeVariations.map((_, index) => renderFeedAdCopyCard(index))}
+        {activeFormat === "story" && activeVariations.map((_, index) => renderStoryAdCopyCard(index))}
       </div>
 
       {/* Info Section */}

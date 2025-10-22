@@ -24,7 +24,7 @@ import {
 import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { useChat, type UIMessage } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X, Flag } from "lucide-react";
 import {
   Source,
   Sources,
@@ -43,6 +43,8 @@ import { Button } from "@/components/ui/button";
 import { generateImage, editImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
+import { ImageEditProgressLoader } from "@/components/ai-elements/image-edit-progress-loader";
+import { renderEditImageResult, renderRegenerateImageResult } from "@/components/ai-elements/tool-renderers";
 import { useAdPreview } from "@/lib/context/ad-preview-context";
 import { searchLocations, getLocationBoundary } from "@/app/actions/geocoding";
 import { useGoal } from "@/lib/context/goal-context";
@@ -51,7 +53,9 @@ import { useAudience } from "@/lib/context/audience-context";
 import { AdReferenceCard } from "@/components/ad-reference-card-example";
 import { AudienceContextCard } from "@/components/audience-context-card";
 import { useGeneration } from "@/lib/context/generation-context";
+import { emitBrowserEvent } from "@/lib/utils/browser-events";
 import { useCampaignContext } from "@/lib/context/campaign-context";
+import { toZeroBasedIndex } from "@/lib/utils/variation";
 
 // Type definitions
 interface MessagePart {
@@ -188,14 +192,24 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
   const [editingImages, setEditingImages] = useState<Set<string>>(new Set());
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
+  
+  // Track dispatched events to prevent duplicates (infinite loop prevention)
+  const dispatchedEvents = useRef<Set<string>>(new Set());
   const [dislikedMessages, setDislikedMessages] = useState<Set<string>>(new Set());
   const [processingLocations, setProcessingLocations] = useState<Set<string>>(new Set());
   const [pendingLocationCalls, setPendingLocationCalls] = useState<Array<{ toolCallId: string; input: LocationToolInput }>>([]);
   const [adEditReference, setAdEditReference] = useState<AudienceContext | null>(null);
   const [audienceContext, setAudienceContext] = useState<AudienceContext | null>(null);
+  const [activeEditSession, setActiveEditSession] = useState<{ sessionId: string; variationIndex: number } | null>(null);
   const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const { setIsGenerating, setGenerationMessage, generationMessage } = useGeneration();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Extract goal from campaign metadata for context enrichment
+  const goalType = campaignMetadata?.initialGoal || goalState?.selectedGoal || null;
+  
+  console.log('[AI-CHAT] Goal context:', { goalType, campaignMetadata, goalState: goalState?.selectedGoal });
   
   // AI SDK Native Pattern: Use stable conversationId from server
   // This prevents ID changes that would cause useChat to reset
@@ -210,23 +224,32 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
         prepareSendMessagesRequest({ messages, id }) {
           const lastMessage = messages[messages.length - 1];
           
+          // Enrich message metadata with goal context (AI SDK v5 pattern)
+          const enrichedMessage = {
+            ...lastMessage,
+            metadata: {
+              ...(lastMessage as any).metadata,
+              goalType: goalType,
+            },
+          };
+          
           // DEBUG: Log what we're sending (AI SDK v5 pattern - metadata field)
           console.log(`[TRANSPORT] ========== SENDING MESSAGE ==========`);
           console.log(`[TRANSPORT] message.id:`, lastMessage.id);
           console.log(`[TRANSPORT] message.role:`, lastMessage.role);
-          console.log(`[TRANSPORT] message.metadata:`, (lastMessage as any).metadata);
-          console.log(`[TRANSPORT] message structure:`, Object.keys(lastMessage));
+          console.log(`[TRANSPORT] message.metadata:`, enrichedMessage.metadata);
+          console.log(`[TRANSPORT] goalType included:`, goalType);
           
           return {
             body: {
-              message: lastMessage,
+              message: enrichedMessage,
               id,
               model: model,
             },
           };
         },
       }),
-    [model]
+    [model, goalType]
   );
   
   console.log(`[AI-CHAT] ========== INITIALIZATION ==========`);
@@ -365,18 +388,30 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
       console.log(`[SUBMIT] ========== AD EDIT REFERENCE ==========`);
       console.log(`[SUBMIT] adEditReference:`, adEditReference);
       
+      const normalizedIndexForMeta = toZeroBasedIndex({
+        variationIndex: (adEditReference as any).variationIndex,
+        variationNumber: (adEditReference as any).variationNumber,
+      });
       messageMetadata.editingReference = {
         type: adEditReference.type,
         variationTitle: adEditReference.variationTitle,
-        variationNumber: adEditReference.variationNumber,
+        variationIndex: normalizedIndexForMeta,
         format: adEditReference.format,
         imageUrl: adEditReference.imageUrl, // Include image URL for AI to use in editImage tool
         content: adEditReference.content,
         gradient: adEditReference.gradient,
-      };
+        ...(activeEditSession?.sessionId && typeof normalizedIndexForMeta === 'number' && {
+          editSession: { sessionId: activeEditSession.sessionId, variationIndex: normalizedIndexForMeta }
+        })
+      } as any;
       messageMetadata.editMode = true;
       
       console.log(`[SUBMIT] messageMetadata.editingReference:`, messageMetadata.editingReference);
+      
+      // Set immediate feedback for image edits
+      setIsSubmitting(true);
+      setIsGenerating(true);
+      setGenerationMessage("Editing image...");
     }
     
     if (audienceContext) {
@@ -471,20 +506,30 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
         // Generate 6 unique AI variations in one call
         const imageUrls = await generateImage(prompt, campaignId, 6);
         
-        console.log('✅ Generated 6 variations:', imageUrls);
+        console.log('[IMAGE-GEN] ✅ Generated 6 variations:', imageUrls);
         
         // Set all 6 variations immediately
-        setAdContent(prev => ({
-          ...prev,
-          headline: prev?.headline || '',
-          body: prev?.body || '',
-          cta: prev?.cta || 'Learn More',
-          baseImageUrl: imageUrls[0],
-          imageVariations: imageUrls, // All 6 URLs
-        }));
+        setAdContent(prev => {
+          const newContent = {
+            ...prev,
+            headline: prev?.headline || '',
+            body: prev?.body || '',
+            cta: prev?.cta || 'Learn More',
+            baseImageUrl: imageUrls[0],
+            imageVariations: imageUrls, // All 6 URLs
+          };
+          
+          console.log('[IMAGE-GEN] 📤 Setting adContent with variations:', {
+            imageCount: imageUrls.length,
+            baseImageUrl: imageUrls[0],
+            hasHeadline: !!newContent.headline,
+          });
+          
+          return newContent;
+        });
         
         // Auto-switch to ad copy canvas to show the variations
-        window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'copy' }));
+        emitBrowserEvent('switchToTab', 'copy');
         
         addToolResult({
           tool: 'generateImage',
@@ -643,12 +688,10 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
           addLocations(validLocations);
           
           // Send FULL data (with geometry) to the map
-          window.dispatchEvent(new CustomEvent('locationsUpdated', { 
-            detail: validLocations 
-          }));
+          emitBrowserEvent('locationsUpdated', validLocations);
 
           // Switch to location tab
-          window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'location' }));
+          emitBrowserEvent('switchToTab', 'location');
 
           // Send MINIMAL data to AI conversation (no geometry - it's too large!)
           addToolResult({
@@ -814,8 +857,18 @@ Make it conversational and easy to understand for a business owner.`,
         setAudienceContext(context.content as AudienceContext | null || null);
         setCustomPlaceholder("Describe how you'd like to change the audience targeting...");
       } else {
-        // Store as ad edit reference (for ad copy/creative)
-        setAdEditReference(context);
+        // Store as ad edit reference (for ad copy/creative) with normalized index
+        const normalizedIndex = toZeroBasedIndex({
+          variationIndex: (context as any).variationIndex,
+          variationNumber: (context as any).variationNumber,
+        });
+        setAdEditReference({
+          ...context,
+          variationIndex: normalizedIndex,
+        } as any);
+        if ((context as any).editSession?.sessionId && typeof normalizedIndex === 'number') {
+          setActiveEditSession({ sessionId: (context as any).editSession.sessionId, variationIndex: normalizedIndex });
+        }
         setCustomPlaceholder(`Describe the changes you'd like to make to ${context.variationTitle}...`);
       }
       
@@ -906,6 +959,26 @@ Make it conversational and easy to understand for a business owner.`,
 
   return (
     <div className="relative flex size-full flex-col overflow-hidden">
+      {/* Goal Indicator Badge */}
+      {goalType && (
+        <div className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-b border-border/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Flag className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs font-medium text-muted-foreground">
+                Campaign Goal:
+              </span>
+              <span className="text-xs font-semibold text-foreground capitalize">
+                {goalType}
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              All suggestions will align with this goal
+            </span>
+          </div>
+        </div>
+      )}
+      
       <Conversation>
         <ConversationContent>
             {messages.map((message, messageIndex) => {
@@ -944,41 +1017,7 @@ Make it conversational and easy to understand for a business owner.`,
                     )}
                     <Message from={message.role}>
                       <MessageContent>
-                        {/* Show tool attempt info for empty assistant messages (AI SDK best practice) */}
-                        {message.role === "assistant" && message.parts.length === 0 && (message as any).toolInvocations?.length > 0 ? (
-                          <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
-                            {(message as any).toolInvocations.map((inv: any, idx: number) => {
-                              const toolName = inv.toolName || 'unknown';
-                              const toolIcons: Record<string, string> = {
-                                generateImage: '🎨',
-                                editImage: '✏️',
-                                locationTargeting: '📍',
-                                audienceTargeting: '👥',
-                                setupGoal: '🎯'
-                              };
-                              const icon = toolIcons[toolName] || '🔧';
-                              
-                              const toolLabels: Record<string, string> = {
-                                generateImage: 'Image generation requested',
-                                editImage: 'Image edit requested',
-                                locationTargeting: 'Location targeting configured',
-                                audienceTargeting: 'Audience targeting configured',
-                                setupGoal: 'Goal setup requested'
-                              };
-                              const label = toolLabels[toolName] || `Tool "${toolName}" invoked`;
-                              
-                              return (
-                                <div key={idx} className="flex items-center gap-2 text-sm">
-                                  <span className="text-lg">{icon}</span>
-                                  <span className="text-muted-foreground">{label}</span>
-                                </div>
-                              );
-                            })}
-                            <span className="text-xs text-muted-foreground italic mt-1">
-                              This interaction required additional processing
-                            </span>
-                          </div>
-                        ) : (
+                        {(
                           message.parts
                             // Filter out cancelled tool invocations (AI SDK best practice)
                             .filter((part) => {
@@ -1008,9 +1047,14 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               return true; // Render all other parts
                             })
-                            .map((part, i) => {
+                            .map((part, i, allParts) => {
                             switch (part.type) {
-                              case "text":
+                            case "text": {
+                                // Suppress assistant text when tool parts are present in same message
+                                const hasToolParts = allParts?.some((p: any) => typeof p?.type === 'string' && p.type.startsWith('tool-'));
+                                if (message.role === 'assistant' && hasToolParts) {
+                                  return null;
+                                }
                                 return (
                                   <Response 
                                     key={`${message.id}-${i}`}
@@ -1019,6 +1063,7 @@ Make it conversational and easy to understand for a business owner.`,
                                     {part.text}
                                   </Response>
                                 );
+                              }
                             case "reasoning":
                               return (
                                 <Reasoning
@@ -1112,22 +1157,44 @@ Make it conversational and easy to understand for a business owner.`,
                             }
                             case "tool-editImage": {
                               const callId = part.toolCallId;
+                              const input = part.input as { imageUrl?: string; variationIndex?: number; prompt?: string };
+                              
+                              // DEBUG: Log all states to see execution flow
+                              console.log(`[TOOL-editImage] State: ${part.state}, callId: ${callId}`);
+                              console.log(`[TOOL-editImage] Has output:`, !!(part as any).output);
+                              console.log(`[TOOL-editImage] Has result:`, !!(part as any).result);
                               
                               switch (part.state) {
                                 case 'input-streaming':
                                 case 'tool-executing':
-                                  // Server-side execution - show loading state
-                                  return (
-                                    <div key={callId} className="flex items-center gap-3 p-4 border rounded-lg bg-card my-2">
-                                      <div className="relative">
-                                        <div className="h-8 w-8 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
-                                      </div>
-                                      <span className="text-sm text-muted-foreground">Editing image...</span>
-                                    </div>
-                                  );
+                                  // Server-side execution - show animated progress loader
+                                  return <ImageEditProgressLoader key={callId} type="edit" />;
                                 
                                 case 'output-available': {
-                                  const output = part.output as { success?: boolean; editedImageUrl?: string; error?: string };
+                                  // AI SDK v5: Server-executed tools might use 'result' instead of 'output'
+                                  const output = ((part as any).output || (part as any).result) as { 
+                                    success?: boolean; 
+                                    editedImageUrl?: string; 
+                                    variationIndex?: number; 
+                                    error?: string 
+                                  };
+                                  
+                                  // DEBUG: Log the entire output to see what we're receiving
+                                  console.log(`[EDIT-OUTPUT] ========== OUTPUT RECEIVED ==========`);
+                                  console.log(`[EDIT-OUTPUT] output.success:`, output.success);
+                                  console.log(`[EDIT-OUTPUT] output.editedImageUrl:`, output.editedImageUrl);
+                                  console.log(`[EDIT-OUTPUT] output.variationIndex:`, output.variationIndex);
+                                  console.log(`[EDIT-OUTPUT] input.variationIndex:`, input.variationIndex);
+                                  console.log(`[EDIT-OUTPUT] Full output object:`, JSON.stringify(output, null, 2));
+                                  console.log(`[EDIT-OUTPUT] =======================================`);
+                                  
+                                  // Reset submitting state
+                                  if (isSubmitting) {
+                                    setTimeout(() => {
+                                      setIsSubmitting(false);
+                                      setIsGenerating(false);
+                                    }, 0);
+                                  }
                                   
                                   if (!output.success || output.error) {
                                     return (
@@ -1137,19 +1204,49 @@ Make it conversational and easy to understand for a business owner.`,
                                     );
                                   }
                                   
-                                  return (
-                                    <div key={callId} className="my-4">
-                                      <p className="text-sm font-medium text-muted-foreground mb-2">✨ Edited image:</p>
-                                      <img
-                                        src={output.editedImageUrl}
-                                        alt="Edited image"
-                                        className="rounded-lg shadow-lg max-w-full h-auto"
-                                      />
-                                    </div>
-                                  );
+                                  // Dispatch event to update canvas with edited image
+                                  // 4-tier fallback strategy for variationIndex (AI SDK pattern)
+                                  if (output.editedImageUrl) {
+                                    // Determine index strictly from part (result → input). Do NOT use activeEditSession.
+                                    const finalVariationIndex = (output as any).variationIndex ?? (input as any).variationIndex;
+                                    if (typeof finalVariationIndex === 'number' && finalVariationIndex >= 0) {
+                                      const eventKey = `${callId}-${finalVariationIndex}`;
+                                      
+                                      if (!dispatchedEvents.current.has(eventKey)) {
+                                        dispatchedEvents.current.add(eventKey);
+                                        
+                                        setTimeout(() => {
+                                          emitBrowserEvent('imageEdited', { 
+                                            sessionId: (part as any).output?.sessionId || (part as any).result?.sessionId,
+                                            variationIndex: finalVariationIndex,
+                                            newImageUrl: output.editedImageUrl 
+                                          });
+                                          console.log(`[EDIT-COMPLETE] ✅ Dispatched imageEdited event for variation ${finalVariationIndex}`);
+                                        }, 0);
+                                      }
+                                    } else {
+                                      console.error(`[EDIT-COMPLETE] ❌ Could not determine variationIndex for canvas update`);
+                                    }
+                                  }
+                                  
+                                  // Centralized renderer: success card + one-liner + mockup preview
+                                  return renderEditImageResult({
+                                    callId,
+                                    input: input as any,
+                                    output: output as any,
+                                    isSubmitting,
+                                  });
                                 }
                                 
                                 case 'output-error':
+                                  // Reset submitting state on error
+                                  if (isSubmitting) {
+                                    setTimeout(() => {
+                                      setIsSubmitting(false);
+                                      setIsGenerating(false);
+                                    }, 0);
+                                  }
+                                  
                                   return (
                                     <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
                                       Error: {part.errorText || 'Failed to edit image'}
@@ -1162,60 +1259,116 @@ Make it conversational and easy to understand for a business owner.`,
                             }
                             case "tool-regenerateImage": {
                               const callId = part.toolCallId;
+                              const input = part.input as { variationIndex?: number };
+                              
+                              // DEBUG: Log all states to see execution flow
+                              console.log(`[TOOL-regenerateImage] State: ${part.state}, callId: ${callId}`);
+                              console.log(`[TOOL-regenerateImage] Has output:`, !!(part as any).output);
+                              console.log(`[TOOL-regenerateImage] Has result:`, !!(part as any).result);
                               
                               switch (part.state) {
                                 case 'input-streaming':
                                 case 'tool-executing':
-                                  // Server-side execution - show loading state
-                                  return (
-                                    <div key={callId} className="flex flex-col items-center gap-3 justify-center p-6 my-2 border rounded-lg bg-card max-w-md mx-auto">
-                                      <div className="relative">
-                                        <div className="h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
-                                        <div className="absolute inset-0 h-10 w-10 rounded-full border-4 border-transparent border-r-blue-300 animate-spin" style={{ animationDelay: '150ms' }} />
-                                      </div>
-                                      <div className="flex flex-col items-center gap-1">
-                                        <span className="text-sm font-medium text-foreground">Regenerating 6 new variations...</span>
-                                        <div className="flex gap-1">
-                                          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
+                                  // Server-side execution - show animated progress loader
+                                  return <ImageEditProgressLoader key={callId} type="regenerate" />;
                                 
                                 case 'output-available': {
-                                  const output = part.output as { success?: boolean; imageUrls?: string[]; count?: number; error?: string };
+                                  // AI SDK v5: Server-executed tools might use 'result' instead of 'output'
+                                  const output = ((part as any).output || (part as any).result) as { 
+                                    success?: boolean; 
+                                    imageUrl?: string; 
+                                    imageUrls?: string[]; 
+                                    variationIndex?: number; 
+                                    count?: number; 
+                                    error?: string 
+                                  };
+                                  
+                                  // DEBUG: Log the entire output to see what we're receiving
+                                  console.log(`[REGENERATE-OUTPUT] ========== OUTPUT RECEIVED ==========`);
+                                  console.log(`[REGENERATE-OUTPUT] output.success:`, output.success);
+                                  console.log(`[REGENERATE-OUTPUT] output.imageUrl:`, output.imageUrl);
+                                  console.log(`[REGENERATE-OUTPUT] output.variationIndex:`, output.variationIndex);
+                                  console.log(`[REGENERATE-OUTPUT] input.variationIndex:`, input.variationIndex);
+                                  console.log(`[REGENERATE-OUTPUT] Full output object:`, JSON.stringify(output, null, 2));
+                                  console.log(`[REGENERATE-OUTPUT] =======================================`);
+                                  
+                                  // Reset submitting state
+                                  if (isSubmitting) {
+                                    setTimeout(() => {
+                                      setIsSubmitting(false);
+                                      setIsGenerating(false);
+                                    }, 0);
+                                  }
                                   
                                   if (!output.success || output.error) {
                                     return (
                                       <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
-                                        Error: {output.error || 'Failed to regenerate images'}
+                                        Error: {output.error || 'Failed to regenerate image'}
                                       </div>
                                     );
                                   }
                                   
-                                  if (!output.imageUrls || output.imageUrls.length === 0) {
-                                    return null;
+                                  // Handle single variation regeneration (edit mode)
+                                  // 4-tier fallback strategy for variationIndex (AI SDK pattern)
+                                  if (output.imageUrl) {
+                                    const finalVariationIndex = (output as any).variationIndex ?? (input as any).variationIndex;
+                                    if (typeof finalVariationIndex === 'number' && finalVariationIndex >= 0) {
+                                      const eventKey = `${callId}-regen-${finalVariationIndex}`;
+                                      if (!dispatchedEvents.current.has(eventKey)) {
+                                        dispatchedEvents.current.add(eventKey);
+                                        setTimeout(() => {
+                                          emitBrowserEvent('imageEdited', {
+                                            sessionId: (part as any).output?.sessionId || (part as any).result?.sessionId,
+                                            variationIndex: finalVariationIndex,
+                                            newImageUrl: output.imageUrl,
+                                          });
+                                          console.log(`[REGEN-COMPLETE] ✅ Dispatched imageEdited event for variation ${finalVariationIndex}`);
+                                        }, 0);
+                                      }
+                                      return renderRegenerateImageResult({ callId, output: output as any });
+                                    } else {
+                                      console.error(`[REGEN-COMPLETE] ❌ Could not determine variationIndex for canvas update`);
+                                      return (
+                                        <div key={callId} className="border rounded-lg p-3 my-2 bg-yellow-500/5 border-yellow-500/30">
+                                          <p className="text-sm text-yellow-600">Image regenerated but couldn't update canvas position</p>
+                                        </div>
+                                      );
+                                    }
                                   }
                                   
-                                  return (
-                                    <div key={callId} className="my-4">
-                                      <p className="text-sm font-medium text-green-600 mb-3">
-                                        ✨ Successfully generated {output.count || output.imageUrls.length} new variations!
-                                      </p>
-                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                        {output.imageUrls.map((url, idx) => (
-                                          <img
-                                            key={`${callId}-${idx}`}
-                                            src={url}
-                                            alt={`Variation ${idx + 1}`}
-                                            className="rounded-lg shadow-md w-full h-auto"
-                                          />
-                                        ))}
+                                  // Handle multiple variations regeneration (batch regeneration)
+                                  if (output.imageUrls && output.imageUrls.length > 0) {
+                                    // Update ad content with regenerated variations
+                                    // This ensures the new images are saved and persist across refreshes
+                                    setTimeout(() => {
+                                      console.log('[REGEN] 📤 Setting regenerated variations:', output.imageUrls);
+                                      setAdContent(prev => ({
+                                        ...prev,
+                                        imageVariations: output.imageUrls,
+                                        baseImageUrl: output.imageUrls![0],
+                                      }));
+                                    }, 0);
+                                  
+                                    return (
+                                      <div key={callId} className="my-4">
+                                        <p className="text-sm font-medium text-green-600 mb-3">
+                                          ✨ Successfully generated {output.count || output.imageUrls.length} new variations!
+                                        </p>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                          {output.imageUrls.map((url, idx) => (
+                                            <img
+                                              key={`${callId}-${idx}`}
+                                              src={url}
+                                              alt={`Variation ${idx + 1}`}
+                                              className="rounded-lg shadow-md w-full h-auto"
+                                            />
+                                          ))}
+                                        </div>
                                       </div>
-                                    </div>
-                                  );
+                                    );
+                                  }
+                                  
+                                  return null;
                                 }
                                 
                                 case 'output-error':
@@ -1283,8 +1436,7 @@ Make it conversational and easy to understand for a business owner.`,
                                             }`}
                                             onClick={() => {
                                               // Switch to the location targeting tab
-                                              const event = new CustomEvent('switchToTab', { detail: 'location' });
-                                              window.dispatchEvent(event);
+                                              emitBrowserEvent('switchToTab', 'location');
                                             }}
                                           >
                                             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1355,7 +1507,7 @@ Make it conversational and easy to understand for a business owner.`,
                                     });
 
                                     // Switch to audience tab
-                                    window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'audience' }));
+                                    emitBrowserEvent('switchToTab', 'audience');
                                   }, 0);
                                   
                                   return (
@@ -1372,9 +1524,7 @@ Make it conversational and easy to understand for a business owner.`,
                                     <div key={callId} className="w-full my-4 space-y-3">
                                       <div
                                         className="flex items-center justify-between p-4 rounded-lg border panel-surface hover:border-cyan-500/50 transition-colors cursor-pointer"
-                                        onClick={() => {
-                                          window.dispatchEvent(new CustomEvent('switchToTab', { detail: 'audience' }));
-                                        }}
+                                        onClick={() => emitBrowserEvent('switchToTab', 'audience')}
                                       >
                                         <div className="flex items-center gap-3 min-w-0 flex-1">
                                           <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500/10 to-cyan-500/10 flex items-center justify-center flex-shrink-0">

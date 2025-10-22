@@ -67,10 +67,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name = 'Untitled Campaign', tempPromptId, prompt } = body
+    const { name = 'Untitled Campaign', tempPromptId, prompt, goalType } = body
 
     const campaignName = name
     let initialPrompt = prompt
+    let initialGoal = goalType
 
     // If tempPromptId is provided, fetch and use that prompt
     if (tempPromptId) {
@@ -86,6 +87,8 @@ export async function POST(request: NextRequest) {
         const expiresAt = new Date(tempPrompt.expires_at)
         if (expiresAt > new Date()) {
           initialPrompt = tempPrompt.prompt_text
+          // @ts-expect-error - goal_type will be added in schema migration
+          initialGoal = tempPrompt.goal_type || initialGoal
           
           // Mark as used
           await supabaseServer
@@ -109,6 +112,7 @@ export async function POST(request: NextRequest) {
         current_step: 1,
         total_steps: 6,
         metadata,
+        initial_goal: initialGoal || null,
       })
       .select()
       .single()
@@ -121,12 +125,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create empty campaign state
+    // Create campaign state with initial goal if provided
+    const initialGoalData = initialGoal 
+      ? { selectedGoal: initialGoal, status: 'idle', formData: null }
+      : null
+
     const { error: stateError } = await supabaseServer
       .from('campaign_states')
       .insert({
         campaign_id: campaign.id,
-        goal_data: null,
+        goal_data: initialGoalData,
         location_data: null,
         audience_data: null,
         ad_copy_data: null,
@@ -154,10 +162,11 @@ export async function POST(request: NextRequest) {
           metadata: {
             campaign_name: campaignName,
             initial_prompt: initialPrompt,
+            current_goal: initialGoal || null, // Store goal at conversation level
           },
         }
       )
-      console.log(`Created conversation ${conversation.id} for campaign ${campaign.id}`)
+      console.log(`Created conversation ${conversation.id} for campaign ${campaign.id} with goal: ${initialGoal || 'none'}`)
     } catch (convError) {
       console.error('Error creating conversation:', convError)
       // Don't fail campaign creation if conversation fails - it can be created later

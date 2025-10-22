@@ -3,7 +3,7 @@ import { supabaseServer } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { promptText } = await request.json()
+    const { promptText, goalType } = await request.json()
 
     if (!promptText || typeof promptText !== 'string') {
       return NextResponse.json(
@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
       .from('temp_prompts')
       .insert({
         prompt_text: promptText,
+        goal_type: goalType || null,
       })
       .select()
       .single()
@@ -73,7 +74,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ promptText: data.prompt_text })
+    return NextResponse.json({ 
+      promptText: data.prompt_text,
+      goalType: data.goal_type 
+    })
   } catch (error) {
     console.error('Error in temp-prompt GET:', error)
     return NextResponse.json(

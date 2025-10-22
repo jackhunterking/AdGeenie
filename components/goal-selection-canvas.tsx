@@ -109,21 +109,21 @@ export function GoalSelectionCanvas() {
   if (goalState.status === "idle") {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
-        <div className="max-w-2xl w-full space-y-8">
-          <div className="grid grid-cols-2 gap-6">
+        <div className="max-w-3xl w-full space-y-8">
+          <div className="grid grid-cols-3 gap-6">
             {/* Leads Card */}
-            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
-              <div className="h-20 w-20 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
-                <Users className="h-10 w-10 text-blue-600" />
+            <div className="group relative flex flex-col items-center p-6 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
+              <div className="h-16 w-16 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
+                <Users className="h-8 w-8 text-blue-600" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold">Leads</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-lg font-semibold">Leads</h3>
+                <p className="text-xs text-muted-foreground">
                   Collect info from potential customers
                 </p>
               </div>
               <Button
-                size="lg"
+                size="sm"
                 onClick={() => {
                   setSelectedGoal("leads")
                   setTimeout(() => {
@@ -133,25 +133,25 @@ export function GoalSelectionCanvas() {
                     }))
                   }, 100)
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 mt-auto"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
                 Get Leads
               </Button>
             </div>
 
             {/* Calls Card */}
-            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
-              <div className="h-20 w-20 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
-                <Phone className="h-10 w-10 text-blue-600" />
+            <div className="group relative flex flex-col items-center p-6 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
+              <div className="h-16 w-16 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
+                <Phone className="h-8 w-8 text-blue-600" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold">Calls</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-lg font-semibold">Calls</h3>
+                <p className="text-xs text-muted-foreground">
                   Get people to call your business directly
                 </p>
               </div>
               <Button
-                size="lg"
+                size="sm"
                 onClick={() => {
                   setSelectedGoal("calls")
                   setTimeout(() => {
@@ -161,9 +161,37 @@ export function GoalSelectionCanvas() {
                     }))
                   }, 100)
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 mt-auto"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
                 Get Calls
+              </Button>
+            </div>
+            
+            {/* Website Visits Card */}
+            <div className="group relative flex flex-col items-center p-6 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
+              <div className="h-16 w-16 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
+                <CheckCircle2 className="h-8 w-8 text-blue-600" />
+              </div>
+              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
+                <h3 className="text-lg font-semibold">Website Visits</h3>
+                <p className="text-xs text-muted-foreground">
+                  Drive traffic to your website
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSelectedGoal("website-visits")
+                  setTimeout(() => {
+                    startSetup()
+                    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
+                      detail: { goalType: 'website-visits' } 
+                    }))
+                  }, 100)
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
+              >
+                Get Visits
               </Button>
             </div>
           </div>
@@ -189,17 +217,21 @@ export function GoalSelectionCanvas() {
               <div className="h-32 w-32 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 mx-auto">
                 {goalState.selectedGoal === "leads" ? (
                   <Users className="h-16 w-16 text-blue-600" />
-                ) : (
+                ) : goalState.selectedGoal === "calls" ? (
                   <Phone className="h-16 w-16 text-blue-600" />
+                ) : (
+                  <CheckCircle2 className="h-16 w-16 text-blue-600" />
                 )}
               </div>
               <h3 className="text-2xl font-semibold text-center capitalize mb-2">
-                {goalState.selectedGoal}
+                {goalState.selectedGoal?.replace('-', ' ')}
               </h3>
               <p className="text-sm text-muted-foreground text-center">
                 {goalState.selectedGoal === "leads" 
                   ? "Collect info from potential customers" 
-                  : "Get people to call your business"}
+                  : goalState.selectedGoal === "calls"
+                  ? "Get people to call your business"
+                  : "Drive traffic to your website"}
               </p>
             </div>
           </div>
@@ -285,8 +317,8 @@ export function GoalSelectionCanvas() {
                 <Check className="h-4 w-4 text-green-600" />
               </div>
 
-              {/* Form - Combined with Lead Type */}
-              {goalState.formData?.name && (
+              {/* Form/Phone/Website - Based on goal type */}
+              {goalState.formData?.name && goalState.selectedGoal === 'leads' && (
                 <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
                   <div className="flex items-center gap-2">
                     <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
@@ -295,6 +327,36 @@ export function GoalSelectionCanvas() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-muted-foreground">Instant Form</p>
                       <p className="font-medium text-sm truncate">{goalState.formData.name}</p>
+                    </div>
+                  </div>
+                  <Check className="h-4 w-4 text-green-600" />
+                </div>
+              )}
+              
+              {goalState.formData?.phoneNumber && goalState.selectedGoal === 'calls' && (
+                <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                      <Phone className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Phone Number</p>
+                      <p className="font-medium text-sm">{goalState.formData.countryCode} {goalState.formData.phoneNumber}</p>
+                    </div>
+                  </div>
+                  <Check className="h-4 w-4 text-green-600" />
+                </div>
+              )}
+              
+              {goalState.formData?.websiteUrl && goalState.selectedGoal === 'website-visits' && (
+                <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Website URL</p>
+                      <p className="font-medium text-sm truncate">{goalState.formData.websiteUrl}</p>
                     </div>
                   </div>
                   <Check className="h-4 w-4 text-green-600" />

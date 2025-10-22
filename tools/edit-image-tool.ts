@@ -11,38 +11,73 @@ import { z } from 'zod';
 import { editImage } from '@/server/images';
 
 export const editImageTool = tool({
-  description: 'Edit/modify an existing image directly. Use when user requests changes like "make it warmer", "change background to X", "add more contrast", etc. Executes immediately without confirmation.',
+  description: 'Edit/modify an existing image variation. Use for changes like color adjustments, brightness, removing/adding elements. For completely new version, use regenerateImage instead.',
   inputSchema: z.object({
-    imageUrl: z.string().describe('The URL of the image to edit'),
-    variationIndex: z.number().min(0).max(5).describe('Which variation (0-5) this is from the original set'),
-    prompt: z.string().describe('The edit instruction - what changes to make to the image'),
-    campaignId: z.string().describe('The campaign ID this image belongs to'),
+    imageUrl: z.string().describe('The URL of the variation to edit'),
+    variationIndex: z.number().min(0).max(5).describe('Which variation (0-5) - REQUIRED for canvas update'),
+    prompt: z.string().describe('Edit instruction - what to change'),
+    campaignId: z.string().describe('Campaign ID'),
   }),
   // Server-side execution - DIRECT, no confirmation
   // Per AI SDK docs: Tools with execute functions run automatically
-  execute: async ({ imageUrl, prompt, campaignId }) => {
+  execute: async ({ imageUrl, variationIndex, prompt, campaignId }) => {
+    const startTime = Date.now();
+    
     try {
-      console.log(`[editImageTool] Starting direct edit for image: ${imageUrl}`);
-      console.log(`[editImageTool] Edit prompt: ${prompt}`);
+      // Comprehensive logging for debugging (AI SDK best practice)
+      console.log(`[editImageTool] ==================== EDIT REQUEST ====================`);
+      console.log(`[editImageTool] variationIndex: ${variationIndex} (type: ${typeof variationIndex})`);
+      console.log(`[editImageTool] imageUrl: ${imageUrl}`);
+      console.log(`[editImageTool] prompt: ${prompt}`);
+      console.log(`[editImageTool] campaignId: ${campaignId}`);
+      console.log(`[editImageTool] ========================================================`);
+      
+      // Validate required parameters (AI SDK pattern)
+      if (variationIndex === undefined || variationIndex === null) {
+        console.error(`[editImageTool] ❌ CRITICAL: variationIndex is missing!`);
+        throw new Error('variationIndex is required for canvas update');
+      }
+      
+      if (!imageUrl) {
+        console.error(`[editImageTool] ❌ CRITICAL: imageUrl is missing!`);
+        throw new Error('imageUrl is required');
+      }
       
       // Edit the single image using Gemini 2.5 Flash Image Preview
       const editedUrl = await editImage(imageUrl, prompt, campaignId);
       
+      const executionTime = Date.now() - startTime;
       console.log(`[editImageTool] ✅ Edit complete: ${editedUrl}`);
+      console.log(`[editImageTool] ⏱️  Execution time: ${executionTime}ms`);
       
       return {
         success: true,
         editedImageUrl: editedUrl,
+        variationIndex: variationIndex, // For canvas update
         originalImageUrl: imageUrl,
         editPrompt: prompt,
         message: `Image edited successfully! ${prompt}`,
+        _metadata: {  // AI SDK convention for internal metadata
+          timestamp: Date.now(),
+          executionTime,
+          toolVersion: '1.0.0',
+        },
       };
     } catch (error) {
-      console.error('[editImageTool] Error:', error);
+      const executionTime = Date.now() - startTime;
+      console.error('[editImageTool] ❌ Error:', error);
+      console.error('[editImageTool] ⏱️  Failed after:', executionTime, 'ms');
+      
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to edit image',
         message: 'Sorry, I encountered an error while editing the image. Please try again.',
+        _errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
+        _metadata: {
+          timestamp: Date.now(),
+          executionTime,
+          toolVersion: '1.0.0',
+        },
       };
     }
   },

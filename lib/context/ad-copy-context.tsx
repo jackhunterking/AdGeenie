@@ -15,11 +15,14 @@ interface AdCopyVariation {
 interface AdCopyState {
   selectedCopyIndex: number | null
   status: "idle" | "completed"
+  customCopyVariations: AdCopyVariation[] | null // Store custom/AI-generated variations
 }
 
 interface AdCopyContextType {
   adCopyState: AdCopyState
   setSelectedCopyIndex: (index: number | null) => void
+  setCustomCopyVariations: (variations: AdCopyVariation[]) => void
+  getActiveVariations: () => AdCopyVariation[] // Returns custom or default variations
   isComplete: () => boolean
 }
 
@@ -30,6 +33,7 @@ export function AdCopyProvider({ children }: { children: ReactNode }) {
   const [adCopyState, setAdCopyState] = useState<AdCopyState>({
     selectedCopyIndex: null,
     status: "idle",
+    customCopyVariations: null, // Initialize with null (will use defaults)
   })
   const [isInitialized, setIsInitialized] = useState(false)
 
@@ -43,8 +47,16 @@ export function AdCopyProvider({ children }: { children: ReactNode }) {
     // campaign_states is 1-to-1 object, not array
     const savedData = campaign.campaign_states?.ad_copy_data as unknown as AdCopyState | null
     if (savedData) {
-      console.log('[AdCopyContext] ✅ Restoring ad copy state:', savedData);
-      setAdCopyState(savedData)
+      console.log('[AdCopyContext] ✅ Restoring ad copy state:', {
+        selectedIndex: savedData.selectedCopyIndex,
+        hasCustomVariations: !!savedData.customCopyVariations,
+        customVariationsCount: savedData.customCopyVariations?.length || 0,
+      });
+      setAdCopyState({
+        selectedCopyIndex: savedData.selectedCopyIndex ?? null,
+        status: savedData.status || "idle",
+        customCopyVariations: savedData.customCopyVariations || null,
+      })
     }
     
     setIsInitialized(true) // Mark initialized regardless of saved data
@@ -60,16 +72,39 @@ export function AdCopyProvider({ children }: { children: ReactNode }) {
   useAutoSave(memoizedAdCopyState, saveFn, AUTO_SAVE_CONFIGS.NORMAL)
 
   const setSelectedCopyIndex = (index: number | null) => {
-    setAdCopyState({
+    setAdCopyState(prev => ({
+      ...prev,
       selectedCopyIndex: index,
       status: index !== null ? "completed" : "idle",
+    }))
+  }
+
+  const setCustomCopyVariations = (variations: AdCopyVariation[]) => {
+    console.log('[AdCopyContext] 📝 Setting custom copy variations:', {
+      count: variations.length,
+      firstHeadline: variations[0]?.headline,
     })
+    setAdCopyState(prev => ({
+      ...prev,
+      customCopyVariations: variations,
+    }))
+  }
+
+  const getActiveVariations = (): AdCopyVariation[] => {
+    // Return custom variations if available, otherwise return defaults
+    return adCopyState.customCopyVariations || adCopyVariations
   }
 
   const isComplete = () => adCopyState.status === "completed"
 
   return (
-    <AdCopyContext.Provider value={{ adCopyState, setSelectedCopyIndex, isComplete }}>
+    <AdCopyContext.Provider value={{ 
+      adCopyState, 
+      setSelectedCopyIndex, 
+      setCustomCopyVariations,
+      getActiveVariations,
+      isComplete 
+    }}>
       {children}
     </AdCopyContext.Provider>
   )

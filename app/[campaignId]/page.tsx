@@ -1,5 +1,6 @@
 import { supabaseServer } from '@/lib/supabase/server';
 import { UIMessage } from 'ai';
+import { sanitizeParts } from '@/lib/ai/schema';
 import { Dashboard } from '@/components/dashboard';
 
 // Database message row type
@@ -15,7 +16,7 @@ interface DBMessage {
 // Convert DB storage to UIMessage (following AI SDK docs)
 // Now restores complete UIMessage format from storage
 function dbToUIMessage(stored: DBMessage): UIMessage {
-  let parts = stored.parts || [];
+  let parts = sanitizeParts(stored.parts);
   
   // Safety fallback: If parts is empty but we have content, create a text part
   // This ensures messages always have displayable content
@@ -53,6 +54,29 @@ export default async function CampaignPage({
   const { campaignId } = await params;
   
   console.log(`[SERVER] Loading messages for campaign ${campaignId}`);
+  
+  // Load campaign data including goal
+  const { data: campaign } = await supabaseServer
+    .from('campaigns')
+    .select(`
+      *,
+      campaign_states (*)
+    `)
+    .eq('id', campaignId)
+    .single();
+  
+  // Extract goal from campaign_states
+  const goalData = campaign?.campaign_states?.goal_data as any;
+  const campaignMetadata = {
+    initialGoal: goalData?.selectedGoal || campaign?.initial_goal || null,
+    initialPrompt: campaign?.metadata?.initialPrompt || null,
+    goalHistory: {
+      original: campaign?.initial_goal || null,
+      current: goalData?.selectedGoal || null,
+    },
+  };
+  
+  console.log(`[SERVER] Campaign metadata:`, campaignMetadata);
   
   // Load messages server-side via conversation (correct table)
   // Step 1: Get conversation for this campaign
@@ -104,6 +128,7 @@ export default async function CampaignPage({
       messages={messages}
       campaignId={campaignId}
       conversationId={conversationId}
+      campaignMetadata={campaignMetadata}
     />
   );
 }

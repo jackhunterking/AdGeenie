@@ -1,6 +1,6 @@
 /**
  * Feature: Regenerate Image Tool  
- * Purpose: Regenerate 6 new variations directly without confirmation
+ * Purpose: Regenerate ONE specific variation with fresh take
  * References:
  *  - AI SDK Core: https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling
  *  - Gemini 2.5 Flash Image Preview: Model used for image generation
@@ -11,41 +11,69 @@ import { z } from 'zod';
 import { generateImage } from '@/server/images';
 
 export const regenerateImageTool = tool({
-  description: 'Regenerate 6 new image variations using the same or modified prompt. Use when user says "regenerate", "create more variations", "try again", "generate new versions", etc. Executes immediately without confirmation.',
+  description: 'Regenerate ONE specific variation with fresh take. Use when user wants completely new version of a single variation (not all 6). User must be in edit mode with specific variation selected.',
   inputSchema: z.object({
-    prompt: z.string().describe('The prompt to use for regeneration (can be the original or a modified version)'),
-    campaignId: z.string().describe('The campaign ID to associate the new images with'),
-    brandName: z.string().optional().describe('Brand name for metadata'),
-    caption: z.string().optional().describe('Caption for metadata'),
+    variationIndex: z.number().min(0).max(5).describe('Which variation (0-5) to regenerate - REQUIRED'),
+    originalPrompt: z.string().describe('Original generation prompt or context to base new version on'),
+    campaignId: z.string().describe('Campaign ID'),
   }),
   // Server-side execution - DIRECT, no confirmation
-  // Generates all 6 variations automatically
-  execute: async ({ prompt, campaignId, brandName, caption }) => {
+  // Generates ONLY 1 image for the specific variation
+  execute: async ({ variationIndex, originalPrompt, campaignId }) => {
+    const startTime = Date.now();
+    
     try {
-      console.log(`[regenerateImageTool] Starting direct regeneration`);
-      console.log(`[regenerateImageTool] Prompt: ${prompt}`);
-      console.log(`[regenerateImageTool] Campaign: ${campaignId}`);
+      // Comprehensive logging for debugging (AI SDK best practice)
+      console.log(`[regenerateImageTool] ==================== REGENERATE REQUEST ====================`);
+      console.log(`[regenerateImageTool] variationIndex: ${variationIndex} (type: ${typeof variationIndex})`);
+      console.log(`[regenerateImageTool] originalPrompt: ${originalPrompt}`);
+      console.log(`[regenerateImageTool] campaignId: ${campaignId}`);
+      console.log(`[regenerateImageTool] ==============================================================`);
       
-      // Generate 6 new variations using Gemini 2.5 Flash Image Preview
-      const imageUrls = await generateImage(prompt, campaignId, 6);
+      // Validate required parameters (AI SDK pattern)
+      if (variationIndex === undefined || variationIndex === null) {
+        console.error(`[regenerateImageTool] ❌ CRITICAL: variationIndex is missing!`);
+        throw new Error('variationIndex is required for canvas update');
+      }
       
-      console.log(`[regenerateImageTool] ✅ Generated ${imageUrls.length} new variations`);
+      if (!originalPrompt) {
+        console.error(`[regenerateImageTool] ❌ CRITICAL: originalPrompt is missing!`);
+        throw new Error('originalPrompt is required');
+      }
+      
+      // Generate ONLY 1 image for this specific variation
+      const imageUrls = await generateImage(originalPrompt, campaignId, 1);
+      
+      const executionTime = Date.now() - startTime;
+      console.log(`[regenerateImageTool] ✅ Regenerated variation ${variationIndex}: ${imageUrls[0]}`);
+      console.log(`[regenerateImageTool] ⏱️  Execution time: ${executionTime}ms`);
       
       return {
         success: true,
-        imageUrls,
-        count: imageUrls.length,
-        prompt,
-        brandName,
-        caption,
-        message: `Successfully generated ${imageUrls.length} new variations!`,
+        imageUrl: imageUrls[0],
+        variationIndex: variationIndex, // For canvas update
+        message: `Regenerated Variation ${variationIndex + 1} with a fresh take.`,
+        _metadata: {  // AI SDK convention for internal metadata
+          timestamp: Date.now(),
+          executionTime,
+          toolVersion: '1.0.0',
+        },
       };
     } catch (error) {
-      console.error('[regenerateImageTool] Error:', error);
+      const executionTime = Date.now() - startTime;
+      console.error('[regenerateImageTool] ❌ Error:', error);
+      console.error('[regenerateImageTool] ⏱️  Failed after:', executionTime, 'ms');
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to regenerate images',
-        message: 'Sorry, I encountered an error while regenerating images. Please try again.',
+        error: error instanceof Error ? error.message : 'Failed to regenerate image',
+        message: 'Sorry, I encountered an error while regenerating the image. Please try again.',
+        _errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
+        _metadata: {
+          timestamp: Date.now(),
+          executionTime,
+          toolVersion: '1.0.0',
+        },
       };
     }
   },

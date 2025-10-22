@@ -78,12 +78,13 @@ function HomeContent() {
           return
         }
         
-        const { promptText } = await promptResponse.json()
+        const { promptText, goalType } = await promptResponse.json()
         
-        // Create campaign using context
+        // Create campaign using context with goal
         const campaign = await createCampaign(
           `Campaign: ${promptText.substring(0, 50)}...`,
-          promptText
+          promptText,
+          goalType
         )
         
         if (campaign) {

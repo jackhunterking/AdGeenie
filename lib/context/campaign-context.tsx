@@ -30,7 +30,7 @@ interface CampaignContextType {
   campaign: Campaign | null
   loading: boolean
   error: string | null
-  createCampaign: (name: string, prompt?: string) => Promise<Campaign | null>
+  createCampaign: (name: string, prompt?: string, goal?: string) => Promise<Campaign | null>
   loadCampaign: (id: string) => Promise<void>
   updateCampaign: (updates: Partial<Campaign>) => Promise<void>
   saveCampaignState: (field: string, value: Record<string, unknown> | null, options?: { retries?: number; silent?: boolean }) => Promise<boolean>
@@ -106,8 +106,8 @@ export function CampaignProvider({
     }
   }
 
-  // Create campaign with optional prompt
-  const createCampaign = async (name: string, prompt?: string) => {
+  // Create campaign with optional prompt and goal
+  const createCampaign = async (name: string, prompt?: string, goal?: string) => {
     if (!user) return null
     
     setLoading(true)
@@ -116,7 +116,7 @@ export function CampaignProvider({
       const response = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, prompt }),
+        body: JSON.stringify({ name, prompt, goalType: goal }),
       })
       
       if (response.ok) {
@@ -186,6 +186,16 @@ export function CampaignProvider({
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
+        // Log what we're saving
+        if (field === 'ad_preview_data') {
+          console.log(`[CampaignContext] 💾 Saving ${field}:`, {
+            campaignId: campaign.id,
+            hasImageVariations: !!(value as any)?.adContent?.imageVariations?.length,
+            imageCount: (value as any)?.adContent?.imageVariations?.length || 0,
+            attempt: attempt,
+          })
+        }
+        
         const response = await fetch(`/api/campaigns/${campaign.id}/state`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -196,7 +206,7 @@ export function CampaignProvider({
           throw new Error(`HTTP ${response.status}: ${await response.text()}`)
         }
 
-        console.log(`✅ Saved ${field} to campaign ${campaign.id}`)
+        console.log(`[CampaignContext] ✅ Saved ${field} to campaign ${campaign.id}`)
         return true
 
       } catch (err) {
