@@ -24,16 +24,17 @@ export function deriveEditDescription(inputPrompt?: string): string {
 
 export function renderEditImageResult(opts: {
   callId: string;
+  keyId?: string;
   input: { imageUrl?: string; variationIndex?: number; prompt?: string };
   output: { editedImageUrl?: string; success?: boolean; error?: string };
   isSubmitting: boolean;
 }): JSX.Element {
-  const { callId, input, output } = opts;
+  const { callId, keyId, input, output } = opts;
   const desc = deriveEditDescription(input?.prompt);
 
   return (
-    <Fragment key={callId}>
-      <div key={callId} className="border rounded-lg p-3 my-2 bg-green-500/5 border-green-500/30">
+    <Fragment key={keyId || callId}>
+      <div key={(keyId || callId) + "-card"} className="border rounded-lg p-3 my-2 bg-green-500/5 border-green-500/30">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
           <div className="flex-1">
@@ -54,12 +55,13 @@ export function renderEditImageResult(opts: {
 
 export function renderRegenerateImageResult(opts: {
   callId: string;
+  keyId?: string;
   output: { imageUrl?: string; success?: boolean; variationIndex?: number };
 }): JSX.Element {
-  const { callId, output } = opts;
+  const { callId, keyId, output } = opts;
   return (
-    <Fragment key={callId}>
-      <div key={callId} className="border rounded-lg p-3 my-2 bg-green-500/5 border-green-500/30">
+    <Fragment key={keyId || callId}>
+      <div key={(keyId || callId) + "-card"} className="border rounded-lg p-3 my-2 bg-green-500/5 border-green-500/30">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
           <div className="flex-1">

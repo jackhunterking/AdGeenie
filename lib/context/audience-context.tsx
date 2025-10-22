@@ -85,6 +85,7 @@ export function AudienceProvider({ children }: { children: ReactNode }) {
       ...prev,
       targeting: { ...prev.targeting, ...targeting },
       status: "completed",
+      isSelected: true,
       errorMessage: undefined
     }))
   }

@@ -1,3 +1,10 @@
+/**
+ * Feature: Location state hydration guard
+ * Purpose: Prevent autosave from overwriting restored location_data and normalize restored state
+ * References:
+ *  - React useEffect: https://react.dev/reference/react/useEffect
+ *  - Supabase Database (patterns): https://supabase.com/docs/guides/database
+ */
 "use client"
 
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
@@ -48,23 +55,65 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     status: "idle",
   })
   const [isInitialized, setIsInitialized] = useState(false)
+  const [hydrationAttempted, setHydrationAttempted] = useState(false)
 
   // Memoize state to prevent unnecessary recreations
   const memoizedLocationState = useMemo(() => locationState, [locationState])
 
-  // Load initial state from campaign ONCE (even if empty)
+  // Phase 1: hydrate from campaign state ONCE (even if empty)
   useEffect(() => {
-    if (!campaign?.id || isInitialized) return
-    
-    // campaign_states is 1-to-1 object, not array
-    const savedData = campaign.campaign_states?.location_data as unknown as LocationState | null
-    if (savedData) {
-      console.log('[LocationContext] ✅ Restoring location state:', savedData);
-      setLocationState(savedData)
+    if (!campaign?.id || hydrationAttempted) return
+
+    const rawSaved = campaign.campaign_states?.location_data as unknown as LocationState | null
+    if (rawSaved) {
+      const normalized: LocationState = {
+        locations: rawSaved.locations ?? [],
+        status: rawSaved.status ?? ((rawSaved.locations?.length ?? 0) > 0 ? "completed" : "idle"),
+        errorMessage: rawSaved.errorMessage,
+      }
+      console.log('[LocationContext] ✅ Restoring location state:', normalized)
+      setLocationState(normalized)
     }
-    
-    setIsInitialized(true) // Mark initialized regardless of saved data
-  }, [campaign, isInitialized])
+
+    setHydrationAttempted(true)
+  }, [campaign, hydrationAttempted])
+
+  // Phase 2: enable autosave only after hydration attempt
+  useEffect(() => {
+    if (!campaign?.id || !hydrationAttempted || isInitialized) return
+    setIsInitialized(true)
+  }, [campaign, hydrationAttempted, isInitialized])
+
+  // Phase 3: fallback hydrate from server state API if nothing loaded yet
+  useEffect(() => {
+    if (!campaign?.id || !hydrationAttempted) return
+    if ((locationState.locations?.length ?? 0) > 0) return
+
+    let aborted = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/campaigns/${campaign.id}/state`)
+        if (!res.ok) return
+
+        const json = await res.json()
+        const rawSaved = json?.state?.location_data as LocationState | null
+
+        if (!aborted && rawSaved && (rawSaved.locations?.length ?? 0) > 0) {
+          const normalized: LocationState = {
+            locations: rawSaved.locations ?? [],
+            status: (rawSaved.locations?.length ?? 0) > 0 ? "completed" : "idle",
+            errorMessage: rawSaved.errorMessage,
+          }
+          console.log('[LocationContext] ♻️ Fallback restored location state:', normalized)
+          setLocationState(normalized)
+        }
+      } catch {
+        // ignore fetch errors in fallback path
+      }
+    })()
+
+    return () => { aborted = true }
+  }, [campaign?.id, hydrationAttempted, locationState.locations?.length])
 
   // Save function
   const saveFn = useCallback(async (state: LocationState) => {
