@@ -1,21 +1,26 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Check, ImageIcon, Layers, Video, Sparkles, Edit2 } from "lucide-react"
+import { Check, ImageIcon, Layers, Video, Sparkles, Edit2, RefreshCw, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
 import { useGeneration } from "@/lib/context/generation-context"
 import { newEditSession } from "@/lib/utils/edit-session"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import { useGoal } from "@/lib/context/goal-context"
 
 export function AdCopySelectionCanvas() {
-  const { adCopyState, setSelectedCopyIndex, getActiveVariations } = useAdCopy()
+  const { adCopyState, setSelectedCopyIndex, getActiveVariations, setCustomCopyVariations } = useAdCopy()
   const activeVariations = getActiveVariations()
-  const { adContent, setAdContent, selectedCreativeVariation, loadingVariations } = useAdPreview()
-  const { isGenerating, generationMessage } = useGeneration()
+  const { adContent, setAdContent, selectedCreativeVariation, loadingVariations, selectedImageIndex } = useAdPreview()
+  const { isGenerating, generationMessage, setIsGenerating, setGenerationMessage } = useGeneration()
+  const { campaign } = useCampaignContext()
+  const { goalState } = useGoal()
   const [activeFormat, setActiveFormat] = useState("feed")
   const [showReelMessage, setShowReelMessage] = useState(false)
+  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
 
   const previewFormats = [
     { id: "feed", label: "Feed", icon: ImageIcon },
@@ -29,6 +34,11 @@ export function AdCopySelectionCanvas() {
   }
 
   const handleSelectCopy = (index: number) => {
+    // Toggle selection identical to creative step
+    if (adCopyState.selectedCopyIndex === index) {
+      setSelectedCopyIndex(null)
+      return
+    }
     setSelectedCopyIndex(index)
   }
 
@@ -37,8 +47,10 @@ export function AdCopySelectionCanvas() {
     const copy = activeVariations[index]
     const currentFormat = activeFormat
     
-    // Get the specific variation's image URL
-    const variationImageUrl = adContent?.imageVariations?.[index] || adContent?.imageUrl
+    // Always use the selected creative image for ad copy edits
+    const variationImageUrl = (selectedImageIndex != null
+      ? adContent?.imageVariations?.[selectedImageIndex]
+      : (adContent?.imageUrl || adContent?.imageVariations?.[0]))
     
     // Create reference context for the AI chat to render
     const editSession = newEditSession({
@@ -64,9 +76,21 @@ export function AdCopySelectionCanvas() {
         description: copy.description,
       },
       
-      // Visual preview data
+      // Visual preview data (match creative)
       gradient: selectedCreativeVariation?.gradient || "from-blue-600 via-blue-500 to-cyan-500",
       editSession,
+      preview: {
+        format: currentFormat,
+        gradient: selectedCreativeVariation?.gradient,
+        title: `Variation ${index + 1}`,
+        imageUrl: variationImageUrl,
+        brandName: 'Your Brand',
+        headline: copy.headline,
+        body: copy.primaryText,
+        dimensions: currentFormat === 'story'
+          ? { width: 360, height: 640, aspect: '9:16' }
+          : { width: 500, height: 500, aspect: '1:1' }
+      },
       
       // Metadata
       metadata: {
@@ -83,6 +107,45 @@ export function AdCopySelectionCanvas() {
       detail: referenceContext
     }))
   }
+
+  // Auto-generate ad copy variations when images are ready and no custom copy exists yet
+  useEffect(() => {
+    const imageUrls = adContent?.imageVariations
+    const hasCustom = Boolean(adCopyState.customCopyVariations && adCopyState.customCopyVariations.length)
+    if (!imageUrls || imageUrls.length === 0 || hasCustom) return
+
+    let cancelled = false
+    setIsGenerating(true)
+    setGenerationMessage("Writing 6 ad copy variations…")
+    ;(async () => {
+      try {
+        const selectedImg = (selectedImageIndex != null && adContent?.imageVariations)
+          ? [adContent.imageVariations[selectedImageIndex]]
+          : (adContent?.imageUrl ? [adContent.imageUrl] : imageUrls)
+        const res = await fetch('/api/ad-copy/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campaignId: campaign?.id,
+            goalType: goalState?.selectedGoal || null,
+            imageUrls: selectedImg,
+            businessContext: campaign?.metadata?.initialPrompt,
+          }),
+        })
+        if (!res.ok) throw new Error(await res.text())
+        const data = await res.json()
+        if (!cancelled && data?.variations?.length === 6) {
+          setCustomCopyVariations(data.variations)
+        }
+      } catch (e) {
+        console.error('[AdCopy] generation failed', e)
+      } finally {
+        if (!cancelled) setIsGenerating(false)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [adContent?.imageVariations])
 
   // Generating overlay component
   const GeneratingOverlay = () => (
@@ -106,6 +169,10 @@ export function AdCopySelectionCanvas() {
   const renderFeedAdCopyCard = (copyIndex: number) => {
     const copy = activeVariations[copyIndex]
     const isSelected = adCopyState.selectedCopyIndex === copyIndex
+    const isProcessing = regeneratingIndex === copyIndex
+    const selectedImg = selectedImageIndex != null
+      ? adContent?.imageVariations?.[selectedImageIndex]
+      : (adContent?.imageUrl || adContent?.imageVariations?.[0])
     
     return (
       <div
@@ -116,56 +183,106 @@ export function AdCopySelectionCanvas() {
         )}
         onClick={() => handleSelectCopy(copyIndex)}
       >
-        {/* Generating State Overlay */}
-        {isGenerating && <GeneratingOverlay />}
+        {/* Processing Overlay */}
+        {isProcessing && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
+            <div className="bg-card/95 rounded-xl px-4 py-3 shadow-2xl border border-border/50 flex items-center gap-2.5">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              <span className="text-sm font-medium">Regenerating...</span>
+            </div>
+          </div>
+        )}
 
         {/* Selection Indicator */}
-        {isSelected && (
+        {isSelected && !isProcessing && (
           <div className="absolute top-2 right-2 z-10 bg-blue-500 text-white rounded-full p-1">
             <Check className="h-4 w-4" />
           </div>
         )}
 
-        {/* Action Button Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 flex items-center justify-center p-4">
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={isSelected ? "default" : "secondary"}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleSelectCopy(copyIndex)
-              }}
-              className={cn(
-                "text-xs h-8 px-3 font-medium backdrop-blur-sm",
-                isSelected 
-                  ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-400" 
-                  : "bg-white/90 hover:bg-white text-black"
-              )}
-            >
-              {isSelected ? (
-                <>
-                  <Check className="h-3 w-3 mr-1.5" />
-                  Selected
-                </>
-              ) : (
-                'Select'
-              )}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleEditCopy(copyIndex)
-              }}
-              className="text-xs h-8 px-3 font-medium bg-white/90 hover:bg-white text-black backdrop-blur-sm"
-            >
-              <Edit2 className="h-3 w-3 mr-1.5" />
-              Edit
-            </Button>
+        {/* Action Buttons Overlay (matches creative) */}
+        {!isProcessing && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 flex items-center justify-center p-4">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={isSelected ? "default" : "secondary"}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSelectCopy(copyIndex)
+                }}
+                className={cn(
+                  "text-xs h-8 px-3 font-medium backdrop-blur-sm",
+                  isSelected ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-400" : "bg-white/90 hover:bg-white text-black"
+                )}
+                disabled={regeneratingIndex === copyIndex}
+              >
+                {isSelected ? 'Unselect' : 'Select'}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEditCopy(copyIndex)
+                }}
+                className="text-xs h-8 px-3 font-medium bg-white/90 hover:bg-white text-black backdrop-blur-sm"
+                disabled={regeneratingIndex === copyIndex}
+              >
+                <Edit2 className="h-3 w-3 mr-1.5" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  if (!adContent?.imageVariations?.length) return
+                  setRegeneratingIndex(copyIndex)
+                  try {
+                    const res = await fetch('/api/ad-copy/generate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        campaignId: campaign?.id,
+                        goalType: goalState?.selectedGoal || null,
+                        imageUrls: adContent.imageVariations,
+                        targetIndex: copyIndex,
+                        current: copy,
+                        businessContext: campaign?.metadata?.initialPrompt,
+                      }),
+                    })
+                    if (!res.ok) throw new Error(await res.text())
+                    const data = await res.json()
+                    if (data?.variation) {
+                      const next = [...activeVariations]
+                      next[copyIndex] = { id: next[copyIndex].id, ...data.variation }
+                      setCustomCopyVariations(next as any)
+                    }
+                  } catch (err) {
+                    console.error('[AdCopy] single regenerate failed', err)
+                  } finally {
+                    setRegeneratingIndex(null)
+                  }
+                }}
+                className="text-xs h-8 px-3 font-medium bg-white/90 hover:bg-white text-black backdrop-blur-sm"
+                disabled={regeneratingIndex === copyIndex}
+              >
+                {regeneratingIndex === copyIndex ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1.5" />
+                    Regenerate
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Ad Header */}
         <div className="flex items-center gap-2 p-3 border-b border-border">
@@ -177,11 +294,11 @@ export function AdCopySelectionCanvas() {
         </div>
 
         {/* Ad Creative */}
-        {adContent?.imageVariations?.[copyIndex] ? (
+        {selectedImg ? (
           <div className="aspect-square relative overflow-hidden">
             <img
-              key={`feed-${copyIndex}-${adContent.imageVariations[copyIndex]}`}
-              src={adContent.imageVariations[copyIndex]}
+              key={`feed-${copyIndex}-${selectedImg}`}
+              src={selectedImg}
               alt={copy.headline}
               className="w-full h-full object-cover"
             />
@@ -194,14 +311,6 @@ export function AdCopySelectionCanvas() {
                 </div>
               </div>
             )}
-          </div>
-        ) : adContent?.imageUrl ? (
-          <div className="aspect-square relative overflow-hidden">
-            <img
-              src={adContent.imageUrl}
-              alt={copy.headline}
-              className="w-full h-full object-cover"
-            />
           </div>
         ) : selectedCreativeVariation ? (
           <div className={`aspect-square bg-gradient-to-br ${selectedCreativeVariation.gradient} flex items-center justify-center`}>
@@ -255,6 +364,10 @@ export function AdCopySelectionCanvas() {
   const renderStoryAdCopyCard = (copyIndex: number) => {
     const copy = activeVariations[copyIndex]
     const isSelected = adCopyState.selectedCopyIndex === copyIndex
+    const isProcessing = regeneratingIndex === copyIndex
+    const selectedImg = selectedImageIndex != null
+      ? adContent?.imageVariations?.[selectedImageIndex]
+      : (adContent?.imageUrl || adContent?.imageVariations?.[0])
     
     return (
       <div
@@ -265,8 +378,15 @@ export function AdCopySelectionCanvas() {
         )}
         onClick={() => handleSelectCopy(copyIndex)}
       >
-        {/* Generating State Overlay */}
-        {isGenerating && <GeneratingOverlay />}
+        {/* Processing Overlay */}
+        {isProcessing && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] z-30 flex items-center justify-center">
+            <div className="bg-card/95 rounded-xl px-4 py-3 shadow-2xl border border-border/50 flex items-center gap-2.5">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              <span className="text-sm font-medium">Regenerating...</span>
+            </div>
+          </div>
+        )}
 
         {/* Selection Indicator */}
         {isSelected && (
@@ -275,51 +395,103 @@ export function AdCopySelectionCanvas() {
           </div>
         )}
 
-        {/* Action Button Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 flex items-center justify-center p-3">
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={isSelected ? "default" : "secondary"}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleSelectCopy(copyIndex)
-              }}
-              className={cn(
-                "text-xs h-8 px-3 font-medium backdrop-blur-sm",
-                isSelected ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-400" : "bg-white/95 hover:bg-white text-black"
-              )}
-            >
-              {isSelected ? (
-                <>
-                  <Check className="h-3 w-3 mr-1.5" />
-                  Selected
-                </>
-              ) : (
-                'Select'
-              )}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleEditCopy(copyIndex)
-              }}
-              className="text-xs h-8 px-3 font-medium bg-white/95 hover:bg-white text-black backdrop-blur-sm"
-            >
-              <Edit2 className="h-3 w-3 mr-1.5" />
-              Edit
-            </Button>
+        {/* Action Button Overlay (matches creative) */}
+        {!isProcessing && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 flex items-center justify-center p-3">
+            <div className="flex items-center gap-1.5 flex-wrap justify-center">
+              <Button
+                size="sm"
+                variant={isSelected ? "default" : "secondary"}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSelectCopy(copyIndex)
+                }}
+                className={cn(
+                  "text-xs h-8 px-2.5 font-medium backdrop-blur-sm",
+                  isSelected ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-400" : "bg-white/95 hover:bg-white text-black"
+                )}
+                disabled={regeneratingIndex === copyIndex}
+              >
+                {isSelected ? (
+                  <>
+                    <Check className="h-3 w-3 mr-1" />
+                    Selected
+                  </>
+                ) : (
+                  'Select'
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEditCopy(copyIndex)
+                }}
+                className="text-xs h-8 px-2.5 font-medium bg-white/95 hover:bg-white text-black backdrop-blur-sm"
+                disabled={regeneratingIndex === copyIndex}
+              >
+                <Edit2 className="h-3 w-3 mr-1" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  if (!adContent?.imageVariations?.length) return
+                  setRegeneratingIndex(copyIndex)
+                  try {
+                    const res = await fetch('/api/ad-copy/generate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        campaignId: campaign?.id,
+                        goalType: goalState?.selectedGoal || null,
+                        imageUrls: adContent.imageVariations,
+                        targetIndex: copyIndex,
+                        current: copy,
+                        businessContext: campaign?.metadata?.initialPrompt,
+                      }),
+                    })
+                    if (!res.ok) throw new Error(await res.text())
+                    const data = await res.json()
+                    if (data?.variation) {
+                      const next = [...activeVariations]
+                      next[copyIndex] = { id: next[copyIndex].id, ...data.variation }
+                      setCustomCopyVariations(next as any)
+                    }
+                  } catch (err) {
+                    console.error('[AdCopy] single regenerate failed', err)
+                  } finally {
+                    setRegeneratingIndex(null)
+                  }
+                }}
+                className="text-xs h-8 px-2.5 font-medium bg-white/95 hover:bg-white text-black backdrop-blur-sm"
+                disabled={regeneratingIndex === copyIndex}
+              >
+                {regeneratingIndex === copyIndex ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1" />
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Regenerate
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Background Creative */}
-        {adContent?.imageVariations?.[copyIndex] ? (
+        {selectedImg ? (
           <div className="absolute inset-0">
             <img 
-              key={`story-${copyIndex}-${adContent.imageVariations[copyIndex]}`}
-              src={adContent.imageVariations[copyIndex]} 
+              key={`story-${copyIndex}-${selectedImg}`}
+              src={selectedImg} 
               alt={copy.headline} 
               className="w-full h-full object-cover" 
             />
@@ -333,11 +505,6 @@ export function AdCopySelectionCanvas() {
                 </div>
               </div>
             )}
-          </div>
-        ) : adContent?.imageUrl ? (
-          <div className="absolute inset-0">
-            <img src={adContent.imageUrl} alt={copy.headline} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
           </div>
         ) : selectedCreativeVariation ? (
           <div className={`absolute inset-0 bg-gradient-to-br ${selectedCreativeVariation.gradient}`} />
@@ -437,11 +604,48 @@ export function AdCopySelectionCanvas() {
         {activeFormat === "story" && activeVariations.map((_, index) => renderStoryAdCopyCard(index))}
       </div>
 
+      {/* Regenerate Button */}
+      <div className="flex justify-center">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={async () => {
+            if (!adContent?.imageVariations?.length) return
+            setIsGenerating(true)
+            setGenerationMessage("Rewriting 6 ad copy variations…")
+            try {
+              const res = await fetch('/api/ad-copy/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  campaignId: campaign?.id,
+                  goalType: goalState?.selectedGoal || null,
+                  imageUrls: adContent.imageVariations,
+                  businessContext: campaign?.metadata?.initialPrompt,
+                }),
+              })
+              if (!res.ok) throw new Error(await res.text())
+              const data = await res.json()
+              if (data?.variations?.length === 6) {
+                setCustomCopyVariations(data.variations)
+              }
+            } catch (e) {
+              console.error('[AdCopy] regenerate failed', e)
+            } finally {
+              setIsGenerating(false)
+            }
+          }}
+          className="mt-2"
+        >
+          <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Regenerate copy
+        </Button>
+      </div>
+
       {/* Info Section */}
       <div className="text-center py-6">
         <p className="text-sm text-muted-foreground">
           {isGenerating 
-            ? "Answer the AI's questions to generate your ad variations..."
+            ? "Writing 6 ad copy variations…"
             : adCopyState.selectedCopyIndex !== null 
               ? `Copy variation ${adCopyState.selectedCopyIndex + 1} selected - Click Next to continue`
               : "Select an ad copy variation to continue"}

@@ -32,7 +32,7 @@ export function renderEditImageResult(opts: {
   const desc = deriveEditDescription(input?.prompt);
 
   return (
-    <Fragment>
+    <Fragment key={callId}>
       <div key={callId} className="border rounded-lg p-3 my-2 bg-green-500/5 border-green-500/30">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
@@ -58,7 +58,7 @@ export function renderRegenerateImageResult(opts: {
 }): JSX.Element {
   const { callId, output } = opts;
   return (
-    <Fragment>
+    <Fragment key={callId}>
       <div key={callId} className="border rounded-lg p-3 my-2 bg-green-500/5 border-green-500/30">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
