@@ -50,15 +50,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
+    // Check if we just came from OAuth callback
+    const hasAuthCallback = typeof window !== 'undefined' && 
+      (window.location.search.includes('auth=success') || 
+       window.location.search.includes('code='))
+
+    const initAuth = async () => {
+      try {
+        // Force refresh session if coming from OAuth callback
+        if (hasAuthCallback) {
+          await supabase.auth.refreshSession()
+        }
+        
+        // Get current session
+        const { data: { session } } = await supabase.auth.getSession()
+        setSession(session)
+        setUser(session?.user ?? null)
+        
+        if (session?.user) {
+          await fetchProfile(session.user.id)
+        }
+        
+        setLoading(false)
+        
+        // Clean up URL parameters after successful auth
+        if (hasAuthCallback && typeof window !== 'undefined') {
+          window.history.replaceState({}, '', window.location.pathname)
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error)
+        setLoading(false)
       }
-      setLoading(false)
-    })
+    }
+
+    initAuth()
 
     // Listen for auth changes
     const {

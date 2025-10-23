@@ -40,14 +40,28 @@ export async function GET(request: NextRequest) {
       // Build final redirect URL (handle load balancer header if present)
       const forwardedHost = request.headers.get('x-forwarded-host')
       const isLocal = process.env.NODE_ENV === 'development'
-      const redirectUrl = isLocal
+      let redirectUrl = isLocal
         ? `${origin}${next}`
         : forwardedHost
           ? `https://${forwardedHost}${next}`
           : `${origin}${next}`
 
+      // Add auth success indicator to trigger client-side session refresh
+      redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + 'auth=success'
+
       const response = NextResponse.redirect(redirectUrl)
-      cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+      
+      // Set cookies with proper production attributes
+      cookiesToSet.forEach(({ name, value, options }) => {
+        const productionOptions = {
+          ...options,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax' as const,
+          path: '/',
+        }
+        response.cookies.set(name, value, productionOptions)
+      })
+      
       return response
     }
   }
