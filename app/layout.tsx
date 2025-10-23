@@ -1,3 +1,9 @@
+/**
+ * Feature: Update favicon to project logo
+ * Purpose: Set the site favicon to use the AdPilot logomark
+ * References:
+ *  - Next.js Metadata: https://nextjs.org/docs/app/api-reference/functions/generate-metadata#icons
+ */
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -20,6 +26,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: `${COMPANY_NAME} - Create Meta Ads with AI`,
   description: "Create Facebook and Instagram ads with AI-generated content",
+  icons: "/AdPilot-Logomark.svg",
 };
 
 export default function RootLayout({

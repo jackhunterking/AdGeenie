@@ -11,23 +11,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createBrowserClient<Database>(
-  supabaseUrl, 
-  supabaseAnonKey,
-  {
-    auth: {
-      persistSession: true,
-      storageKey: 'adpilot-auth',
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    },
-    cookieOptions: {
-      name: 'adpilot-auth',
-      domain: process.env.NODE_ENV === 'production' 
-        ? '.adpilot.studio' 
-        : 'localhost',
-      path: '/',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    }
-  }
+  supabaseUrl,
+  supabaseAnonKey
 )
 
