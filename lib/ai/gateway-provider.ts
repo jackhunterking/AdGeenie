@@ -48,7 +48,7 @@ if (!isGatewayEnabled) {
  */
 export function getModel(modelId: string) {
   // Validate model ID format
-  const [provider, ...modelParts] = modelId.split('/');
+  const [_provider, ...modelParts] = modelId.split('/');
   const modelName = modelParts.join('/');
 
   if (!modelName) {
@@ -97,7 +97,7 @@ export const SUPPORTED_MODELS = {
  * Check if a model supports specific features
  */
 export function getModelCapabilities(modelId: string) {
-  const [provider, modelName] = modelId.split('/');
+  const [_provider2, modelName] = modelId.split('/');
 
   return {
     supportsVision: [

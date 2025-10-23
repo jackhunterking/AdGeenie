@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const adAccounts = Array.isArray(adActsJson.data) ? adActsJson.data : []
 
     // Upsert base connection (no selections yet)
-    const { data: upserted, error: upErr } = await supabaseServer
+    const { data: _, error: upErr } = await supabaseServer
       .from('campaign_meta_connections')
       .upsert({
         campaign_id: campaignId,

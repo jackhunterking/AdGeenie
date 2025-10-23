@@ -58,7 +58,7 @@ export function ImageEditProgressLoader({ type = "edit" }: ImageEditProgressLoad
     }, 100);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [steps]);
 
   // Calculate overall progress percentage (0-100)
   const totalDuration = 3500; // Expected total time
@@ -81,7 +81,6 @@ export function ImageEditProgressLoader({ type = "edit" }: ImageEditProgressLoad
         {steps.map((step, index) => {
           const isComplete = currentStep > index;
           const isCurrent = currentStep === index;
-          const isPending = currentStep < index;
 
           return (
             <div

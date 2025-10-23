@@ -126,9 +126,9 @@ export const messageStore = {
    */
   async loadMessages(
     conversationId: string,
-    options: LoadMessagesOptions = {}
+    _options: LoadMessagesOptions = {}
   ): Promise<UIMessage[]> {
-    const { limit = 80, before, includeMetadata = false } = options;
+    const { limit = 80, before } = _options;
 
     try {
       let query = supabaseServer
@@ -170,7 +170,7 @@ export const messageStore = {
   async saveMessage(
     conversationId: string,
     message: UIMessage,
-    options: SaveMessageOptions = {}
+    _options: SaveMessageOptions = {}
   ): Promise<void> {
     try {
       // Validate message has ID

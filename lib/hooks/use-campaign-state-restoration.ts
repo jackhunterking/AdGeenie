@@ -126,7 +126,7 @@ export function useCampaignStateRestoration(campaignId: string | undefined): Res
 /**
  * Debounced state saver - saves campaign state after a delay
  */
-export function useDebouncedStateSaver(campaignId: string | undefined, delay: number = 1000) {
+export function useDebouncedStateSaver(campaignId: string | undefined, _delay: number = 1000) {
   const saveState = async (stateUpdates: Partial<CampaignState>) => {
     if (!campaignId) return;
 

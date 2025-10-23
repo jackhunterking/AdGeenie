@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     // Single variation rewrite
     if (typeof body?.targetIndex === 'number') {
-      const { goalType, imageUrls, targetIndex, selectedImageIndex, preferEmojis, current, businessContext } = SingleRequestSchema.parse(body)
+      const { goalType, imageUrls, targetIndex, selectedImageIndex, preferEmojis, current: _current, businessContext } = SingleRequestSchema.parse(body)
 
       const idx = (typeof selectedImageIndex === 'number' ? selectedImageIndex : targetIndex)
       const selectedImage = imageUrls[idx] || imageUrls[0]

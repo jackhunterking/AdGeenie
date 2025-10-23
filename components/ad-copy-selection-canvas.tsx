@@ -14,7 +14,7 @@ import { useGoal } from "@/lib/context/goal-context"
 export function AdCopySelectionCanvas() {
   const { adCopyState, setSelectedCopyIndex, getActiveVariations, setCustomCopyVariations } = useAdCopy()
   const activeVariations = getActiveVariations()
-  const { adContent, setAdContent, selectedCreativeVariation, loadingVariations, selectedImageIndex } = useAdPreview()
+  const { adContent, selectedCreativeVariation, loadingVariations, selectedImageIndex } = useAdPreview()
   const { isGenerating, generationMessage, setIsGenerating, setGenerationMessage } = useGeneration()
   const { campaign } = useCampaignContext()
   const { goalState } = useGoal()
@@ -145,26 +145,9 @@ export function AdCopySelectionCanvas() {
     })()
 
     return () => { cancelled = true }
-  }, [adContent?.imageVariations])
+  }, [adContent?.imageVariations, adContent?.imageUrl, adCopyState.customCopyVariations, campaign?.id, campaign?.metadata?.initialPrompt, goalState?.selectedGoal, selectedImageIndex, setCustomCopyVariations, setGenerationMessage, setIsGenerating])
 
-  // Generating overlay component
-  const GeneratingOverlay = () => (
-    <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-30 flex flex-col items-center justify-center gap-3 animate-in fade-in duration-300">
-      <div className="relative">
-        <div className="h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin" />
-        <div className="absolute inset-0 h-10 w-10 rounded-full border-4 border-transparent border-r-blue-300 animate-spin" style={{ animationDelay: '150ms' }} />
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <p className="text-xs font-medium text-foreground">{generationMessage}</p>
-        <div className="flex gap-1">
-          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="h-1 w-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground mt-2">Chat with AI while you wait →</p>
-    </div>
-  )
+  // (removed unused GeneratingOverlay)
 
   const renderFeedAdCopyCard = (copyIndex: number) => {
     const copy = activeVariations[copyIndex]
@@ -459,7 +442,7 @@ export function AdCopySelectionCanvas() {
                     if (data?.variation) {
                       const next = [...activeVariations]
                       next[copyIndex] = { id: next[copyIndex].id, ...data.variation }
-                      setCustomCopyVariations(next as any)
+                      setCustomCopyVariations(next)
                     }
                   } catch (err) {
                     console.error('[AdCopy] single regenerate failed', err)

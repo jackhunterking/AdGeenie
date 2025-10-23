@@ -28,10 +28,10 @@ export async function shouldSummarize(conversationId: string): Promise<boolean> 
     }
 
     // Get last summarization point
-    const lastSummaryAt = (conversation.metadata as { summary_message_count?: number } | null | undefined)?.summary_message_count || 0;
+    const _lastSummaryAt = (conversation.metadata as { summary_message_count?: number } | null | undefined)?.summary_message_count || 0;
     
     // Summarize if we've passed the threshold since last summary
-    return count - lastSummaryAt >= SUMMARIZATION_THRESHOLD;
+    return count - _lastSummaryAt >= SUMMARIZATION_THRESHOLD;
   } catch (error) {
     console.error('[Summarization] Error checking if should summarize:', error);
     return false;
@@ -50,8 +50,8 @@ export async function generateSummary(conversationId: string): Promise<string | 
     }
 
     // Get last summary point
-    const lastSummaryAt = (conversation.metadata as { summary_message_count?: number } | null | undefined)?.summary_message_count || 0;
-    const currentCount = await messageStore.getMessageCount(conversationId);
+    const _lastSummaryAt2 = (conversation.metadata as { summary_message_count?: number } | null | undefined)?.summary_message_count || 0;
+    const _currentCount = await messageStore.getMessageCount(conversationId);
 
     // Load messages since last summary (or all if first summary)
     const messages = await messageStore.loadMessages(conversationId, {

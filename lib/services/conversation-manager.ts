@@ -7,7 +7,6 @@
  */
 
 import { supabaseServer } from '@/lib/supabase/server';
-import { messageStore } from './message-store';
 import type { Database, Json } from '@/lib/supabase/database.types';
 
 // ============================================

@@ -49,7 +49,6 @@ import {
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
 import { DefaultChatTransport } from "ai";
-import { Button } from "@/components/ui/button";
 import { generateImage, editImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
@@ -195,12 +194,12 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
   const [input, setInput] = useState("");
   const [model] = useState<string>("openai/gpt-4o");
   const { campaign } = useCampaignContext();
-  const { generateImageVariations, setAdContent } = useAdPreview();
+  const { setAdContent } = useAdPreview();
   const { goalState, setFormData, setError, resetGoal } = useGoal();
   const { locationState, addLocations, updateStatus: updateLocationStatus } = useLocation();
   const { setAudienceTargeting, updateStatus: updateAudienceStatus } = useAudience();
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
-  const [editingImages, setEditingImages] = useState<Set<string>>(new Set());
+  const [, setEditingImages] = useState<Set<string>>(new Set());
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
   
   // Track dispatched events to prevent duplicates (infinite loop prevention)
@@ -247,7 +246,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
           console.log(`[TRANSPORT] ========== SENDING MESSAGE ==========`);
           console.log(`[TRANSPORT] message.id:`, lastMessage.id);
           console.log(`[TRANSPORT] message.role:`, lastMessage.role);
-          console.log(`[TRANSPORT] message.metadata:`, enrichedMessage.metadata);
+          console.log(`[TRANSPORT] message.metadata:`, (enrichedMessage as { metadata?: unknown }).metadata);
           console.log(`[TRANSPORT] goalType included:`, goalType);
           
           return {
@@ -269,7 +268,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
   console.log(`[AI-CHAT] STABLE chatId being used:`, chatId);
   console.log(`[AI-CHAT] messages.length:`, initialMessages.length);
   console.log(`[AI-CHAT] messages:`, initialMessages.map(m => {
-    const firstTextPart = m.parts?.find((p: any) => p.type === 'text') as any;
+    const firstTextPart = m.parts?.find((p: { type: string }) => p.type === 'text') as { text?: string } | undefined;
     return {
       id: m.id, 
       role: m.role,
@@ -582,46 +581,6 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
         output: {
           cancelled: true,
           message: 'User cancelled the image generation'
-        },
-      } as ToolResult);
-    }
-  };
-
-  const handleImageEdit = async (toolCallId: string, imageUrl: string, prompt: string, confirmed: boolean) => {
-    if (confirmed) {
-      // Add to loading state
-      setEditingImages(prev => new Set(prev).add(toolCallId));
-      
-      try {
-        const editedImageUrl = await editImage(imageUrl, prompt);
-        addToolResult({
-          tool: 'editImage',
-          toolCallId,
-          output: editedImageUrl,
-        });
-      } catch {
-        addToolResult({
-          tool: 'editImage',
-          toolCallId,
-          output: undefined,
-          errorText: 'Failed to edit image',
-        } as ToolResult);
-      } finally {
-        // Remove from loading state
-        setEditingImages(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(toolCallId);
-          return newSet;
-        });
-      }
-    } else {
-      // User cancelled - send cancellation result
-      addToolResult({
-        tool: 'editImage',
-        toolCallId,
-        output: {
-          cancelled: true,
-          message: 'User cancelled the image edit'
         },
       } as ToolResult);
     }
@@ -942,9 +901,6 @@ Make it conversational and easy to understand for a business owner.`,
     if (messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
       
-      // Check if last message is from assistant and user hasn't responded yet
-      const isWaitingForResponse = lastMessage.role === 'assistant' && status !== 'streaming' && status !== 'submitted';
-      
       // Or if AI is actively streaming/processing
       const isActivelyGenerating = status === 'streaming' || status === 'submitted';
       
@@ -1050,7 +1006,7 @@ Make it conversational and easy to understand for a business owner.`,
                               if (part.type === 'tool-call') {
                                 const toolCallId = partAny.toolCallId;
                                 // Check if there's a cancelled result for this tool call
-                                const hasCancelledResult = message.parts.some((p: any) => 
+                                const hasCancelledResult = message.parts.some((p: { type: string; toolCallId?: string; output?: { cancelled?: boolean } }) => 
                                   p.type === 'tool-result' && 
                                   p.toolCallId === toolCallId &&
                                   p.output?.cancelled === true
@@ -1066,7 +1022,7 @@ Make it conversational and easy to understand for a business owner.`,
                             switch (part.type) {
                             case "text": {
                                 // Suppress assistant text when tool parts are present in same message
-                                const hasToolParts = allParts?.some((p: any) => typeof p?.type === 'string' && p.type.startsWith('tool-'));
+                                const hasToolParts = allParts?.some((p: { type?: string }) => typeof p?.type === 'string' && (p.type as string).startsWith('tool-'));
                                 if (message.role === 'assistant' && hasToolParts) {
                                   return null;
                                 }
@@ -1187,7 +1143,7 @@ Make it conversational and easy to understand for a business owner.`,
                                 
                                 case 'output-available': {
                                   // AI SDK v5: Server-executed tools might use 'result' instead of 'output'
-                                  const output = ((part as any).output || (part as any).result) as { 
+                                  const output = ((part as unknown as { output?: unknown; result?: unknown }).output || (part as unknown as { output?: unknown; result?: unknown }).result) as { 
                                     success?: boolean; 
                                     editedImageUrl?: string; 
                                     variationIndex?: number; 
@@ -1232,7 +1188,7 @@ Make it conversational and easy to understand for a business owner.`,
                                         
                                         setTimeout(() => {
                                           emitBrowserEvent('imageEdited', { 
-                                            sessionId: (part as any).output?.sessionId || (part as any).result?.sessionId,
+                                            sessionId: (part as unknown as { output?: { sessionId?: string }; result?: { sessionId?: string } }).output?.sessionId || (part as unknown as { output?: { sessionId?: string }; result?: { sessionId?: string } }).result?.sessionId,
                                             variationIndex: finalVariationIndex,
                                             newImageUrl: output.editedImageUrl 
                                           });
@@ -1290,7 +1246,7 @@ Make it conversational and easy to understand for a business owner.`,
                                 
                                 case 'output-available': {
                                   // AI SDK v5: Server-executed tools might use 'result' instead of 'output'
-                                  const output = ((part as any).output || (part as any).result) as { 
+                                  const output = ((part as unknown as { output?: unknown; result?: unknown }).output || (part as unknown as { output?: unknown; result?: unknown }).result) as { 
                                     success?: boolean; 
                                     imageUrl?: string; 
                                     imageUrls?: string[]; 
@@ -1334,7 +1290,7 @@ Make it conversational and easy to understand for a business owner.`,
                                         dispatchedEvents.current.add(eventKey);
                                         setTimeout(() => {
                                           emitBrowserEvent('imageEdited', {
-                                            sessionId: (part as any).output?.sessionId || (part as any).result?.sessionId,
+                                            sessionId: (part as unknown as { output?: { sessionId?: string }; result?: { sessionId?: string } }).output?.sessionId || (part as unknown as { output?: { sessionId?: string }; result?: { sessionId?: string } }).result?.sessionId,
                                             variationIndex: finalVariationIndex,
                                             newImageUrl: output.imageUrl,
                                           });
