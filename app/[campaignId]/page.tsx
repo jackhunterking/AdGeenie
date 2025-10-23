@@ -73,15 +73,7 @@ export default async function CampaignPage({
   const goalData = (campaign?.campaign_states as Database['public']['Tables']['campaign_states']['Row'] | null | undefined)?.goal_data as unknown as Record<string, unknown> | null | undefined;
   const campaignMetadata = {
     initialGoal: (goalData as { selectedGoal?: string } | null | undefined)?.selectedGoal ?? null,
-    initialPrompt: ((campaign?.metadata as unknown as { initialPrompt?: string } | null | undefined)?.initialPrompt) ?? null,
-    goalHistory: {
-      original: (goalData as { selectedGoal?: string } | null | undefined)?.selectedGoal ?? null,
-      current: (goalData as { selectedGoal?: string } | null | undefined)?.selectedGoal ?? null,
-    },
-  } as {
-    initialGoal: string | null;
-    initialPrompt: string | null;
-    goalHistory: { original: string | null; current: string | null };
+    initialPrompt: ((campaign?.metadata as unknown as { initialPrompt?: string } | null | undefined)?.initialPrompt) || undefined,
   };
   
   console.log(`[SERVER] Campaign metadata:`, campaignMetadata);
