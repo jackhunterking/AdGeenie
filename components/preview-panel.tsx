@@ -18,6 +18,7 @@ import { useGoal } from "@/lib/context/goal-context"
 import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { cn } from "@/lib/utils"
 import { newEditSession } from "@/lib/utils/edit-session"
+import { MetaConnectStep } from "./meta-connect-step"
 
 const mockAdAccounts = [
   { id: "act_123456789", name: "Main Business Account", currency: "USD" },
@@ -756,8 +757,17 @@ export function PreviewPanel() {
       icon: Target,
     },
     {
-      id: "goal",
+      id: "meta-connect",
       number: 5,
+      title: "Connect Facebook & Instagram",
+      description: "Authenticate and select Page, IG (optional) and Ad Account",
+      completed: (budgetState as any)?.meta_connect_data?.status === 'completed',
+      content: <MetaConnectStep />,
+      icon: Facebook,
+    },
+    {
+      id: "goal",
+      number: 6,
       title: "Set Your Goal",
       description: "Choose what you want to achieve with your ads",
       completed: goalState.status === "completed",
@@ -766,7 +776,7 @@ export function PreviewPanel() {
     },
     {
       id: "budget",
-      number: 6,
+      number: 7,
       title: "Budget & Publish",
       description: "Set your budget, connect Facebook, and launch your campaign",
       completed: isComplete(),

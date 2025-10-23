@@ -10,6 +10,7 @@ interface CampaignState {
   budget_data?: any
   ad_copy_data?: any
   ad_preview_data?: any
+  meta_connect_data?: any
 }
 
 interface Campaign {

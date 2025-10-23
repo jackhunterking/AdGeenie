@@ -25,6 +25,7 @@ export type Database = {
           goal_data: Json | null
           id: string
           location_data: Json | null
+          meta_connect_data: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -37,6 +38,7 @@ export type Database = {
           goal_data?: Json | null
           id?: string
           location_data?: Json | null
+          meta_connect_data?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -49,6 +51,7 @@ export type Database = {
           goal_data?: Json | null
           id?: string
           location_data?: Json | null
+          meta_connect_data?: Json | null
           updated_at?: string | null
         }
         Relationships: [
