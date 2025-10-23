@@ -16,6 +16,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, redirectUrl?: string, tempPromptId?: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
+  signInWithGoogle: (nextPath?: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -130,6 +131,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null)
   }
 
+  const signInWithGoogle = async (nextPath?: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : undefined
+    const redirectTo = origin
+      ? `${origin}/auth/callback?next=${encodeURIComponent(nextPath ?? '/')}`
+      : undefined
+
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+      },
+    })
+  }
+
   const value = {
     user,
     session,
@@ -139,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     refreshProfile,
+    signInWithGoogle,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

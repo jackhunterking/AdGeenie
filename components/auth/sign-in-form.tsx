@@ -12,7 +12,7 @@ interface SignInFormProps {
 }
 
 export function SignInForm({ onSuccess }: SignInFormProps) {
-  const { signIn } = useAuth()
+  const { signIn, signInWithGoogle } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +42,26 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="space-y-3">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full h-11 text-base font-medium"
+          onClick={() => { void signInWithGoogle('/') }}
+        >
+          <span className="flex items-center justify-center gap-2">
+            Continue with Google
+          </span>
+        </Button>
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+      </div>
       <div className="space-y-2">
         <Label htmlFor="signin-email" className="text-sm font-medium">
           Email address
