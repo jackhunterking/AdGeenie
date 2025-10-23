@@ -12,6 +12,7 @@
  */
 
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | AdPilot',
@@ -104,7 +105,7 @@ export default function PrivacyPolicyPage() {
         <h2>Data Deletion</h2>
         <p>
           For instructions on how to request deletion of your data, please visit our{' '}
-          <a href="/data-deletion" className="underline">Data Deletion</a> page.
+          <Link href="/data-deletion/" className="underline">Data Deletion</Link> page.
         </p>
 
         <h2>Changes to this Policy</h2>

@@ -6,23 +6,13 @@
  */
 
 import { supabaseServer } from '@/lib/supabase/server';
+import type { Database, Json } from '@/lib/supabase/database.types';
 
 // ============================================
 // Types
 // ============================================
 
-export interface CampaignState {
-  id: string;
-  campaign_id: string | null;
-  goal_data: any | null;
-  location_data: any | null;
-  audience_data: any | null;
-  ad_copy_data: any | null;
-  ad_preview_data: any | null;
-  budget_data: any | null;
-  generated_images: any | null;
-  updated_at: string | null;
-}
+export type CampaignState = Database['public']['Tables']['campaign_states']['Row'];
 
 // Snapshot interfaces removed - feature not implemented
 
@@ -110,13 +100,13 @@ export const stateManager = {
   async updateState(
     campaignId: string,
     field: StateField,
-    data: any
+    data: Json | null
   ): Promise<void> {
     try {
-      const updateData: any = {
+      const updateData: Partial<CampaignState> = {
         [field]: data,
         updated_at: new Date().toISOString(),
-      };
+      } as Partial<CampaignState>;
 
       const { error } = await supabaseServer
         .from('campaign_states')
@@ -141,7 +131,7 @@ export const stateManager = {
    */
   async updateMultipleFields(
     campaignId: string,
-    updates: Partial<Record<StateField, any>>
+    updates: Partial<Record<StateField, Json | null>>
   ): Promise<void> {
     try {
       if (Object.keys(updates).length === 0) {
@@ -149,10 +139,10 @@ export const stateManager = {
         return;
       }
 
-      const updateData: any = {
+      const updateData: Partial<CampaignState> = {
         ...updates,
         updated_at: new Date().toISOString(),
-      };
+      } as Partial<CampaignState>;
 
       const { error } = await supabaseServer
         .from('campaign_states')

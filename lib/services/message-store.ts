@@ -9,6 +9,7 @@
 import { UIMessage } from 'ai';
 import { sanitizeParts } from '@/lib/ai/schema';
 import { supabaseServer } from '@/lib/supabase/server';
+import type { Database, Json } from '@/lib/supabase/database.types';
 
 // ============================================
 // Types
@@ -24,17 +25,7 @@ interface SaveMessageOptions {
   skipValidation?: boolean;
 }
 
-interface MessageRow {
-  id: string;
-  conversation_id: string;
-  role: string;
-  content: string;
-  parts: any;
-  tool_invocations: any;
-  created_at: string;
-  seq: number;
-  metadata: any;
-}
+type MessageRow = Database['public']['Tables']['messages']['Row'];
 
 // ============================================
 // Message Transformation
@@ -46,8 +37,8 @@ interface MessageRow {
  */
 function messageToStorage(msg: UIMessage, conversationId: string): Omit<MessageRow, 'seq' | 'created_at'> {
   // Extract text content for the content field (for querying)
-  const textParts = (msg.parts as any[])?.filter((part: any) => part.type === 'text') || [];
-  const content = textParts.map((p: any) => p.text).join('\n');
+  const textParts = (msg.parts as Array<{ type: string; text?: string }> | undefined)?.filter((part) => part.type === 'text') || [];
+  const content = textParts.map((p) => p.text || '').join('\n');
   
   // Enforce content size limit (50KB)
   const truncatedContent = content.length > 50000 
@@ -59,9 +50,9 @@ function messageToStorage(msg: UIMessage, conversationId: string): Omit<MessageR
     conversation_id: conversationId,
     role: msg.role,
     content: truncatedContent,
-    parts: msg.parts || [],
-    tool_invocations: (msg as any).toolInvocations || [],
-    metadata: (msg as any).metadata || {}, // Preserve metadata (AI SDK v5 pattern)
+    parts: (msg.parts as unknown as Json) || [],
+    tool_invocations: ((msg as unknown as { toolInvocations?: unknown }).toolInvocations as Json) || [],
+    metadata: ((msg as unknown as { metadata?: Record<string, unknown> }).metadata as Json) || {},
   };
 }
 
@@ -79,23 +70,25 @@ function storageToMessage(stored: MessageRow): UIMessage {
   // AI SDK uses tool-specific types like "tool-generateImage", "tool-editImage", etc.
   if (stored.role === 'assistant' && parts.length > 0) {
     // Check for tool invocation parts (any part with type starting with "tool-")
-    const toolParts = parts.filter((p: any) => 
-      typeof p.type === 'string' && p.type.startsWith('tool-')
+    const toolParts = parts.filter((p) => 
+      typeof (p as { type?: unknown }).type === 'string' && String((p as { type: string }).type).startsWith('tool-')
     );
     
     if (toolParts.length > 0) {
       // Filter out incomplete tool invocations
       // Complete tools have either result or output properties
       // Incomplete tools only have toolCallId (pending execution)
-      parts = parts.filter((part: any) => {
-        if (typeof part?.type !== 'string') return false;
-        if (!part.type.startsWith('tool-')) return true;
-        const hasToolCallId = typeof part.toolCallId === 'string' && part.toolCallId.length > 0;
-        const hasOutputOrResult = Boolean(part.result || part.output);
-        if (part.type === 'tool-result') return hasToolCallId;
+      parts = parts.filter((part) => {
+        const type = (part as { type?: unknown }).type;
+        if (typeof type !== 'string') return false;
+        if (!type.startsWith('tool-')) return true;
+        const toolCallId = (part as { toolCallId?: unknown }).toolCallId;
+        const hasToolCallId = typeof toolCallId === 'string' && toolCallId.length > 0;
+        const hasOutputOrResult = Boolean((part as { result?: unknown }).result || (part as { output?: unknown }).output);
+        if (type === 'tool-result') return hasToolCallId;
         if (!hasToolCallId || !hasOutputOrResult) {
           console.log(`[MessageStore] Filtering invalid tool part in ${stored.id}:`, {
-            type: part.type, toolCallId: part.toolCallId, hasOutputOrResult
+            type, toolCallId, hasOutputOrResult
           });
           return false;
         }
@@ -105,10 +98,10 @@ function storageToMessage(stored: MessageRow): UIMessage {
   }
   
   // Migrate legacy data field to metadata for backward compatibility
-  const metadata = stored.metadata || {};
-  if ((stored as any).data && !metadata.migratedFromData) {
-    Object.assign(metadata, (stored as any).data);
-    metadata.migratedFromData = true;
+  const metadata: Record<string, unknown> = (stored.metadata as Record<string, unknown>) || {};
+  if ((stored as unknown as { data?: Record<string, unknown> }).data && !(metadata as { migratedFromData?: boolean }).migratedFromData) {
+    Object.assign(metadata, (stored as unknown as { data?: Record<string, unknown> }).data);
+    (metadata as { migratedFromData: boolean }).migratedFromData = true;
   }
   
   return {
@@ -116,8 +109,8 @@ function storageToMessage(stored: MessageRow): UIMessage {
     role: stored.role as 'user' | 'assistant' | 'system',
     parts: parts,
     metadata, // Include metadata (AI SDK v5 pattern)
-    ...(stored.tool_invocations && stored.tool_invocations.length > 0 && {
-      toolInvocations: stored.tool_invocations
+    ...(stored.tool_invocations && (stored.tool_invocations as unknown[]).length > 0 && {
+      toolInvocations: stored.tool_invocations as unknown
     })
   } as UIMessage;
 }

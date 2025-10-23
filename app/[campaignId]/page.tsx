@@ -2,6 +2,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { UIMessage } from 'ai';
 import { sanitizeParts } from '@/lib/ai/schema';
 import { Dashboard } from '@/components/dashboard';
+import type { Database } from '@/lib/supabase/database.types';
 
 // Database message row type
 interface DBMessage {
@@ -66,7 +67,7 @@ export default async function CampaignPage({
     .single();
   
   // Extract goal from campaign_states
-  const goalData = campaign?.campaign_states?.goal_data as any;
+  const goalData = (campaign?.campaign_states as Database['public']['Tables']['campaign_states']['Row'] | null | undefined)?.goal_data as unknown as Record<string, unknown> | null | undefined;
   const campaignMetadata = {
     initialGoal: goalData?.selectedGoal || campaign?.initial_goal || null,
     initialPrompt: campaign?.metadata?.initialPrompt || null,

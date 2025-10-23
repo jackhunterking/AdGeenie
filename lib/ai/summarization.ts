@@ -8,7 +8,7 @@
 import { generateText } from 'ai';
 import { messageStore } from '../services/message-store';
 import { conversationManager } from '../services/conversation-manager';
-import { UIMessage } from 'ai';
+// UIMessage is not used here; keep imports minimal
 
 // Configuration
 const SUMMARIZATION_THRESHOLD = 100; // Summarize every 100 messages
@@ -28,7 +28,7 @@ export async function shouldSummarize(conversationId: string): Promise<boolean> 
     }
 
     // Get last summarization point
-    const lastSummaryAt = conversation.metadata?.summary_message_count || 0;
+    const lastSummaryAt = (conversation.metadata as { summary_message_count?: number } | null | undefined)?.summary_message_count || 0;
     
     // Summarize if we've passed the threshold since last summary
     return count - lastSummaryAt >= SUMMARIZATION_THRESHOLD;
@@ -50,7 +50,7 @@ export async function generateSummary(conversationId: string): Promise<string | 
     }
 
     // Get last summary point
-    const lastSummaryAt = conversation.metadata?.summary_message_count || 0;
+    const lastSummaryAt = (conversation.metadata as { summary_message_count?: number } | null | undefined)?.summary_message_count || 0;
     const currentCount = await messageStore.getMessageCount(conversationId);
 
     // Load messages since last summary (or all if first summary)
@@ -66,16 +66,16 @@ export async function generateSummary(conversationId: string): Promise<string | 
     const conversationText = messages
       .map(msg => {
         const role = msg.role.toUpperCase();
-        const textParts = (msg.parts as any[])
+        const textParts = (msg.parts as Array<{ type: string; text?: string }>)
           ?.filter(p => p.type === 'text')
-          .map(p => p.text)
+          .map(p => p.text || '')
           .join(' ');
         return `${role}: ${textParts || '[No text]'}`;
       })
       .join('\n\n');
 
     // Get existing summary if any
-    const existingSummary = conversation.metadata?.summary || '';
+    const existingSummary = (conversation.metadata as { summary?: string } | null | undefined)?.summary || '';
 
     // Build prompt
     const prompt = existingSummary

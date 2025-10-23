@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server missing FB app credentials' }, { status: 500 })
     }
 
-    const { shortLivedToken, campaignId } = await req.json()
+    const { shortLivedToken, campaignId } = await req.json() as { shortLivedToken?: string; campaignId?: string }
     if (!shortLivedToken || !campaignId) {
       return NextResponse.json({ error: 'shortLivedToken and campaignId required' }, { status: 400 })
     }

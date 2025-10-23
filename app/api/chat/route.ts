@@ -114,14 +114,14 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
   
-  let tools: any = {
+  const tools = {
     generateImage: generateImageTool,
     editImage: editImageTool,
     regenerateImage: regenerateImageTool,
     locationTargeting: locationTargetingTool,
     audienceTargeting: audienceTargetingTool,
     setupGoal: setupGoalTool,
-  };
+  } as const;
 
   // Get or create conversation
   // The 'id' can be either a campaign ID or conversation ID
@@ -172,16 +172,18 @@ export async function POST(req: Request) {
     
     // Safe validate loaded messages against tools (AI SDK docs)
     // Returns validation result without throwing, allowing graceful error handling
-    let validationResult;
+      let validationResult:
+        | { success: true; data: UIMessage[] }
+        | { success: false; error: unknown };
     try {
       const toValidate = isSanitizerEnabled() ? sanitizeMessages(messages) : messages;
       validationResult = await safeValidateUIMessages({
         messages: toValidate,
-        tools: tools as any,
+          tools,
       });
     } catch (err) {
       console.error('[API] ❌ safeValidateUIMessages threw:', err);
-      validationResult = { success: false, error: err } as any;
+        validationResult = { success: false, error: err };
     }
     
     if (validationResult.success) {
@@ -200,22 +202,26 @@ export async function POST(req: Request) {
   // Check if model supports specific features
   const isGeminiImageModel = model === 'google/gemini-2.5-flash-image-preview';
   // Only o1 models support reasoning parameters
-  const isOpenAIReasoningModel = model.includes('o1-preview') || model.includes('o1-mini');
+  const isOpenAIReasoningModel = typeof model === 'string' && (model.includes('o1-preview') || model.includes('o1-mini'));
 
   // Extract reference context from message metadata (AI SDK v5 native pattern)
   let referenceContext = '';
   let isEditMode = false;
   
   if (message?.metadata) {
-    const metadata = message.metadata as Record<string, any>;
+    const metadata = message.metadata as Record<string, unknown>;
     isEditMode = Boolean(metadata.editMode);
     
     // Handle ad editing reference
     if (metadata.editingReference) {
-      const rawRef = metadata.editingReference as any;
+      const rawRef = metadata.editingReference as Record<string, unknown>;
       // Normalize variation index (accept legacy variationNumber)
-      const variationIndex = typeof rawRef.variationIndex === 'number' ? rawRef.variationIndex : (typeof rawRef.variationNumber === 'number' ? Math.max(0, rawRef.variationNumber - 1) : undefined);
-      const ref = { ...rawRef, variationIndex } as any;
+      const variationIndex = typeof (rawRef as { variationIndex?: unknown }).variationIndex === 'number'
+        ? (rawRef as { variationIndex: number }).variationIndex
+        : (typeof (rawRef as { variationNumber?: unknown }).variationNumber === 'number' 
+            ? Math.max(0, (rawRef as { variationNumber: number }).variationNumber - 1) 
+            : undefined);
+      const ref = { ...rawRef, variationIndex } as Record<string, unknown>;
       referenceContext += `\n\n[USER IS EDITING: ${ref.variationTitle}`;
       if (ref.format) referenceContext += ` (${ref.format} format)`;
       referenceContext += `]\n`;
@@ -245,35 +251,41 @@ export async function POST(req: Request) {
       referenceContext += `\nThe user's message below describes the changes they want to make.\n`;
 
       // Wrap edit tools to enforce the locked reference during this request
-      const locked = { variationIndex: ref.variationIndex, imageUrl: ref.imageUrl, sessionId: ref?.editSession?.sessionId };
+      const locked = { 
+        variationIndex: ref.variationIndex as number | undefined, 
+        imageUrl: ref.imageUrl as string | undefined, 
+        sessionId: (ref as { editSession?: { sessionId?: string } })?.editSession?.sessionId 
+      };
       if (typeof locked.variationIndex === 'number') {
-        tools = {
-          ...tools,
-          editImage: {
-            ...editImageTool,
-            execute: async (input: any, ctx: any) => {
-              const enforced = { ...input, variationIndex: locked.variationIndex, imageUrl: locked.imageUrl };
-              console.log('[LOCK] editImage enforced index/url:', { locked, provided: { variationIndex: input?.variationIndex, imageUrl: input?.imageUrl } });
-              const result = await (editImageTool as any).execute(enforced, ctx);
-              return { ...result, variationIndex: locked.variationIndex, sessionId: locked.sessionId };
-            }
-          },
-          regenerateImage: {
-            ...regenerateImageTool,
-            execute: async (input: any, ctx: any) => {
-              const enforced = { ...input, variationIndex: locked.variationIndex };
-              console.log('[LOCK] regenerateImage enforced index:', { lockedIndex: locked.variationIndex, provided: input?.variationIndex });
-              const result = await (regenerateImageTool as any).execute(enforced, ctx);
-              return { ...result, variationIndex: locked.variationIndex, sessionId: locked.sessionId };
-            }
+        // Override execute while preserving types via unknown casts at the edge
+        (tools as unknown as Record<string, unknown>).editImage = {
+          ...editImageTool,
+          execute: async (input: unknown, ctx: unknown) => {
+            const provided = input as { variationIndex?: number; imageUrl?: string };
+            const enforced = { ...provided, variationIndex: locked.variationIndex, imageUrl: locked.imageUrl };
+            console.log('[LOCK] editImage enforced index/url:', { locked, provided });
+            const exec = (editImageTool as unknown as { execute: (i: unknown, c: unknown) => Promise<unknown> }).execute;
+            const result = await exec(enforced, ctx);
+            return { ...(result as object), variationIndex: locked.variationIndex, sessionId: locked.sessionId };
           }
-        };
+        } as unknown;
+        (tools as unknown as Record<string, unknown>).regenerateImage = {
+          ...regenerateImageTool,
+          execute: async (input: unknown, ctx: unknown) => {
+            const provided = input as { variationIndex?: number };
+            const enforced = { ...provided, variationIndex: locked.variationIndex };
+            console.log('[LOCK] regenerateImage enforced index:', { lockedIndex: locked.variationIndex, provided: provided.variationIndex });
+            const exec = (regenerateImageTool as unknown as { execute: (i: unknown, c: unknown) => Promise<unknown> }).execute;
+            const result = await exec(enforced, ctx);
+            return { ...(result as object), variationIndex: locked.variationIndex, sessionId: locked.sessionId };
+          }
+        } as unknown;
       }
     }
     
     // Handle audience context reference
-    if (metadata.audienceContext) {
-      const ctx = metadata.audienceContext;
+    if ((metadata as { audienceContext?: unknown }).audienceContext) {
+      const ctx = (metadata as { audienceContext?: { demographics?: string; interests?: string } }).audienceContext!;
       referenceContext += `\n\n[USER IS EDITING AUDIENCE TARGETING]\n`;
       referenceContext += `Current targeting: ${ctx.demographics || 'general audience'}`;
       if (ctx.interests) referenceContext += `, interested in: ${ctx.interests}`;
@@ -293,7 +305,7 @@ export async function POST(req: Request) {
     stopWhen: stepCountIs(5), // Allow up to 5 steps for tool execution
     
     // Track each step for debugging (AI SDK best practice)
-    onStepFinish: ({ text, toolCalls, toolResults, finishReason, usage }) => {
+    onStepFinish: ({ toolCalls, toolResults }) => {
       console.log(`[STEP] Finished step with ${toolCalls.length} tool calls, ${toolResults.length} results`);
       if (toolCalls.length > 0) {
         console.log(`[STEP] Tool calls:`, toolCalls.map(tc => ({ 
@@ -304,7 +316,7 @@ export async function POST(req: Request) {
       if (toolResults.length > 0) {
         console.log(`[STEP] Tool results:`, toolResults.map(tr => ({ 
           tool: tr.toolName, 
-          hasResult: !!(tr as any).result 
+          hasResult: Boolean((tr as unknown as { result?: unknown }).result) 
         })));
       }
     },
@@ -829,10 +841,10 @@ CRITICAL - NO TEXT RESPONSES AFTER SETUP GOAL:
       });
       
       // Log each message
-      finalMessages.forEach((msg, i) => {
+          finalMessages.forEach((msg, i) => {
         console.log(`[FINISH] Message ${i}: role=${msg.role}, parts=${msg.parts?.length || 0}`);
         if (msg.role === 'assistant') {
-          const textParts = (msg.parts as any[])?.filter(p => p.type === 'text') || [];
+          const textParts = (msg.parts as Array<{ type: string; text?: string }>)?.filter(p => p.type === 'text') || [];
           console.log(`[FINISH] Assistant message text parts: ${textParts.length}`);
           if (textParts.length > 0) {
             console.log(`[FINISH] Text content: ${textParts[0].text?.substring(0, 100)}`);
@@ -853,7 +865,7 @@ CRITICAL - NO TEXT RESPONSES AFTER SETUP GOAL:
             // User and system messages are always valid
             if (msg.role !== 'assistant') return true;
             
-            const parts = (msg.parts as any[]) || [];
+            const parts = (msg.parts as Array<{ type: string; toolCallId?: string; result?: unknown; output?: unknown }>) || [];
             
             // Don't save empty assistant messages
             if (parts.length === 0) {
@@ -863,7 +875,7 @@ CRITICAL - NO TEXT RESPONSES AFTER SETUP GOAL:
             
             // Check for tool invocation parts (any part with type starting with "tool-")
             // AI SDK pattern: tool parts have types like "tool-generateImage", "tool-editImage", etc.
-            const toolParts = parts.filter((p: any) => 
+            const toolParts = parts.filter((p) => 
               typeof p.type === 'string' && p.type.startsWith('tool-')
             );
             
@@ -873,16 +885,16 @@ CRITICAL - NO TEXT RESPONSES AFTER SETUP GOAL:
               // 1. result property (server-executed tools)
               // 2. output property (client-executed tools)
               // Incomplete tools only have toolCallId (pending execution)
-              const incompleteTools = toolParts.filter((p: any) => 
-                p.toolCallId && // Has a tool call ID (indicates invocation)
-                !p.result &&    // No result from server execution
-                !p.output &&    // No output from client execution
-                p.type !== 'tool-result' // Not a tool result part
+              const incompleteTools = toolParts.filter((p) => 
+                p.toolCallId &&
+                !p.result &&
+                !p.output &&
+                p.type !== 'tool-result'
               );
               
               if (incompleteTools.length > 0) {
                 console.log(`[SAVE] Filtering message with incomplete tool invocations ${msg.id}`);
-                incompleteTools.forEach((t: any) => {
+                incompleteTools.forEach((t) => {
                   console.log(`[SAVE]   - Incomplete tool: ${t.type}, ID: ${t.toolCallId}`);
                 });
                 return false;

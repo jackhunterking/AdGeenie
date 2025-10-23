@@ -7,10 +7,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import type { Json } from '@/lib/supabase/database.types'
 
 export async function POST(req: NextRequest) {
   try {
-    const { campaignId, pageId, pageName, igUserId, igUsername, adAccountId, adAccountName } = await req.json()
+    const { campaignId, pageId, pageName, igUserId, igUsername, adAccountId, adAccountName } = await req.json() as {
+      campaignId?: string; pageId?: string; pageName?: string; igUserId?: string; igUsername?: string; adAccountId?: string; adAccountName?: string;
+    }
     if (!campaignId || !pageId || !adAccountId) {
       return NextResponse.json({ error: 'campaignId, pageId, adAccountId required' }, { status: 400 })
     }
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Optionally, save a minimal meta_connect_data state to campaign_states for UI completion flags
-    const metaConnectData = {
+    const metaConnectData: Record<string, unknown> = {
       status: 'completed',
       pageId,
       igUserId: igUserId || null,
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     await supabaseServer
       .from('campaign_states')
-      .update({ meta_connect_data: metaConnectData as any })
+      .update({ meta_connect_data: metaConnectData as Json })
       .eq('campaign_id', campaignId)
 
     return NextResponse.json({ ok: true })

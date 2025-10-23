@@ -286,7 +286,13 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     transport,
   } as any);
   
-  const { messages, sendMessage, addToolResult, status, stop } = chatHelpers;
+  const { messages, sendMessage, addToolResult, status, stop } = chatHelpers as {
+    messages: UIMessage[];
+    sendMessage: (input: { text?: string; files?: File[]; metadata?: Record<string, unknown> }) => void;
+    addToolResult: (r: { tool: string; toolCallId: string; output?: unknown; errorText?: string }) => void;
+    status: 'idle' | 'streaming' | 'submitted';
+    stop: () => void;
+  };
   
   console.log(`[AI-CHAT] useChat returned ${messages.length} messages immediately`);
 
@@ -869,15 +875,15 @@ Make it conversational and easy to understand for a business owner.`,
       } else {
         // Store as ad edit reference (for ad copy/creative) with normalized index
         const normalizedIndex = toZeroBasedIndex({
-          variationIndex: (context as any).variationIndex,
-          variationNumber: (context as any).variationNumber,
+          variationIndex: (context as unknown as { variationIndex?: number }).variationIndex,
+          variationNumber: (context as unknown as { variationNumber?: number }).variationNumber,
         });
         setAdEditReference({
           ...context,
           variationIndex: normalizedIndex,
-        } as any);
-        if ((context as any).editSession?.sessionId && typeof normalizedIndex === 'number') {
-          setActiveEditSession({ sessionId: (context as any).editSession.sessionId, variationIndex: normalizedIndex });
+        } as unknown as AudienceContext);
+        if ((context as unknown as { editSession?: { sessionId?: string } }).editSession?.sessionId && typeof normalizedIndex === 'number') {
+          setActiveEditSession({ sessionId: (context as unknown as { editSession?: { sessionId?: string } }).editSession!.sessionId!, variationIndex: normalizedIndex });
         }
         setCustomPlaceholder(`Describe the changes you'd like to make to ${context.variationTitle}...`);
       }

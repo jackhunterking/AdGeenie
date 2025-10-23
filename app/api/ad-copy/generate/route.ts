@@ -118,7 +118,7 @@ Use these image URLs as context only (do not attempt to analyze the images direc
       },
     ]
 
-    const { object } = await generateObject({
+  const { object } = await generateObject({
       model: getModel('openai/gpt-4o'),
       system: SYSTEM_INSTRUCTIONS,
       schema: CopySchema,

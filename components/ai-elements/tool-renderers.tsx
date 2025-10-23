@@ -19,7 +19,7 @@ export function deriveEditDescription(inputPrompt?: string): string {
     const value = m[1].replace(/\.$/, "");
     return `The car has been changed to ${value}. Here's the updated image:`;
   }
-  return `Here's the updated image:`;
+  return `Here\'s the updated image:`;
 }
 
 export function renderEditImageResult(opts: {
@@ -70,7 +70,7 @@ export function renderRegenerateImageResult(opts: {
           </div>
         </div>
       </div>
-      <p className="text-base font-medium mb-2">Here's the updated image:</p>
+      <p className="text-base font-medium mb-2">Here\'s the updated image:</p>
       {output.imageUrl && (
         <div className="max-w-md mx-auto my-2">
           <AdMockup format="feed" imageUrl={output.imageUrl} />

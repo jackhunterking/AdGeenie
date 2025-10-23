@@ -4,13 +4,13 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useAuth } from '@/components/auth/auth-provider'
 
 interface CampaignState {
-  goal_data?: any
-  location_data?: any
-  audience_data?: any
-  budget_data?: any
-  ad_copy_data?: any
-  ad_preview_data?: any
-  meta_connect_data?: any
+  goal_data?: Record<string, unknown> | null
+  location_data?: Record<string, unknown> | null
+  audience_data?: Record<string, unknown> | null
+  budget_data?: Record<string, unknown> | null
+  ad_copy_data?: Record<string, unknown> | null
+  ad_preview_data?: Record<string, unknown> | null
+  meta_connect_data?: Record<string, unknown> | null
 }
 
 interface Campaign {
@@ -191,8 +191,8 @@ export function CampaignProvider({
         if (field === 'ad_preview_data') {
           console.log(`[CampaignContext] 💾 Saving ${field}:`, {
             campaignId: campaign.id,
-            hasImageVariations: !!(value as any)?.adContent?.imageVariations?.length,
-            imageCount: (value as any)?.adContent?.imageVariations?.length || 0,
+            hasImageVariations: Boolean((value as { adContent?: { imageVariations?: unknown[] } })?.adContent?.imageVariations?.length),
+            imageCount: ((value as { adContent?: { imageVariations?: unknown[] } })?.adContent?.imageVariations?.length) || 0,
             attempt: attempt,
           })
         }

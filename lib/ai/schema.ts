@@ -58,19 +58,20 @@ function isString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
-function sanitizePart(raw: any): any | null {
+function sanitizePart(raw: unknown): { type: string; [k: string]: unknown } | null {
   // Guard: must have a string type
-  if (!isString(raw?.type)) return null;
+  const r = raw as { type?: unknown };
+  if (!isString(r?.type as unknown as string)) return null;
 
   // Non-tool parts
-  if (!raw.type.startsWith('tool-')) {
-    if (raw.type === 'text') {
-      const text = isString(raw.text) ? raw.text : '';
+  if (!(r.type as string).startsWith('tool-')) {
+    if (r.type === 'text') {
+      const text = isString((raw as { text?: unknown }).text as string) ? (raw as { text?: string }).text! : '';
       if (!text) return null;
       return { type: 'text', text };
     }
-    if (raw.type === 'reasoning') {
-      const text = isString(raw.text) ? raw.text : undefined;
+    if (r.type === 'reasoning') {
+      const text = isString((raw as { text?: unknown }).text as string) ? (raw as { text?: string }).text : undefined;
       return { type: 'reasoning', ...(text ? { text } : {}) };
     }
     // Unknown non-tool types are dropped
@@ -78,31 +79,31 @@ function sanitizePart(raw: any): any | null {
   }
 
   // Tool parts must have a toolCallId
-  if (!isString(raw.toolCallId)) return null;
+  if (!isString((raw as { toolCallId?: unknown }).toolCallId as string)) return null;
 
-  const hasOutputOrResult = raw.output !== undefined || raw.result !== undefined;
-  const isToolResult = raw.type === 'tool-result';
+  const hasOutputOrResult = (raw as { output?: unknown; result?: unknown }).output !== undefined || (raw as { output?: unknown; result?: unknown }).result !== undefined;
+  const isToolResult = (r.type as string) === 'tool-result';
 
   // Only keep complete tool invocations or valid tool-result parts
   if (!(hasOutputOrResult || isToolResult)) return null;
 
-  const part: any = {
-    type: raw.type,
-    toolCallId: raw.toolCallId,
+  const part: { type: string; toolCallId: string; [k: string]: unknown } = {
+    type: r.type as string,
+    toolCallId: (raw as { toolCallId: string }).toolCallId,
   };
 
-  if (raw.input !== undefined) part.input = raw.input;
-  if (raw.output !== undefined) part.output = raw.output;
-  if (raw.result !== undefined) part.result = raw.result;
-  if (isString(raw.state)) part.state = raw.state;
-  if (isString(raw.errorText)) part.errorText = raw.errorText;
+  if ((raw as { input?: unknown }).input !== undefined) part.input = (raw as { input?: unknown }).input;
+  if ((raw as { output?: unknown }).output !== undefined) part.output = (raw as { output?: unknown }).output;
+  if ((raw as { result?: unknown }).result !== undefined) part.result = (raw as { result?: unknown }).result;
+  if (isString((raw as { state?: unknown }).state as string)) part.state = (raw as { state?: string }).state;
+  if (isString((raw as { errorText?: unknown }).errorText as string)) part.errorText = (raw as { errorText?: string }).errorText;
 
   return part;
 }
 
-export function sanitizeParts(parts: unknown): any[] {
+export function sanitizeParts(parts: unknown): Array<{ type: string; [k: string]: unknown }> {
   const array = Array.isArray(parts) ? parts : [];
-  const sanitized: any[] = [];
+  const sanitized: Array<{ type: string; [k: string]: unknown }> = [];
   for (const raw of array) {
     const safe = sanitizePart(raw);
     if (safe) sanitized.push(safe);
@@ -113,11 +114,11 @@ export function sanitizeParts(parts: unknown): any[] {
 export function sanitizeMessages(messages: UIMessage[]): UIMessage[] {
   const list = Array.isArray(messages) ? messages : [];
   return list.map((m) => {
-    const safeParts = sanitizeParts((m as any).parts);
-    const metadata = (m as any).metadata && typeof (m as any).metadata === 'object' ? (m as any).metadata : undefined;
+    const safeParts = sanitizeParts((m as { parts?: unknown }).parts);
+    const metadata = (m as { metadata?: unknown }).metadata && typeof (m as { metadata?: unknown }).metadata === 'object' ? (m as { metadata?: Record<string, unknown> }).metadata : undefined;
     return {
-      id: String((m as any).id || ''),
-      role: (m as any).role,
+      id: String((m as { id?: unknown }).id || ''),
+      role: (m as { role: 'user' | 'assistant' | 'system' }).role,
       parts: safeParts,
       ...(metadata ? { metadata } : {}),
     } as UIMessage;

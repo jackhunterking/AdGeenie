@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { UIMessage } from 'ai';
 
 export interface CampaignState {
-  goal_data: any;
-  location_data: any;
-  audience_data: any;
-  ad_copy_data: any;
-  ad_preview_data: any;
-  budget_data: any;
-  generated_images: any[];
+  goal_data: Record<string, unknown> | null;
+  location_data: Record<string, unknown> | null;
+  audience_data: Record<string, unknown> | null;
+  ad_copy_data: Record<string, unknown> | null;
+  ad_preview_data: Record<string, unknown> | null;
+  budget_data: Record<string, unknown> | null;
+  generated_images: string[];
 }
 
 export interface RestoredState {
@@ -63,7 +63,10 @@ export function useCampaignStateRestoration(campaignId: string | undefined): Res
         // Handle messages response
         if (messagesResponse.ok) {
           const messagesData = await messagesResponse.json();
-          const messages: UIMessage[] = (messagesData.messages || []).map((msg: any) => {
+          const messages: UIMessage[] = (messagesData.messages || []).map((msg: {
+            id: string; role: 'user' | 'assistant' | 'system'; content?: string | { text?: string; parts?: Array<{ type: string; text?: string }> };
+            tool_calls?: unknown;
+          }) => {
             // Handle different content formats
             let content = '';
             let parts = [];
@@ -71,14 +74,14 @@ export function useCampaignStateRestoration(campaignId: string | undefined): Res
             if (typeof msg.content === 'string') {
               content = msg.content;
             } else if (msg.content && typeof msg.content === 'object') {
-              const contentObj = msg.content as any;
+              const contentObj = msg.content as { text?: string; parts?: Array<{ type: string; text?: string }> };
               parts = contentObj.parts || [];
               
               // Extract text from parts array if content.text is empty
               if (!contentObj.text && parts.length > 0) {
                 const textParts = parts
-                  .filter((p: any) => p.type === 'text' && p.text)
-                  .map((p: any) => p.text);
+                  .filter((p) => p.type === 'text' && p.text)
+                  .map((p) => p.text as string);
                 content = textParts.join(' ');
               } else {
                 content = contentObj.text || '';
@@ -90,7 +93,7 @@ export function useCampaignStateRestoration(campaignId: string | undefined): Res
               role: msg.role as 'user' | 'assistant' | 'system',
               content,
               parts,
-              toolInvocations: msg.tool_calls,
+              toolInvocations: msg.tool_calls as unknown,
             };
           });
 

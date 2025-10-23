@@ -9,9 +9,9 @@ export type VariationRef = { variationIndex?: number; variationNumber?: number }
 
 export function toZeroBasedIndex(ref: VariationRef): number | undefined {
   if (!ref) return undefined;
-  const idx = (ref as any).variationIndex;
+  const idx = (ref as { variationIndex?: unknown }).variationIndex;
   if (typeof idx === 'number' && Number.isInteger(idx) && idx >= 0) return idx;
-  const num = (ref as any).variationNumber;
+  const num = (ref as { variationNumber?: unknown }).variationNumber;
   if (typeof num === 'number' && Number.isInteger(num)) {
     const zero = num - 1;
     return zero >= 0 ? zero : undefined;

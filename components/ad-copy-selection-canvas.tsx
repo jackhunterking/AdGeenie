@@ -56,7 +56,7 @@ export function AdCopySelectionCanvas() {
     const editSession = newEditSession({
       variationIndex: index,
       imageUrl: variationImageUrl,
-      campaignId: (adContent as any)?.campaignId,
+      campaignId: (adContent as unknown as { campaignId?: string })?.campaignId,
     })
 
     const referenceContext = {
@@ -257,7 +257,7 @@ export function AdCopySelectionCanvas() {
                     if (data?.variation) {
                       const next = [...activeVariations]
                       next[copyIndex] = { id: next[copyIndex].id, ...data.variation }
-                      setCustomCopyVariations(next as any)
+      setCustomCopyVariations(next)
                     }
                   } catch (err) {
                     console.error('[AdCopy] single regenerate failed', err)

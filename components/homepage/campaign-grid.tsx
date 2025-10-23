@@ -43,7 +43,7 @@ export function CampaignGrid() {
 
   const getThumbnail = (campaign: Campaign) => {
     // Images are stored in campaign_states.ad_preview_data
-    const adPreviewData = campaign.campaign_states?.ad_preview_data as any
+    const adPreviewData = campaign.campaign_states?.ad_preview_data as unknown as { adContent?: { baseImageUrl?: string; imageVariations?: string[] } } | null
     if (adPreviewData?.adContent?.baseImageUrl) {
       return adPreviewData.adContent.baseImageUrl
     }

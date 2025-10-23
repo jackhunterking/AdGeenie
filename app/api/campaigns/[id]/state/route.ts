@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 import { stateManager } from '@/lib/services/state-manager'
+import type { Json } from '@/lib/supabase/database.types'
 
 // PATCH /api/campaigns/[id]/state - Update campaign state
 export async function PATCH(
@@ -50,7 +51,7 @@ export async function PATCH(
       )
     }
     
-    const body = await request.json()
+    const body = (await request.json()) as Record<string, unknown>
     
     // Validate that at least one field is being updated
     const validFields = [
@@ -63,10 +64,10 @@ export async function PATCH(
       'generated_images',
     ]
     
-    const updateData: Record<string, unknown> = {}
+    const updateData: Record<string, Json | null> = {}
     for (const field of validFields) {
       if (field in body) {
-        updateData[field] = body[field]
+        updateData[field] = body[field] as Json | null
       }
     }
     
@@ -78,7 +79,7 @@ export async function PATCH(
     }
 
     // Update campaign state using state-manager service
-    await stateManager.updateMultipleFields(campaignId, updateData as any)
+    await stateManager.updateMultipleFields(campaignId, updateData)
 
     // Get updated state
     const state = await stateManager.getCampaignState(campaignId)

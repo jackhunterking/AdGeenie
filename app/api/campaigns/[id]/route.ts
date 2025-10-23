@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import type { Database } from '@/lib/supabase/database.types'
 
 // GET /api/campaigns/[id] - Get a specific campaign
 export async function GET(
@@ -51,12 +52,12 @@ export async function GET(
     
     if (campaign.campaign_states && typeof campaign.campaign_states === 'object') {
       console.log(`[API] ✅ campaign_states exists as object:`, {
-        hasAdPreviewData: !!(campaign.campaign_states as any).ad_preview_data,
-        hasGoalData: !!(campaign.campaign_states as any).goal_data,
-        hasLocationData: !!(campaign.campaign_states as any).location_data,
-        hasAudienceData: !!(campaign.campaign_states as any).audience_data,
-        adPreviewDataSample: (campaign.campaign_states as any).ad_preview_data ? 
-          JSON.stringify((campaign.campaign_states as any).ad_preview_data).substring(0, 200) : null
+        hasAdPreviewData: Boolean((campaign.campaign_states as Database['public']['Tables']['campaign_states']['Row']).ad_preview_data),
+        hasGoalData: Boolean((campaign.campaign_states as Database['public']['Tables']['campaign_states']['Row']).goal_data),
+        hasLocationData: Boolean((campaign.campaign_states as Database['public']['Tables']['campaign_states']['Row']).location_data),
+        hasAudienceData: Boolean((campaign.campaign_states as Database['public']['Tables']['campaign_states']['Row']).audience_data),
+        adPreviewDataSample: (campaign.campaign_states as Database['public']['Tables']['campaign_states']['Row']).ad_preview_data ? 
+          JSON.stringify((campaign.campaign_states as Database['public']['Tables']['campaign_states']['Row']).ad_preview_data).substring(0, 200) : null
       });
     } else {
       console.warn(`[API] ⚠️ campaign_states is NULL or wrong type!`);

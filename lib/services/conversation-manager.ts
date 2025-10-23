@@ -8,25 +8,17 @@
 
 import { supabaseServer } from '@/lib/supabase/server';
 import { messageStore } from './message-store';
+import type { Database, Json } from '@/lib/supabase/database.types';
 
 // ============================================
 // Types
 // ============================================
 
-export interface Conversation {
-  id: string;
-  campaign_id: string | null;
-  user_id: string;
-  title: string | null;
-  created_at: string;
-  updated_at: string;
-  message_count: number;
-  metadata: Record<string, any>;
-}
+export type Conversation = Database['public']['Tables']['conversations']['Row'];
 
 interface CreateConversationOptions {
   title?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface ListConversationsOptions {
@@ -227,7 +219,7 @@ export const conversationManager = {
    */
   async updateMetadata(
     conversationId: string,
-    metadata: Record<string, any>
+    metadata: Record<string, unknown>
   ): Promise<void> {
     try {
       // Get existing metadata
@@ -237,10 +229,10 @@ export const conversationManager = {
       }
 
       // Merge with existing metadata
-      const updatedMetadata = {
-        ...conversation.metadata,
+      const updatedMetadata: Json = {
+        ...(conversation.metadata as Record<string, unknown>),
         ...metadata,
-      };
+      } as Json;
 
       const { error } = await supabaseServer
         .from('conversations')
