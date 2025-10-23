@@ -29,13 +29,12 @@ function dbToUIMessage(stored: DBMessage): UIMessage {
     }];
   }
   
+  const hasToolInvocations = Array.isArray(stored.tool_invocations) && stored.tool_invocations.length > 0;
   const uiMessage = {
     id: stored.id,
     role: stored.role,
     parts: parts,
-    ...(stored.tool_invocations && stored.tool_invocations.length > 0 && {
-      toolInvocations: stored.tool_invocations
-    })
+    ...(hasToolInvocations ? { toolInvocations: stored.tool_invocations } : {})
   } as UIMessage;
   
   console.log(`[SERVER] Converted message ${stored.id}:`, {
