@@ -48,7 +48,7 @@ import {
 } from "@/components/ai-elements/reasoning";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, ChatStatus } from "ai";
 import { generateImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
@@ -84,11 +84,11 @@ interface MessageMetadata {
   source: 'chat_input' | 'auto_submit' | 'tool_response';
   editMode?: boolean;
   editingReference?: {
-    type: string;
-    variationTitle: string;
+    type?: string;
+    variationTitle?: string;
     variationNumber?: number;
     variationIndex?: number;
-    format: 'feed' | 'story' | 'reel';
+    format?: 'feed' | 'story' | 'reel';
     imageUrl?: string;
     content?: {
       primaryText?: string;
@@ -157,6 +157,7 @@ interface AudienceContext {
   copyNumber?: number;
   format?: 'feed' | 'story' | 'reel';
   gradient?: string;
+  imageUrl?: string;
   content?: {
     primaryText?: string;
     headline?: string;
@@ -199,7 +200,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
   const [input, setInput] = useState("");
   const [model] = useState<string>("openai/gpt-4o");
   const { campaign } = useCampaignContext();
-  const { setAdContent } = useAdPreview();
+  const { adContent, setAdContent } = useAdPreview();
   const { goalState, setFormData, setError, resetGoal } = useGoal();
   const { locationState, addLocations, updateStatus: updateLocationStatus } = useLocation();
   const { setAudienceTargeting, updateStatus: updateAudienceStatus } = useAudience();
@@ -429,13 +430,13 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
         variationNumber: (adEditReference as unknown as { variationNumber?: number }).variationNumber,
       });
       messageMetadata.editingReference = {
-        type: adEditReference.type,
-        variationTitle: adEditReference.variationTitle,
-        variationIndex: normalizedIndexForMeta,
-        format: adEditReference.format,
-        imageUrl: adEditReference.imageUrl, // Include image URL for AI to use in editImage tool
-        content: adEditReference.content,
-        gradient: adEditReference.gradient,
+        ...(adEditReference.type && { type: adEditReference.type }),
+        ...(adEditReference.variationTitle && { variationTitle: adEditReference.variationTitle }),
+        ...(typeof normalizedIndexForMeta === 'number' && { variationIndex: normalizedIndexForMeta }),
+        ...(adEditReference.format && { format: adEditReference.format }),
+        ...(adEditReference.imageUrl && { imageUrl: adEditReference.imageUrl }),
+        ...(adEditReference.content && { content: adEditReference.content }),
+        ...(adEditReference.gradient && { gradient: adEditReference.gradient }),
         ...(activeEditSession?.sessionId && typeof normalizedIndexForMeta === 'number' && {
           editSession: { sessionId: activeEditSession.sessionId, variationIndex: normalizedIndexForMeta }
         })
@@ -463,8 +464,8 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     // Send the message with metadata (AI SDK v5 native - preserved through entire flow)
     sendMessage({ 
       text: message.text || 'Sent with attachments',
-      files: message.files,
-      metadata: messageMetadata, // ✅ This field is preserved by AI SDK v5
+      files: message.files?.map(f => ('file' in f ? (f as { file: File }).file : f as unknown as File)),
+      metadata: messageMetadata as unknown as Record<string, unknown>, // ✅ This field is preserved by AI SDK v5
     });
     setInput("");
     
@@ -545,24 +546,21 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
         console.log('[IMAGE-GEN] ✅ Generated 6 variations:', imageUrls);
         
         // Set all 6 variations immediately
-        setAdContent(prev => {
-          const newContent = {
-            ...prev,
-            headline: prev?.headline || '',
-            body: prev?.body || '',
-            cta: prev?.cta || 'Learn More',
-            baseImageUrl: imageUrls[0],
-            imageVariations: imageUrls, // All 6 URLs
-          };
-          
-          console.log('[IMAGE-GEN] 📤 Setting adContent with variations:', {
-            imageCount: imageUrls.length,
-            baseImageUrl: imageUrls[0],
-            hasHeadline: !!newContent.headline,
-          });
-          
-          return newContent;
+        const newContent = {
+          headline: adContent?.headline || '',
+          body: adContent?.body || '',
+          cta: adContent?.cta || 'Learn More',
+          baseImageUrl: imageUrls[0],
+          imageVariations: imageUrls, // All 6 URLs
+        };
+        
+        console.log('[IMAGE-GEN] 📤 Setting adContent with variations:', {
+          imageCount: imageUrls.length,
+          baseImageUrl: imageUrls[0],
+          hasHeadline: !!newContent.headline,
         });
+        
+        setAdContent(newContent);
         
         // Auto-switch to ad copy canvas to show the variations
         emitBrowserEvent('switchToTab', 'copy');
@@ -1026,10 +1024,10 @@ Make it conversational and easy to understand for a business owner.`,
                               if (part.type === 'tool-call') {
                                 const toolCallId = partAny.toolCallId;
                                 // Check if there's a cancelled result for this tool call
-                                const hasCancelledResult = message.parts.some((p: { type: string; toolCallId?: string; output?: { cancelled?: boolean } }) => 
+                                const hasCancelledResult = message.parts.some(p => 
                                   p.type === 'tool-result' && 
-                                  p.toolCallId === toolCallId &&
-                                  p.output?.cancelled === true
+                                  'toolCallId' in p && p.toolCallId === toolCallId &&
+                                  'output' in p && typeof p.output === 'object' && p.output && 'cancelled' in p.output && (p.output as { cancelled?: boolean }).cancelled === true
                                 );
                                 if (hasCancelledResult) {
                                   return false; // Don't render tool call if it was cancelled
@@ -1159,7 +1157,6 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               switch (part.state) {
                                 case 'input-streaming':
-                                case 'tool-executing':
                                   // Server-side execution - show animated progress loader
                                   return <ImageEditProgressLoader key={callId} type="edit" />;
                                 
@@ -1264,7 +1261,6 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               switch (part.state) {
                                 case 'input-streaming':
-                                case 'tool-executing':
                                   // Server-side execution - show animated progress loader
                                   return <ImageEditProgressLoader key={callId} type="regenerate" />;
                                 
@@ -1338,11 +1334,13 @@ Make it conversational and easy to understand for a business owner.`,
                                     // This ensures the new images are saved and persist across refreshes
                                     setTimeout(() => {
                                       console.log('[REGEN] 📤 Setting regenerated variations:', output.imageUrls);
-                                      setAdContent(prev => ({
-                                        ...prev,
+                                      setAdContent({
+                                        headline: adContent?.headline || '',
+                                        body: adContent?.body || '',
+                                        cta: adContent?.cta || 'Learn More',
                                         imageVariations: output.imageUrls,
                                         baseImageUrl: output.imageUrls![0],
-                                      }));
+                                      });
                                     }, 0);
                                   
                                     return (
@@ -1870,7 +1868,7 @@ Make it conversational and easy to understand for a business owner.`,
               </PromptInputTools>
               <PromptInputSubmit 
                 disabled={!input && status !== 'streaming'} 
-                status={status}
+                status={status as ChatStatus}
                 type={status === 'streaming' ? 'button' : 'submit'}
                 onClick={status === 'streaming' ? stop : undefined}
               />

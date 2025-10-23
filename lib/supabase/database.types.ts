@@ -100,6 +100,75 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_meta_connections: {
+        Row: {
+          id: string
+          campaign_id: string
+          user_id: string
+          fb_user_id: string | null
+          long_lived_user_token: string | null
+          token_expires_at: string | null
+          selected_page_id: string | null
+          selected_page_name: string | null
+          selected_page_access_token: string | null
+          selected_ig_user_id: string | null
+          selected_ig_username: string | null
+          selected_ad_account_id: string | null
+          selected_ad_account_name: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          campaign_id: string
+          user_id: string
+          fb_user_id?: string | null
+          long_lived_user_token?: string | null
+          token_expires_at?: string | null
+          selected_page_id?: string | null
+          selected_page_name?: string | null
+          selected_page_access_token?: string | null
+          selected_ig_user_id?: string | null
+          selected_ig_username?: string | null
+          selected_ad_account_id?: string | null
+          selected_ad_account_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          campaign_id?: string
+          user_id?: string
+          fb_user_id?: string | null
+          long_lived_user_token?: string | null
+          token_expires_at?: string | null
+          selected_page_id?: string | null
+          selected_page_name?: string | null
+          selected_page_access_token?: string | null
+          selected_ig_user_id?: string | null
+          selected_ig_username?: string | null
+          selected_ad_account_id?: string | null
+          selected_ad_account_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_meta_connections_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: true
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_meta_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           campaign_id: string | null
@@ -234,6 +303,7 @@ export type Database = {
         Row: {
           created_at: string
           expires_at: string
+          goal_type: string | null
           id: string
           prompt_text: string
           used: boolean
@@ -241,6 +311,7 @@ export type Database = {
         Insert: {
           created_at?: string
           expires_at?: string
+          goal_type?: string | null
           id?: string
           prompt_text: string
           used?: boolean
@@ -248,6 +319,7 @@ export type Database = {
         Update: {
           created_at?: string
           expires_at?: string
+          goal_type?: string | null
           id?: string
           prompt_text?: string
           used?: boolean

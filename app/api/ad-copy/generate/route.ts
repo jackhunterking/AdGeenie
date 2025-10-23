@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { generateObject, CoreMessage } from 'ai'
+import { generateObject } from 'ai'
 import { getModel } from '@/lib/ai/gateway-provider'
 import { createServerClient } from '@/lib/supabase/server'
 
@@ -87,9 +87,9 @@ export async function POST(req: NextRequest) {
 
       const idx = (typeof selectedImageIndex === 'number' ? selectedImageIndex : targetIndex)
       const selectedImage = imageUrls[idx] || imageUrls[0]
-      const singleContent: CoreMessage['content'] = [
+      const singleContent = [
         {
-          type: 'text',
+          type: 'text' as const,
           text: `Rewrite one ad copy variation for index ${targetIndex + 1}.
 Keep the same campaign context.${goalType ? ` Goal: ${goalType}.` : ''} ${businessContext ? `Context: ${businessContext}` : ''}
 Use the following image URL as visual context (do not attempt to analyze the image, just consider it conceptually): ${selectedImage}
@@ -110,9 +110,9 @@ If current copy is provided, improve it while changing the persuasion angle. Als
 
     // Batch (six) variations
     const { goalType, imageUrls, businessContext } = BatchRequestSchema.parse(body)
-    const userContent: CoreMessage['content'] = [
+    const userContent = [
       {
-        type: 'text',
+        type: 'text' as const,
         text: `Create six different ad copy variations for this campaign.${goalType ? ` Goal: ${goalType}.` : ''} ${businessContext ? ` Context: ${businessContext}` : ''}
 Use these image URLs as context only (do not attempt to analyze the images directly, just infer likely themes): ${imageUrls.join(', ')}`,
       },

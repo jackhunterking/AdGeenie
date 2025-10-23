@@ -87,7 +87,6 @@ export async function POST(request: NextRequest) {
         const expiresAt = new Date(tempPrompt.expires_at)
         if (expiresAt > new Date()) {
           initialPrompt = tempPrompt.prompt_text
-          // @ts-expect-error - goal_type will be added in schema migration
           initialGoal = tempPrompt.goal_type || initialGoal
           
           // Mark as used

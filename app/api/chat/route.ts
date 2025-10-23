@@ -17,6 +17,7 @@ import {
   InvalidToolInputError,
   ToolCallRepairError,
   stepCountIs,
+  Tool,
 } from 'ai';
 import { sanitizeMessages, isSanitizerEnabled } from '@/lib/ai/schema';
 import { generateImageTool } from '@/tools/generate-image-tool';
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
     locationTargeting: locationTargetingTool,
     audienceTargeting: audienceTargetingTool,
     setupGoal: setupGoalTool,
-  } as const;
+  };
 
   // Get or create conversation
   // The 'id' can be either a campaign ID or conversation ID
@@ -144,7 +145,9 @@ export async function POST(req: Request) {
   }
   
   // Extract goal from conversation metadata (source of truth) or message metadata (fallback)
-  const conversationGoal = conversation?.metadata?.current_goal || null;
+  const conversationGoal = (conversation?.metadata && typeof conversation.metadata === 'object' && 'current_goal' in conversation.metadata) 
+    ? (conversation.metadata.current_goal as string) 
+    : null;
   const messageGoal = message?.metadata?.goalType || null;
   const effectiveGoal = conversationGoal || messageGoal || null;
   
@@ -179,7 +182,7 @@ export async function POST(req: Request) {
       const toValidate = isSanitizerEnabled() ? sanitizeMessages(messages) : messages;
       validationResult = await safeValidateUIMessages({
         messages: toValidate,
-          tools,
+          tools: tools as unknown as Record<string, Tool<unknown, unknown>>,
       });
     } catch (err) {
       console.error('[API] ❌ safeValidateUIMessages threw:', err);
@@ -234,11 +237,12 @@ export async function POST(req: Request) {
         referenceContext += `Variation Index: ${ref.variationIndex}\n`;
       }
       
-      if (ref.content) {
+      if (ref.content && typeof ref.content === 'object') {
+        const content = ref.content as { primaryText?: string; headline?: string; description?: string };
         referenceContext += `Current content:\n`;
-        if (ref.content.primaryText) referenceContext += `- Primary Text: "${ref.content.primaryText}"\n`;
-        if (ref.content.headline) referenceContext += `- Headline: "${ref.content.headline}"\n`;
-        if (ref.content.description) referenceContext += `- Description: "${ref.content.description}"\n`;
+        if (content.primaryText) referenceContext += `- Primary Text: "${content.primaryText}"\n`;
+        if (content.headline) referenceContext += `- Headline: "${content.headline}"\n`;
+        if (content.description) referenceContext += `- Description: "${content.description}"\n`;
       }
       
       referenceContext += `\n**You MUST use one of these tools:**\n`;

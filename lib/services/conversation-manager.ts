@@ -49,7 +49,7 @@ export const conversationManager = {
           user_id: userId,
           campaign_id: campaignId,
           title: title || null,
-          metadata,
+          metadata: JSON.parse(JSON.stringify(metadata)),
           message_count: 0,
         })
         .select()
@@ -299,9 +299,11 @@ export const conversationManager = {
         throw new Error('Conversation not found');
       }
 
-      const updatedMetadata = { ...conversation.metadata };
-      delete updatedMetadata.archived;
-      delete updatedMetadata.archived_at;
+      const updatedMetadata = conversation.metadata && typeof conversation.metadata === 'object' && !Array.isArray(conversation.metadata) 
+        ? { ...conversation.metadata } 
+        : {};
+      delete (updatedMetadata as Record<string, unknown>).archived;
+      delete (updatedMetadata as Record<string, unknown>).archived_at;
 
       const { error } = await supabaseServer
         .from('conversations')

@@ -8,7 +8,7 @@
  *  - AI SDK Core: https://ai-sdk.dev/docs/ai-sdk-core/streaming
  */
 
-import { Fragment } from "react";
+import React, { Fragment } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { AdMockup } from "@/components/ad-mockup";
 
@@ -28,7 +28,7 @@ export function renderEditImageResult(opts: {
   input: { imageUrl?: string; variationIndex?: number; prompt?: string };
   output: { editedImageUrl?: string; success?: boolean; error?: string };
   isSubmitting: boolean;
-}): JSX.Element {
+}): React.JSX.Element {
   const { callId, keyId, input, output } = opts;
   const desc = deriveEditDescription(input?.prompt);
 
@@ -57,7 +57,7 @@ export function renderRegenerateImageResult(opts: {
   callId: string;
   keyId?: string;
   output: { imageUrl?: string; success?: boolean; variationIndex?: number };
-}): JSX.Element {
+}): React.JSX.Element {
   const { callId, keyId, output } = opts;
   return (
     <Fragment key={keyId || callId}>

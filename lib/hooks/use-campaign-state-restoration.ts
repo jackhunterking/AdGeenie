@@ -69,7 +69,7 @@ export function useCampaignStateRestoration(campaignId: string | undefined): Res
           }) => {
             // Handle different content formats
             let content = '';
-            let parts = [];
+            let parts: Array<{ type: string; text?: string }> = [];
             
             if (typeof msg.content === 'string') {
               content = msg.content;

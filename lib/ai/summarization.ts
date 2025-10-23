@@ -114,7 +114,6 @@ Summary:`;
     const result = await generateText({
       model: SUMMARIZATION_MODEL, // Pass model string directly - AI SDK handles gateway routing
       prompt,
-      maxTokens: 500, // Keep summaries concise
       temperature: 0.3, // Low temperature for factual summaries
     });
 
@@ -186,7 +185,11 @@ export async function autoSummarizeIfNeeded(conversationId: string): Promise<voi
 export async function getConversationSummary(conversationId: string): Promise<string | null> {
   try {
     const conversation = await conversationManager.getConversation(conversationId);
-    return conversation?.metadata?.summary || null;
+    const metadata = conversation?.metadata;
+    if (metadata && typeof metadata === 'object' && 'summary' in metadata) {
+      return (metadata.summary as string) || null;
+    }
+    return null;
   } catch (error) {
     console.error('[Summarization] Error getting summary:', error);
     return null;
