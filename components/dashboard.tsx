@@ -26,12 +26,14 @@ interface DashboardProps {
   messages?: UIMessage[]  // AI SDK v5 prop name
   campaignId?: string
   conversationId?: string | null  // Stable conversation ID from server
+  campaignMetadata?: { initialPrompt?: string; initialGoal?: string | null } | null
 }
 
 export function Dashboard({ 
   messages = [],
   campaignId,
   conversationId,
+  campaignMetadata,
 }: DashboardProps = {}) {
   const router = useRouter()
   const [credits] = useState(205.5)
@@ -136,7 +138,7 @@ export function Dashboard({
             campaignId={campaignId}
             conversationId={conversationId}
             messages={messages}
-            campaignMetadata={campaign?.metadata}
+            campaignMetadata={campaignMetadata ?? undefined}
           />
         </div>
 
