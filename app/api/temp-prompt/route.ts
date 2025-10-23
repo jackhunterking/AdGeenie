@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase/server'
+import type { PostgrestError } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,12 +35,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
+      const { message, details, hint, code } = error as PostgrestError
       console.error('[TEMP-PROMPT] Failed to store prompt', {
         correlationId,
-        message: error.message,
-        details: (error as any).details,
-        hint: (error as any).hint,
-        code: (error as any).code,
+        message,
+        details,
+        hint,
+        code,
       })
       return NextResponse.json(
         { error: 'Failed to store prompt' },
