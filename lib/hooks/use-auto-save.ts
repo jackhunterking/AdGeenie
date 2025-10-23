@@ -79,7 +79,7 @@ export function useAutoSave<T>(
       setIsSaving(false)
       onSaveError?.(lastError)
     }
-  }, [dataString, retries, onSaveStart, onSaveSuccess, onSaveError])
+  }, [data, dataString, retries, onSaveStart, onSaveSuccess, onSaveError, saveFn])
 
   // Trigger save on data change
   useEffect(() => {
@@ -96,7 +96,7 @@ export function useAutoSave<T>(
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
-  }, [dataString, immediate, debounceMs, performSave])
+  }, [data, dataString, immediate, debounceMs, performSave])
 
   // BeforeUnload: Flush pending saves
   useEffect(() => {

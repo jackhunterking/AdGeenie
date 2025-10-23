@@ -199,7 +199,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
   const { locationState, addLocations, updateStatus: updateLocationStatus } = useLocation();
   const { setAudienceTargeting, updateStatus: updateAudienceStatus } = useAudience();
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
-  const [, setEditingImages] = useState<Set<string>>(new Set());
+  // removed unused editingImages setter
   const [likedMessages, setLikedMessages] = useState<Set<string>>(new Set());
   
   // Track dispatched events to prevent duplicates (infinite loop prevention)

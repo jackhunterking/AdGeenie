@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 
 interface Step {
@@ -25,17 +25,19 @@ export function ImageEditProgressLoader({ type = "edit" }: ImageEditProgressLoad
   const [elapsedTime, setElapsedTime] = useState(0);
 
   // Define steps based on operation type
-  const steps: Step[] = type === "edit" 
-    ? [
-        { id: 0, label: "Analyzing image", duration: 1500 },
-        { id: 1, label: "Applying changes", duration: 3500 },
-        { id: 2, label: "Finalizing", duration: Infinity },
-      ]
-    : [
-        { id: 0, label: "Generating concept", duration: 1500 },
-        { id: 1, label: "Creating variations", duration: 3500 },
-        { id: 2, label: "Finalizing", duration: Infinity },
-      ];
+  const steps: Step[] = useMemo(() => (
+    type === "edit" 
+      ? [
+          { id: 0, label: "Analyzing image", duration: 1500 },
+          { id: 1, label: "Applying changes", duration: 3500 },
+          { id: 2, label: "Finalizing", duration: Infinity },
+        ]
+      : [
+          { id: 0, label: "Generating concept", duration: 1500 },
+          { id: 1, label: "Creating variations", duration: 3500 },
+          { id: 2, label: "Finalizing", duration: Infinity },
+        ]
+  ), [type]);
 
   // Auto-advance through steps based on elapsed time
   useEffect(() => {

@@ -15,7 +15,15 @@ import { Facebook, Check, Loader2, Building2 } from 'lucide-react'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 
 declare global {
-  interface Window { FB?: any }
+  interface Window { FB?: FBNamespace }
+}
+
+interface FBNamespace {
+  init: (opts: { appId?: string; version?: string; cookie?: boolean }) => void;
+  login: (
+    callback: (response: { authResponse?: { accessToken?: string } }) => void,
+    opts?: { scope?: string }
+  ) => void;
 }
 
 interface PageItem { id: string; name: string; access_token?: string }
@@ -66,7 +74,7 @@ export function MetaConnectStep() {
   const handleConnect = async () => {
     if (!window.FB) return
     setConnecting(true)
-    window.FB.login(async (response: any) => {
+    window.FB.login(async (response: { authResponse?: { accessToken?: string } }) => {
       try {
         if (response?.authResponse?.accessToken && campaign?.id) {
           const res = await fetch('/api/meta/auth/exchange', {

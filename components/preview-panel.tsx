@@ -761,7 +761,7 @@ export function PreviewPanel() {
       number: 5,
       title: "Connect Facebook & Instagram",
       description: "Authenticate and select Page, IG (optional) and Ad Account",
-      completed: (budgetState as any)?.meta_connect_data?.status === 'completed',
+      completed: (budgetState as unknown as { meta_connect_data?: { status?: string } })?.meta_connect_data?.status === 'completed',
       content: <MetaConnectStep />,
       icon: Facebook,
     },
