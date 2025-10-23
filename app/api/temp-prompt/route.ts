@@ -5,6 +5,18 @@ export async function POST(request: NextRequest) {
   try {
     const { promptText, goalType } = await request.json()
 
+    // Optional correlation id for prod debugging
+    const correlationId = request.headers.get('x-request-id') || undefined
+
+    // Guard: ensure required envs are present in runtime (extra safety)
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[TEMP-PROMPT] Missing Supabase server envs', { correlationId })
+      return NextResponse.json(
+        { error: 'Server is misconfigured. Please try again later.' },
+        { status: 500 }
+      )
+    }
+
     if (!promptText || typeof promptText !== 'string') {
       return NextResponse.json(
         { error: 'Prompt text is required' },
@@ -22,7 +34,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error storing temp prompt:', error)
+      console.error('[TEMP-PROMPT] Failed to store prompt', {
+        correlationId,
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+        code: (error as any).code,
+      })
       return NextResponse.json(
         { error: 'Failed to store prompt' },
         { status: 500 }
@@ -31,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ tempId: data.id })
   } catch (error) {
-    console.error('Error in temp-prompt POST:', error)
+    console.error('[TEMP-PROMPT] Unexpected error in POST', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -79,7 +97,7 @@ export async function GET(request: NextRequest) {
       goalType: data.goal_type 
     })
   } catch (error) {
-    console.error('Error in temp-prompt GET:', error)
+    console.error('[TEMP-PROMPT] Unexpected error in GET', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
