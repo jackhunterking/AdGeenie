@@ -49,7 +49,7 @@ import {
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
 import { DefaultChatTransport } from "ai";
-import { generateImage, editImage } from "@/server/images";
+import { generateImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
 import { ImageEditProgressLoader } from "@/components/ai-elements/image-edit-progress-loader";
@@ -324,7 +324,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     } else {
       console.log(`[CLIENT] No messages (expected for new campaign)`);
     }
-  }, [messages.length, initialMessages.length, chatId, status]);
+  }, [messages, initialMessages.length, chatId, status]);
 
   // Track chatId changes (which would cause useChat to reset)
   const prevChatIdRef = useRef(chatId);
@@ -404,8 +404,8 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
       console.log(`[SUBMIT] adEditReference:`, adEditReference);
       
       const normalizedIndexForMeta = toZeroBasedIndex({
-        variationIndex: (adEditReference as any).variationIndex,
-        variationNumber: (adEditReference as any).variationNumber,
+        variationIndex: (adEditReference as unknown as { variationIndex?: number }).variationIndex,
+        variationNumber: (adEditReference as unknown as { variationNumber?: number }).variationNumber,
       });
       messageMetadata.editingReference = {
         type: adEditReference.type,
@@ -992,7 +992,7 @@ Make it conversational and easy to understand for a business owner.`,
                           message.parts
                             // Filter out cancelled tool invocations (AI SDK best practice)
                             .filter((part) => {
-                              const partAny = part as any;
+                              const partAny = part as { type: string; toolCallId?: string; output?: { cancelled?: boolean } };
                               
                               // Hide tool-result parts that indicate cancellation
                               if (part.type === 'tool-result') {
@@ -1297,7 +1297,7 @@ Make it conversational and easy to understand for a business owner.`,
                                           console.log(`[REGEN-COMPLETE] ✅ Dispatched imageEdited event for variation ${finalVariationIndex}`);
                                         }, 0);
                                       }
-                                      return renderRegenerateImageResult({ callId, keyId: `${callId}-regen-output`, output: output as any });
+                                      return renderRegenerateImageResult({ callId, keyId: `${callId}-regen-output`, output });
                                     } else {
                                       console.error(`[REGEN-COMPLETE] ❌ Could not determine variationIndex for canvas update`);
                                       return (
@@ -1504,7 +1504,7 @@ Make it conversational and easy to understand for a business owner.`,
                                           </div>
                                           <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
-                                              <p className="font-semibold text-sm">Got it! We&apos;ll show your ad to these people</p>
+                                              <p className="font-semibold text-sm">Got it! We'll show your ad to these people</p>
                                               <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
                                             </div>
                                             <p className="text-xs text-muted-foreground line-clamp-1">{output.description}</p>

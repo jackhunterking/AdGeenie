@@ -15,7 +15,7 @@ export function AdCopySelectionCanvas() {
   const { adCopyState, setSelectedCopyIndex, getActiveVariations, setCustomCopyVariations } = useAdCopy()
   const activeVariations = getActiveVariations()
   const { adContent, selectedCreativeVariation, loadingVariations, selectedImageIndex } = useAdPreview()
-  const { isGenerating, generationMessage, setIsGenerating, setGenerationMessage } = useGeneration()
+  const { isGenerating, setIsGenerating, setGenerationMessage } = useGeneration()
   const { campaign } = useCampaignContext()
   const { goalState } = useGoal()
   const [activeFormat, setActiveFormat] = useState("feed")
