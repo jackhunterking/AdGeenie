@@ -70,7 +70,7 @@ export function renderRegenerateImageResult(opts: {
           </div>
         </div>
       </div>
-      <p className="text-base font-medium mb-2">Here\'s the updated image:</p>
+      <p className="text-base font-medium mb-2">Here&apos;s the updated image:</p>
       {output.imageUrl && (
         <div className="max-w-md mx-auto my-2">
           <AdMockup format="feed" imageUrl={output.imageUrl} />

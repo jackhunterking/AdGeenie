@@ -102,7 +102,7 @@ export function MigrationNotice({ autoDismissAfter }: MigrationNoticeProps) {
           {/* Body */}
           <div className="mb-4 space-y-2">
             <p className="text-sm text-muted-foreground">
-              We\'ve upgraded our backend architecture for better performance and scalability.
+              We&apos;ve upgraded our backend architecture for better performance and scalability.
             </p>
             
             <ul className="space-y-1.5">

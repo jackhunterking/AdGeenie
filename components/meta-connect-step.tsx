@@ -55,7 +55,6 @@ export function MetaConnectStep() {
       setLoadingSDK(false)
     }
     document.body.appendChild(s)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId])
 
   useEffect(() => {

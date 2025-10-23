@@ -33,7 +33,7 @@ export function useAutoSave<T>(
   const mountedRef = useRef(true)
 
   // Stringify for deep comparison (prevents infinite loops)
-  const dataString = JSON.stringify(data)
+  // Removed separate variable to avoid unused var; compute when needed
 
   const performSave = useCallback(async () => {
     if (!mountedRef.current) return
@@ -55,13 +55,13 @@ export function useAutoSave<T>(
           setLastSaved(new Date())
           setIsSaving(false)
           onSaveSuccess?.()
-          console.log('✅ Auto-save complete')
+          if (process.env.NEXT_PUBLIC_DEBUG === '1') console.log('✅ Auto-save complete')
         }
         return // Success!
 
       } catch (err) {
         lastError = err instanceof Error ? err : new Error('Save failed')
-        console.error(`❌ Save attempt ${attempt}/${retries} failed:`, lastError)
+        if (process.env.NEXT_PUBLIC_DEBUG === '1') console.error(`❌ Save attempt ${attempt}/${retries} failed:`, lastError)
 
         if (attempt < retries) {
           // Exponential backoff: 1s, 2s, 4s
@@ -79,11 +79,12 @@ export function useAutoSave<T>(
       setIsSaving(false)
       onSaveError?.(lastError)
     }
-  }, [data, dataString, retries, onSaveStart, onSaveSuccess, onSaveError, saveFn])
+  }, [data, retries, onSaveStart, onSaveSuccess, onSaveError, saveFn])
 
   // Trigger save on data change
   useEffect(() => {
-    if (JSON.stringify(lastDataRef.current) === dataString) return
+    const nextString = JSON.stringify(data)
+    if (JSON.stringify(lastDataRef.current) === nextString) return
     lastDataRef.current = data
 
     if (immediate) {
@@ -96,7 +97,7 @@ export function useAutoSave<T>(
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
-  }, [data, dataString, immediate, debounceMs, performSave])
+  }, [data, immediate, debounceMs, performSave])
 
   // BeforeUnload: Flush pending saves
   useEffect(() => {

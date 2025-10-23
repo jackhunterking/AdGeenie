@@ -170,7 +170,6 @@ export function PreviewPanel() {
     const editSession = newEditSession({
       variationIndex: index,
       imageUrl: variationImageUrl,
-      campaignId: (adContent as any)?.campaignId,
     })
 
     const referenceContext = {

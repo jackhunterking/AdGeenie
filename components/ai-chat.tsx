@@ -86,7 +86,8 @@ interface MessageMetadata {
   editingReference?: {
     type: string;
     variationTitle: string;
-    variationNumber: number;
+    variationNumber?: number;
+    variationIndex?: number;
     format: 'feed' | 'story' | 'reel';
     imageUrl?: string;
     content?: {
@@ -95,6 +96,7 @@ interface MessageMetadata {
       description?: string;
     };
     gradient?: string;
+    editSession?: { sessionId: string; variationIndex: number };
   };
   audienceContext?: {
     demographics?: string;
@@ -187,7 +189,10 @@ interface AIChatProps {
   campaignId?: string;
   conversationId?: string | null;  // Stable conversation ID from server (AI SDK native pattern)
   messages?: UIMessage[];  // AI SDK v5 prop name
-  campaignMetadata?: any;
+  campaignMetadata?: {
+    initialPrompt?: string;
+    initialGoal?: string | null;
+  };
 }
 
 const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], campaignMetadata }: AIChatProps = {}) => {
@@ -234,10 +239,15 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
           const lastMessage = messages[messages.length - 1];
           
           // Enrich message metadata with goal context (AI SDK v5 pattern)
+          const existingMetaUnknown = (lastMessage as { metadata?: unknown }).metadata;
+          const existingMeta =
+            existingMetaUnknown && typeof existingMetaUnknown === 'object'
+              ? (existingMetaUnknown as Record<string, unknown>)
+              : undefined;
           const enrichedMessage = {
             ...lastMessage,
             metadata: {
-              ...(lastMessage as any).metadata,
+              ...(existingMeta || {}),
               goalType: goalType,
             },
           };
@@ -261,21 +271,24 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     [model, goalType]
   );
   
-  console.log(`[AI-CHAT] ========== INITIALIZATION ==========`);
-  console.log(`[AI-CHAT] conversationId (from server):`, conversationId);
-  console.log(`[AI-CHAT] campaignId:`, campaignId);
-  console.log(`[AI-CHAT] campaign?.conversationId:`, campaign?.conversationId);
-  console.log(`[AI-CHAT] STABLE chatId being used:`, chatId);
-  console.log(`[AI-CHAT] messages.length:`, initialMessages.length);
-  console.log(`[AI-CHAT] messages:`, initialMessages.map(m => {
-    const firstTextPart = m.parts?.find((p: { type: string }) => p.type === 'text') as { text?: string } | undefined;
-    return {
-      id: m.id, 
-      role: m.role,
-      textPreview: firstTextPart?.text?.substring(0, 50) || 'no-text',
-      partsCount: m.parts?.length || 0
-    };
-  }));
+  const DEBUG = process.env.NEXT_PUBLIC_DEBUG === '1';
+  if (DEBUG) {
+    console.log(`[AI-CHAT] ========== INITIALIZATION ==========`);
+    console.log(`[AI-CHAT] conversationId (from server):`, conversationId);
+    console.log(`[AI-CHAT] campaignId:`, campaignId);
+    console.log(`[AI-CHAT] campaign?.conversationId:`, campaign?.conversationId);
+    console.log(`[AI-CHAT] STABLE chatId being used:`, chatId);
+    console.log(`[AI-CHAT] messages.length:`, initialMessages.length);
+    console.log(`[AI-CHAT] messages:`, initialMessages.map(m => {
+      const firstTextPart = m.parts?.find((p: { type: string }) => p.type === 'text') as { text?: string } | undefined;
+      return {
+        id: m.id, 
+        role: m.role,
+        textPreview: firstTextPart?.text?.substring(0, 50) || 'no-text',
+        partsCount: m.parts?.length || 0
+      };
+    }));
+  }
 
   // Simple useChat initialization - AI SDK native pattern (following docs exactly)
   // Uses conversationId for proper AI SDK conversation history
@@ -283,7 +296,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     id: chatId, // Use conversationId (or campaignId for backward compat)
     messages: initialMessages,  // AI SDK v5 prop name
     transport,
-  } as any);
+  });
   
   const { messages, sendMessage, addToolResult, status, stop } = chatHelpers as {
     messages: UIMessage[];
@@ -293,48 +306,56 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     stop: () => void;
   };
   
-  console.log(`[AI-CHAT] useChat returned ${messages.length} messages immediately`);
+  if (DEBUG) console.log(`[AI-CHAT] useChat returned ${messages.length} messages immediately`);
 
   // Debug logging for message display
   useEffect(() => {
-    console.log(`[CLIENT] ========== MESSAGES STATE ==========`);
-    console.log(`[CLIENT] Current messages.length: ${messages.length}`);
-    console.log(`[CLIENT] loaded messages.length: ${initialMessages.length}`);
-    console.log(`[CLIENT] chatId: ${chatId}`);
-    console.log(`[CLIENT] status: ${status}`);
+    if (DEBUG) {
+      console.log(`[CLIENT] ========== MESSAGES STATE ==========`);
+      console.log(`[CLIENT] Current messages.length: ${messages.length}`);
+      console.log(`[CLIENT] loaded messages.length: ${initialMessages.length}`);
+      console.log(`[CLIENT] chatId: ${chatId}`);
+      console.log(`[CLIENT] status: ${status}`);
+    }
     
     if (messages.length > 0) {
-      console.log(`[CLIENT] ✅ Messages are displaying:`, messages.map(m => ({
-        id: m.id,
-        role: m.role,
-        partsCount: m.parts?.length || 0
-      })));
-      console.log(`[CLIENT] First message details:`, {
-        id: messages[0].id,
-        role: messages[0].role,
-        partsCount: messages[0].parts?.length || 0,
-        parts: messages[0].parts
-      });
+      if (DEBUG) {
+        console.log(`[CLIENT] ✅ Messages are displaying:`, messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          partsCount: m.parts?.length || 0
+        })));
+        console.log(`[CLIENT] First message details:`, {
+          id: messages[0].id,
+          role: messages[0].role,
+          partsCount: messages[0].parts?.length || 0,
+          parts: messages[0].parts
+        });
+      }
     } else if (initialMessages.length > 0) {
-      console.error(`[CLIENT] ❌ MESSAGES LOST! Loaded ${initialMessages.length} but messages array is EMPTY`);
-      console.error(`[CLIENT] This means useChat cleared the messages. Possible causes:`);
-      console.error(`[CLIENT] 1. ID mismatch between save and load`);
-      console.error(`[CLIENT] 2. ID changed after useChat initialization`);
-      console.error(`[CLIENT] 3. Message format incompatible with AI SDK`);
+      if (DEBUG) {
+        console.error(`[CLIENT] ❌ MESSAGES LOST! Loaded ${initialMessages.length} but messages array is EMPTY`);
+        console.error(`[CLIENT] This means useChat cleared the messages. Possible causes:`);
+        console.error(`[CLIENT] 1. ID mismatch between save and load`);
+        console.error(`[CLIENT] 2. ID changed after useChat initialization`);
+        console.error(`[CLIENT] 3. Message format incompatible with AI SDK`);
+      }
     } else {
       console.log(`[CLIENT] No messages (expected for new campaign)`);
     }
-  }, [messages, initialMessages.length, chatId, status]);
+  }, [messages, initialMessages.length, chatId, status, DEBUG]);
 
   // Track chatId changes (which would cause useChat to reset)
   const prevChatIdRef = useRef(chatId);
   useEffect(() => {
     if (prevChatIdRef.current !== chatId) {
-      console.warn(`[CLIENT] ⚠️ chatId CHANGED from ${prevChatIdRef.current} to ${chatId}`);
-      console.warn(`[CLIENT] This will cause useChat to RESET and clear messages!`);
+      if (DEBUG) {
+        console.warn(`[CLIENT] ⚠️ chatId CHANGED from ${prevChatIdRef.current} to ${chatId}`);
+        console.warn(`[CLIENT] This will cause useChat to RESET and clear messages!`);
+      }
       prevChatIdRef.current = chatId;
     }
-  }, [chatId]);
+  }, [chatId, DEBUG]);
 
   // Store latest sendMessage in ref (doesn't cause re-renders)
   const sendMessageRef = useRef(sendMessage);
@@ -418,7 +439,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
         ...(activeEditSession?.sessionId && typeof normalizedIndexForMeta === 'number' && {
           editSession: { sessionId: activeEditSession.sessionId, variationIndex: normalizedIndexForMeta }
         })
-      } as any;
+      };
       messageMetadata.editMode = true;
       
       console.log(`[SUBMIT] messageMetadata.editingReference:`, messageMetadata.editingReference);
@@ -899,7 +920,6 @@ Make it conversational and easy to understand for a business owner.`,
   useEffect(() => {
     // Check if AI just asked a question (last message is from assistant)
     if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
       
       // Or if AI is actively streaming/processing
       const isActivelyGenerating = status === 'streaming' || status === 'submitted';
@@ -1132,8 +1152,10 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               // DEBUG: Log all states to see execution flow
                               console.log(`[TOOL-editImage] State: ${part.state}, callId: ${callId}`);
-                              console.log(`[TOOL-editImage] Has output:`, !!(part as any).output);
-                              console.log(`[TOOL-editImage] Has result:`, !!(part as any).result);
+                              const hasOutput = typeof (part as { output?: unknown }).output !== 'undefined';
+                              const hasResult = typeof (part as { result?: unknown }).result !== 'undefined';
+                              console.log(`[TOOL-editImage] Has output:`, hasOutput);
+                              console.log(`[TOOL-editImage] Has result:`, hasResult);
                               
                               switch (part.state) {
                                 case 'input-streaming':
@@ -1179,7 +1201,7 @@ Make it conversational and easy to understand for a business owner.`,
                                   // 4-tier fallback strategy for variationIndex (AI SDK pattern)
                                   if (output.editedImageUrl) {
                                     // Determine index strictly from part (result → input). Do NOT use activeEditSession.
-                                    const finalVariationIndex = (output as any).variationIndex ?? (input as any).variationIndex;
+                                    const finalVariationIndex = output.variationIndex ?? input.variationIndex;
                                     if (typeof finalVariationIndex === 'number' && finalVariationIndex >= 0) {
                                       const eventKey = `${callId}-${finalVariationIndex}`;
                                       
@@ -1204,8 +1226,8 @@ Make it conversational and easy to understand for a business owner.`,
                                   return renderEditImageResult({
                                     callId,
                                     keyId: `${callId}-output-available`,
-                                    input: input as any,
-                                    output: output as any,
+                                    input,
+                                    output,
                                     isSubmitting,
                                   });
                                 }
@@ -1235,8 +1257,10 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               // DEBUG: Log all states to see execution flow
                               console.log(`[TOOL-regenerateImage] State: ${part.state}, callId: ${callId}`);
-                              console.log(`[TOOL-regenerateImage] Has output:`, !!(part as any).output);
-                              console.log(`[TOOL-regenerateImage] Has result:`, !!(part as any).result);
+                              const hasOutput2 = typeof (part as { output?: unknown }).output !== 'undefined';
+                              const hasResult2 = typeof (part as { result?: unknown }).result !== 'undefined';
+                              console.log(`[TOOL-regenerateImage] Has output:`, hasOutput2);
+                              console.log(`[TOOL-regenerateImage] Has result:`, hasResult2);
                               
                               switch (part.state) {
                                 case 'input-streaming':
@@ -1283,7 +1307,7 @@ Make it conversational and easy to understand for a business owner.`,
                                   // Handle single variation regeneration (edit mode)
                                   // 4-tier fallback strategy for variationIndex (AI SDK pattern)
                                   if (output.imageUrl) {
-                                    const finalVariationIndex = (output as any).variationIndex ?? (input as any).variationIndex;
+                                    const finalVariationIndex = output.variationIndex ?? input.variationIndex;
                                     if (typeof finalVariationIndex === 'number' && finalVariationIndex >= 0) {
                                       const eventKey = `${callId}-regen-${finalVariationIndex}`;
                                       if (!dispatchedEvents.current.has(eventKey)) {
@@ -1302,7 +1326,7 @@ Make it conversational and easy to understand for a business owner.`,
                                       console.error(`[REGEN-COMPLETE] ❌ Could not determine variationIndex for canvas update`);
                                       return (
                                         <div key={callId} className="border rounded-lg p-3 my-2 bg-yellow-500/5 border-yellow-500/30">
-                                          <p className="text-sm text-yellow-600">Image regenerated but couldn't update canvas position</p>
+                                          <p className="text-sm text-yellow-600">Image regenerated but couldn&apos;t update canvas position</p>
                                         </div>
                                       );
                                     }
@@ -1504,7 +1528,7 @@ Make it conversational and easy to understand for a business owner.`,
                                           </div>
                                           <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
-                                              <p className="font-semibold text-sm">Got it! We'll show your ad to these people</p>
+                                              <p className="font-semibold text-sm">Got it! We&apos;ll show your ad to these people</p>
                                               <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
                                             </div>
                                             <p className="text-xs text-muted-foreground line-clamp-1">{output.description}</p>
