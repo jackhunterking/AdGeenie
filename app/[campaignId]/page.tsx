@@ -37,10 +37,14 @@ function dbToUIMessage(stored: DBMessage): UIMessage {
     ...(hasToolInvocations ? { toolInvocations: stored.tool_invocations } : {})
   } as UIMessage;
   
+  const toolPartsCount = Array.isArray(uiMessage.parts)
+    ? uiMessage.parts.filter((p) => typeof (p as { type?: unknown })?.type === 'string' && String((p as { type?: unknown }).type).startsWith('tool-')).length
+    : 0;
+
   console.log(`[SERVER] Converted message ${stored.id}:`, {
     role: uiMessage.role,
     partsCount: uiMessage.parts?.length || 0,
-    toolInvocationsCount: uiMessage.toolInvocations?.length || 0
+    toolPartsCount
   });
   
   return uiMessage;
