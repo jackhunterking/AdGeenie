@@ -105,6 +105,51 @@ function HomeContent() {
     handlePostAuth()
   }, [user, loading, router, searchParams, createCampaign])
 
+  // Handle normal sign-in or OAuth sign-in: consume temp_prompt_id from localStorage
+  useEffect(() => {
+    const tryConsumeLocalTempPrompt = async () => {
+      if (loading || !user) return
+
+      // Avoid double runs across reloads
+      const alreadyProcessing = sessionStorage.getItem('processed_temp_prompt')
+      if (alreadyProcessing) return
+
+      const tempPromptId = typeof window !== 'undefined'
+        ? localStorage.getItem('temp_prompt_id')
+        : null
+
+      if (!tempPromptId) return
+
+      sessionStorage.setItem('processed_temp_prompt', 'true')
+      setProcessingPrompt(true)
+
+      try {
+        const res = await fetch('/api/campaigns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Untitled Campaign', tempPromptId }),
+        })
+
+        if (!res.ok) {
+          console.error('[HOMEPAGE] Failed to create campaign from temp prompt:', await res.text())
+          sessionStorage.removeItem('processed_temp_prompt')
+          setProcessingPrompt(false)
+          return
+        }
+
+        localStorage.removeItem('temp_prompt_id')
+        const { campaign } = await res.json()
+        router.push(`/${campaign.id}`)
+      } catch (e) {
+        console.error('[HOMEPAGE] Error creating campaign from temp prompt:', e)
+        sessionStorage.removeItem('processed_temp_prompt')
+        setProcessingPrompt(false)
+      }
+    }
+
+    tryConsumeLocalTempPrompt()
+  }, [user, loading, router])
+
   const handleSignInClick = () => {
     setAuthTab('signin')
     setAuthModalOpen(true)

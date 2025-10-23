@@ -16,6 +16,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Flag } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 
 interface HeroSectionProps {
@@ -92,6 +93,7 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedGoal, setSelectedGoal] = useState<string>('leads')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const animatedPlaceholder = useTypewriterPlaceholder()
 
   const handleSubmit = async (message: { text?: string }) => {
@@ -99,6 +101,7 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
     if (!promptText || !selectedGoal) return
 
     setIsSubmitting(true)
+    setErrorMsg(null)
 
     try {
       if (!user) {
@@ -117,6 +120,7 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
           onAuthRequired()
         } else {
           console.error('Failed to store prompt')
+          setErrorMsg('We could not start your session. Please try again in a moment.')
         }
       } else {
         // User is logged in - create campaign using context with goal
@@ -176,6 +180,13 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
 
         {/* Prompt input */}
         <div className="max-w-2xl mx-auto pt-6">
+          {errorMsg && (
+            <div className="mb-4">
+              <Alert variant="destructive">
+                <AlertDescription>{errorMsg}</AlertDescription>
+              </Alert>
+            </div>
+          )}
           <PromptInput onSubmit={handleSubmit}>
             <PromptInputBody>
               <PromptInputTextarea 
