@@ -49,21 +49,20 @@ export function PreviewPanel() {
       
       console.log(`[CANVAS] Received imageEdited event for variation ${variationIndex}:`, newImageUrl);
       
-      // Update ad content with new image URL
-      if (!adContent?.imageVariations) {
-        console.warn(`[CANVAS] No imageVariations to update`);
-        return;
-      }
-      
-      const updatedVariations = [...adContent.imageVariations];
-      updatedVariations[variationIndex] = newImageUrl;
-      
-      console.log(`[CANVAS] ✅ Updated variation ${variationIndex} with new image`);
-      console.log(`[CANVAS] 📤 Auto-save will trigger (context change)`);
-      
-      setAdContent({
-        ...adContent,
-        imageVariations: updatedVariations,
+      // Update ad content with new image URL using functional update to avoid stale closure
+      setAdContent((prev) => {
+        if (!prev?.imageVariations) {
+          console.warn(`[CANVAS] No imageVariations to update`);
+          return prev;
+        }
+        const updatedVariations = [...prev.imageVariations];
+        updatedVariations[variationIndex] = newImageUrl;
+        console.log(`[CANVAS] ✅ Updated variation ${variationIndex} with new image`);
+        console.log(`[CANVAS] 📤 Auto-save will trigger (context change)`);
+        return {
+          ...prev,
+          imageVariations: updatedVariations,
+        };
       });
     };
     

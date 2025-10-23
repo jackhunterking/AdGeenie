@@ -21,7 +21,7 @@ interface CreativeVariation {
 
 interface AdPreviewContextType {
   adContent: AdContent | null
-  setAdContent: (content: AdContent | null) => void
+  setAdContent: React.Dispatch<React.SetStateAction<AdContent | null>>
   isPublished: boolean
   setIsPublished: (published: boolean) => void
   selectedCreativeVariation: CreativeVariation | null
