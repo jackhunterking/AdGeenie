@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     const adAccounts = Array.isArray(adActsJson.data) ? adActsJson.data : []
 
     return NextResponse.json({ pages, adAccounts })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       .eq('campaign_id', campaignId)
 
     return NextResponse.json({ summary })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

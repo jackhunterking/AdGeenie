@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     const instagram = json.instagram_business_account || null
 
     return NextResponse.json({ instagram })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
