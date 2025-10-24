@@ -10,10 +10,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
-const FB_GRAPH_VERSION = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
-const FB_APP_SECRET = process.env.FB_APP_SECRET as string
-const FB_APP_ID = process.env.FB_APP_ID as string
-
 function decodeSignedRequest(signedRequest: string) {
   // The format is base64url(signature).base64url(payload)
   const [_encodedSig, encodedPayload] = signedRequest.split('.')
@@ -28,8 +24,17 @@ function decodeSignedRequest(signedRequest: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Read environment variables at runtime
+    const FB_GRAPH_VERSION = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION
+    const FB_APP_SECRET = process.env.FB_APP_SECRET
+    const FB_APP_ID = process.env.FB_APP_ID
+
     if (!FB_APP_SECRET || !FB_APP_ID) {
       return NextResponse.json({ error: 'Server missing FB app credentials' }, { status: 500 })
+    }
+
+    if (!FB_GRAPH_VERSION) {
+      return NextResponse.json({ error: 'Server missing FB_GRAPH_VERSION' }, { status: 500 })
     }
 
     const { campaignId, signedRequest, requestId } = await req.json() as { campaignId?: string, signedRequest?: string, requestId?: string }
@@ -99,7 +104,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ summary })
   } catch (error) {
-    console.error('[META] business-login callback error', error)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

@@ -38,6 +38,22 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+        <Script
+          id="facebook-sdk-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.fbAsyncInit = function() {
+                FB.init({
+                  appId: '${process.env.NEXT_PUBLIC_FB_APP_ID}',
+                  cookie: true,
+                  xfbml: true,
+                  version: '${process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'}'
+                });
+              };
+            `
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -45,7 +61,7 @@ export default function RootLayout({
         <Script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" strategy="beforeInteractive" />
         <Script 
           src="https://connect.facebook.net/en_US/sdk.js"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           async
           defer
           crossOrigin="anonymous"

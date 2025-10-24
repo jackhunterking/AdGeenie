@@ -10,10 +10,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
-const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION || 'v20.0'
-
 export async function GET(req: NextRequest) {
   try {
+    // Read environment variables at runtime
+    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION
+
+    if (!FB_GRAPH_VERSION) {
+      return NextResponse.json({ error: 'Server missing FB_GRAPH_VERSION' }, { status: 500 })
+    }
+
     const { searchParams } = new URL(req.url)
     const campaignId = searchParams.get('campaignId')
     if (!campaignId) {
@@ -53,7 +58,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ pages, adAccounts })
   } catch (err) {
-    console.error('[META] Assets error', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

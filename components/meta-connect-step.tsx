@@ -2,9 +2,8 @@
 
 /**
  * Feature: Meta Connect Step UI
- * Purpose: Use Meta business_login dialog with Promise-based SDK utilities
+ * Purpose: Use Meta business_login dialog
  * References:
- *  - Medium Article: https://innocentanyaele.medium.com/how-to-use-facebook-js-sdk-for-login-on-react-or-next-js-5b988e7971df
  *  - Facebook JS SDK Quickstart: https://developers.facebook.com/docs/javascript/quickstart/
  *  - Business Login: https://developers.facebook.com/docs/business-apps/business-login
  */
@@ -14,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Facebook, Check, Loader2, Link2 } from 'lucide-react'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { initFacebookSdk, fbBusinessLogin } from '@/lib/utils/facebook-sdk'
+import { fbBusinessLogin } from '@/lib/utils/facebook-sdk'
 
 interface SummaryData {
   businessId?: string
@@ -24,7 +23,6 @@ interface SummaryData {
   pixel?: { id: string; name: string } | null
 }
 
-// Shape of meta_connect_data as stored in campaign state
 interface RawMetaConnectData {
   status?: string
   businessId?: string
@@ -45,18 +43,13 @@ export function MetaConnectStep() {
   const [connecting, setConnecting] = useState(false)
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'loading-sdk' | 'launching' | 'exchanging' | 'success' | 'error'>(
-    'idle'
-  )
+  const [status, setStatus] = useState<'idle' | 'launching' | 'exchanging' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [sdkReady, setSdkReady] = useState(false)
 
   const isConnected = useMemo(() => Boolean(summary?.page && summary?.adAccount), [summary])
 
   const statusMessage = useMemo(() => {
     switch (status) {
-      case 'loading-sdk':
-        return 'Loading the Meta SDK...'
       case 'launching':
         return 'Opening Meta to select your business assets...'
       case 'exchanging':
@@ -70,7 +63,6 @@ export function MetaConnectStep() {
     }
   }, [status, error])
 
-  // Load saved connection summary from campaign state if available
   useEffect(() => {
     const hydrate = async () => {
       if (!campaign?.id) return
@@ -93,32 +85,11 @@ export function MetaConnectStep() {
     hydrate()
   }, [campaign?.id])
 
-  // Initialize Facebook SDK using Promise-based pattern
-  useEffect(() => {
-    console.log('[META CONNECT] Initializing Facebook SDK...')
-    setStatus('loading-sdk')
-    
-    initFacebookSdk()
-      .then(() => {
-        console.log('[META CONNECT] SDK ready')
-        setSdkReady(true)
-        setStatus('idle')
-      })
-      .catch((error) => {
-        console.error('[META CONNECT] SDK initialization failed:', error)
-        setError(error.message || 'Failed to load Facebook SDK. Please refresh and try again.')
-        setStatus('error')
-      })
-  }, [])
-
   const handleConnect = useCallback(async () => {
-    if (!campaign?.id) {
-      console.error('[META CONNECT] No campaign id')
-      return
-    }
+    if (!campaign?.id) return
 
-    if (!sdkReady) {
-      setError('Facebook SDK is not ready yet. Please wait a moment.')
+    if (!window.FB) {
+      setError('Facebook SDK not loaded. Please refresh the page.')
       setStatus('error')
       setDialogOpen(true)
       return
@@ -129,7 +100,6 @@ export function MetaConnectStep() {
       setDialogOpen(true)
       setStatus('launching')
 
-      // Use Promise-based business login
       const response = await fbBusinessLogin(campaign.id, [
         'business_management',
         'pages_show_list',
@@ -142,7 +112,6 @@ export function MetaConnectStep() {
 
       setStatus('exchanging')
 
-      // Exchange with backend
       const res = await fetch('/api/meta/business-login/callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,7 +125,6 @@ export function MetaConnectStep() {
       const json = await res.json()
 
       if (!res.ok) {
-        console.error('[META CONNECT] Callback failed', json)
         throw new Error('Could not finalize Meta connection')
       }
 
@@ -174,20 +142,17 @@ export function MetaConnectStep() {
       setStatus('success')
       setConnecting(false)
     } catch (err) {
-      console.error('[META CONNECT] Error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred while connecting to Meta.')
       setStatus('error')
       setConnecting(false)
     }
-  }, [campaign?.id, sdkReady])
+  }, [campaign?.id])
 
   const handleDisconnect = async () => {
     if (!campaign?.id) return
     setSummary(null)
     await saveCampaignState('meta_connect_data', { status: 'disconnected' })
   }
-
-  // No local save button; Meta dialog drives selection and we persist via callback
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-8">
@@ -200,13 +165,11 @@ export function MetaConnectStep() {
             <h3 className="text-xl font-semibold">Connect Facebook & Instagram</h3>
             <p className="text-sm text-muted-foreground">Authenticate your Facebook, Instagram, and Ad Account to advertise with Meta.</p>
             <div className="flex items-center justify-center gap-2 mt-1">
-              {/* Facebook native logo */}
               <div className="h-6 w-6 rounded-md overflow-hidden bg-white flex items-center justify-center border border-border">
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#1877F2" aria-hidden="true">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
               </div>
-              {/* Instagram native logo */}
               <div className="h-6 w-6 rounded-md overflow-hidden bg-white flex items-center justify-center border border-border">
                 <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
                   <defs>
@@ -220,28 +183,18 @@ export function MetaConnectStep() {
                 </svg>
               </div>
             </div>
-            {!sdkReady && (
-              <p className="text-xs text-yellow-600 dark:text-yellow-500">
-                Loading Facebook SDK...
-              </p>
-            )}
           </div>
           {!isConnected && (
             <Button
               size="lg"
               onClick={handleConnect}
-              disabled={connecting || !sdkReady}
+              disabled={connecting}
               className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-8 mt-auto"
             >
               {connecting ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Connecting...
-                </span>
-              ) : !sdkReady ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading...
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2">
@@ -313,5 +266,3 @@ export function MetaConnectStep() {
     </div>
   )
 }
-
-
