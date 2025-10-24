@@ -38,27 +38,21 @@ const SingleRequestSchema = z.object({
   businessContext: z.string().optional(),
 })
 
-const CopySchema = z.object({
-  variations: z
-    .array(
-      z.object({
-        angle: z.string(),
-        primaryText: z.string().min(20).max(180),
-        headline: z.string().min(3).max(60),
-        description: z.string().min(3).max(80),
-        usesEmojis: z.boolean(),
-      }),
-    )
-    .length(6),
+// Loosen schema to reduce model mismatch while keeping essential fields required
+const CopyItemSchema = z.object({
+  primaryText: z.string().min(12).max(220),
+  headline: z.string().min(3).max(80),
+  description: z.string().min(3).max(120),
+  // Optional metadata fields; not used by UI but helpful for analysis
+  angle: z.string().optional(),
+  usesEmojis: z.boolean().optional(),
 })
 
-const SingleCopySchema = z.object({
-  angle: z.string(),
-  primaryText: z.string().min(20).max(180),
-  headline: z.string().min(3).max(60),
-  description: z.string().min(3).max(80),
-  usesEmojis: z.boolean(),
+const CopySchema = z.object({
+  variations: z.array(CopyItemSchema).length(6),
 })
+
+const SingleCopySchema = CopyItemSchema
 
 const SYSTEM_INSTRUCTIONS = `You are an expert Meta ads copywriter. Write six unique ad copy variations for the same creative.
 

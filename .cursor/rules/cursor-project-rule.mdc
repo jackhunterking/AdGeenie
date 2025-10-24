@@ -26,6 +26,7 @@ Guarantee every feature is designed and implemented using the official reference
 4. **No ad‑hoc providers or unvetted libs.** If a feature needs a new model/provider, it must go through AI Gateway and follow AI SDK docs.
 5. **Type safety & envs.** Strong TypeScript types, zod (or equivalent) for I/O boundaries, and `env` variables managed via `.env.local` with typed access.
 6. This project must use **Vercel AI SDK V5 versioning ONLY. DO NOT USE LOWER VERSIONS.
+7. This will be build in vercel se pay attention to potential typescripts errors and eslint errors.
 
 ## Definition of Done (per task)
 

@@ -1157,7 +1157,8 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               switch (part.state) {
                                 case 'input-streaming':
-                                  // Server-side execution - show animated progress loader
+                                case 'input-available':
+                                  // Server-side execution - keep animated progress loader visible until output arrives
                                   return <ImageEditProgressLoader key={callId} type="edit" />;
                                 
                                 case 'output-available': {
@@ -1261,7 +1262,8 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               switch (part.state) {
                                 case 'input-streaming':
-                                  // Server-side execution - show animated progress loader
+                                case 'input-available':
+                                  // Server-side execution - keep animated progress loader visible until output arrives
                                   return <ImageEditProgressLoader key={callId} type="regenerate" />;
                                 
                                 case 'output-available': {
