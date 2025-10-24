@@ -11,7 +11,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { generateObject } from 'ai';
 import { getModel } from '@/lib/ai/gateway-provider';
-import { SingleCopySchema } from '@/app/api/ad-copy/generate/route';
+import { SingleCopySchema } from '@/lib/ai/schemas/ad-copy';
 
 export const editAdCopyTool = tool({
   description: 'Rewrite ad copy (primaryText, headline, description) for an existing variation based on user instructions.',

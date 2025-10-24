@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { generateObject } from 'ai'
 import { getModel } from '@/lib/ai/gateway-provider'
 import { createServerClient } from '@/lib/supabase/server'
+import { CopySchema, SingleCopySchema } from '@/lib/ai/schemas/ad-copy'
 
 const BatchRequestSchema = z.object({
   campaignId: z.string().optional(),
@@ -38,21 +39,7 @@ const SingleRequestSchema = z.object({
   businessContext: z.string().optional(),
 })
 
-// Loosen schema to reduce model mismatch while keeping essential fields required
-export const CopyItemSchema = z.object({
-  primaryText: z.string().min(12).max(220),
-  headline: z.string().min(3).max(80),
-  description: z.string().min(3).max(120),
-  // Optional metadata fields; not used by UI but helpful for analysis
-  angle: z.string().optional(),
-  usesEmojis: z.boolean().optional(),
-})
-
-const CopySchema = z.object({
-  variations: z.array(CopyItemSchema).length(6),
-})
-
-export const SingleCopySchema = CopyItemSchema
+// Schemas are shared from lib/ai/schemas to avoid Next.js route export validation issues
 
 const SYSTEM_INSTRUCTIONS = `You are an expert Meta ads copywriter. Write six unique ad copy variations for the same creative.
 
