@@ -57,7 +57,6 @@ export function MetaConnectStep() {
   const [connecting, setConnecting] = useState(false)
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const appId = process.env.NEXT_PUBLIC_FB_APP_ID
-  const businessId = process.env.NEXT_PUBLIC_FB_BUSINESS_ID
 
   const isConnected = useMemo(() => Boolean(summary?.page && summary?.adAccount), [summary])
 
@@ -68,6 +67,10 @@ export function MetaConnectStep() {
     const s = document.createElement('script')
     s.src = 'https://connect.facebook.net/en_US/sdk.js'
     s.async = true
+    s.onerror = () => {
+      console.error('[META] Failed to load Facebook SDK. Check blockers/CSP.')
+      setLoadingSDK(false)
+    }
     s.onload = () => {
       window.FB?.init({ appId, version: process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0', cookie: true })
       setLoadingSDK(false)
@@ -99,12 +102,18 @@ export function MetaConnectStep() {
   }, [campaign?.id])
 
   const handleConnect = () => {
-    if (!window.FB || !campaign?.id || !businessId) return
+    if (!window.FB) {
+      console.error('[META] FB SDK not available (window.FB is undefined).')
+      return
+    }
+    if (!campaign?.id) {
+      console.error('[META] No campaign id available.')
+      return
+    }
     setConnecting(true)
     try {
       window.FB.ui({
         method: 'business_login',
-        business_id: businessId,
         display: 'popup',
         // Graph v24 is configured globally via init
         permissions: [
