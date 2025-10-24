@@ -1423,11 +1423,26 @@ Make it conversational and easy to understand for a business owner.`,
                                   }
                                 }
 
+                                // Resolve the correct image and format to mirror the preview mock-up
+                                const variationIndex = output.variationIndex;
+                                const resolvedFormat =
+                                  (adEditReference as unknown as { format?: 'feed' | 'story' })?.format ?? 'feed';
+
+                                const resolvedImageUrl =
+                                  typeof variationIndex === 'number'
+                                    ? (adContent?.imageVariations?.[variationIndex] ??
+                                       (adEditReference as unknown as { imageUrl?: string })?.imageUrl ??
+                                       adContent?.imageUrl)
+                                    : (adEditReference as unknown as { imageUrl?: string })?.imageUrl ??
+                                      adContent?.imageUrl;
+
                                 return renderEditAdCopyResult({
                                   callId,
                                   keyId: `${callId}-output-available`,
                                   input,
                                   output,
+                                  imageUrl: resolvedImageUrl,
+                                  format: resolvedFormat,
                                 });
                               }
                               case 'output-error':

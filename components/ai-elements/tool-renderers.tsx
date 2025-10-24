@@ -85,8 +85,10 @@ export function renderEditAdCopyResult(opts: {
   keyId?: string;
   input: { prompt?: string; current?: { primaryText?: string; headline?: string; description?: string } };
   output: { success?: boolean; copy?: { primaryText: string; headline: string; description: string } };
+  imageUrl?: string;
+  format?: 'feed' | 'story';
 }): React.JSX.Element {
-  const { callId, keyId, output } = opts;
+  const { callId, keyId, output, imageUrl, format } = opts;
   const copy = output.copy;
   return (
     <Fragment key={keyId || callId}>
@@ -101,7 +103,13 @@ export function renderEditAdCopyResult(opts: {
       </div>
       {copy && (
         <div className="max-w-md mx-auto my-2">
-          <AdMockup format="feed" primaryText={copy.primaryText} headline={copy.headline} description={copy.description} />
+          <AdMockup 
+            format={format ?? 'feed'} 
+            imageUrl={imageUrl}
+            primaryText={copy.primaryText} 
+            headline={copy.headline} 
+            description={copy.description} 
+          />
         </div>
       )}
     </Fragment>
