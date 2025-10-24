@@ -130,7 +130,7 @@ export function MetaConnectStep() {
           ],
           payload: { campaignId: campaign.id },
         },
-        async (response: unknown) => {
+        (response: unknown) => {
           const resp = response as { signed_request?: string; request_id?: string }
           if (!resp?.signed_request || !resp?.request_id) {
             setError('The Meta login was cancelled or did not return any data.')
@@ -140,44 +140,46 @@ export function MetaConnectStep() {
           }
 
           setStatus('exchanging')
-          try {
-            const res = await fetch('/api/meta/business-login/callback', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                campaignId: campaign.id,
-                signedRequest: resp.signed_request,
-                requestId: resp.request_id,
-              }),
-            })
-            const json = await res.json()
-            if (!res.ok) {
-              console.error('[META] business-login callback failed', json)
-              setError('We could not finalize the Meta connection. Please try again.')
+          ;(async () => {
+            try {
+              const res = await fetch('/api/meta/business-login/callback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  campaignId: campaign.id,
+                  signedRequest: resp.signed_request,
+                  requestId: resp.request_id,
+                }),
+              })
+              const json = await res.json()
+              if (!res.ok) {
+                console.error('[META] business-login callback failed', json)
+                setError('We could not finalize the Meta connection. Please try again.')
+                setStatus('error')
+                setConnecting(false)
+                return
+              }
+
+              const data = json?.summary as SummaryData | undefined
+              if (data) {
+                setSummary({
+                  businessId: data.businessId,
+                  page: data.page,
+                  instagram: data.instagram ?? null,
+                  adAccount: data.adAccount,
+                  pixel: data.pixel ?? null,
+                })
+              }
+
+              setStatus('success')
+              setConnecting(false)
+            } catch (err) {
+              console.error('[META] business-login error', err)
+              setError('A network error occurred while finalizing the Meta connection.')
               setStatus('error')
               setConnecting(false)
-              return
             }
-
-            const data = json?.summary as SummaryData | undefined
-            if (data) {
-              setSummary({
-                businessId: data.businessId,
-                page: data.page,
-                instagram: data.instagram ?? null,
-                adAccount: data.adAccount,
-                pixel: data.pixel ?? null,
-              })
-            }
-
-            setStatus('success')
-            setConnecting(false)
-          } catch (err) {
-            console.error('[META] business-login error', err)
-            setError('A network error occurred while finalizing the Meta connection.')
-            setStatus('error')
-            setConnecting(false)
-          }
+          })()
         }
       )
     } catch (e) {
