@@ -36,7 +36,8 @@ export default function PostVerifyPage() {
 
       try {
         const localId = typeof window !== "undefined" ? localStorage.getItem("temp_prompt_id") : null
-        const metaId = (user as any)?.user_metadata?.temp_prompt_id as string | undefined
+        const meta = (user?.user_metadata ?? {}) as { temp_prompt_id?: unknown }
+        const metaId = typeof meta.temp_prompt_id === "string" ? meta.temp_prompt_id : undefined
         const idToUse = localId || metaId || null
 
         if (!idToUse) {

@@ -42,7 +42,9 @@ export default function PostLoginPage() {
           : null
 
         // If we have no local id, try user metadata as a fallback (e.g., email flows)
-        const metaPromptId = (user as any)?.user_metadata?.temp_prompt_id as string | undefined
+        // Safely read metadata without using any
+        const meta = (user?.user_metadata ?? {}) as { temp_prompt_id?: unknown }
+        const metaPromptId = typeof meta.temp_prompt_id === "string" ? meta.temp_prompt_id : undefined
 
         const idToUse = tempPromptId || metaPromptId || null
 
@@ -80,7 +82,7 @@ export default function PostLoginPage() {
         }
 
         router.replace(`/${campaign.id}`)
-      } catch (_err) {
+      } catch {
         router.replace("/")
       }
     }
