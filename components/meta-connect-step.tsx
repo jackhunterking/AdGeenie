@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Facebook, Check, Loader2, Link2 } from 'lucide-react'
 import { useCampaignContext } from '@/lib/context/campaign-context'
@@ -53,30 +54,18 @@ interface RawMetaConnectData {
 
 export function MetaConnectStep() {
   const { campaign, saveCampaignState } = useCampaignContext()
-  const [loadingSDK, setLoadingSDK] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [summary, setSummary] = useState<SummaryData | null>(null)
-  const appId = process.env.NEXT_PUBLIC_FB_APP_ID
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const isConnected = useMemo(() => Boolean(summary?.page && summary?.adAccount), [summary])
 
-  useEffect(() => {
-    if (!appId) return
-    if (window.FB) return
-    setLoadingSDK(true)
-    const s = document.createElement('script')
-    s.src = 'https://connect.facebook.net/en_US/sdk.js'
-    s.async = true
-    s.onerror = () => {
-      console.error('[META] Failed to load Facebook SDK. Check blockers/CSP.')
-      setLoadingSDK(false)
-    }
-    s.onload = () => {
-      window.FB?.init({ appId, version: process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0', cookie: true })
-      setLoadingSDK(false)
-    }
-    document.body.appendChild(s)
-  }, [appId])
+  const returnPath = useMemo(() => {
+    if (!pathname) return null
+    const query = searchParams.toString()
+    return `${pathname}${query ? `?${query}` : ''}`
+  }, [pathname, searchParams])
 
   // Load saved connection summary from campaign state if available
   useEffect(() => {
@@ -102,69 +91,18 @@ export function MetaConnectStep() {
   }, [campaign?.id])
 
   const handleConnect = () => {
-    if (!window.FB) {
-      console.error('[META] FB SDK not available (window.FB is undefined).')
-      return
-    }
     if (!campaign?.id) {
       console.error('[META] No campaign id available.')
       return
     }
     setConnecting(true)
-    try {
-      window.FB.ui({
-        method: 'business_login',
-        display: 'popup',
-        // Graph v24 is configured globally via init
-        permissions: [
-          'business_management',
-          'pages_show_list',
-          'pages_read_engagement',
-          'pages_manage_metadata',
-          'instagram_basic',
-          'ads_read',
-          'ads_management'
-        ],
-        payload: { campaignId: campaign.id }
-      }, (response: unknown) => {
-        const resp = response as { signed_request?: string; request_id?: string }
-        // If user cancels or Meta returns no data, stop the spinner and exit
-        if (!resp?.signed_request || !resp?.request_id) {
-          setConnecting(false)
-          return
-        }
-        ;(async () => {
-          try {
-            const res = await fetch('/api/meta/business-login/callback', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                campaignId: campaign.id,
-                signedRequest: resp.signed_request,
-                requestId: resp.request_id,
-              })
-            })
-            const json = await res.json()
-            if (res.ok) {
-              setSummary(json.summary as SummaryData)
-              await saveCampaignState('meta_connect_data', {
-                status: 'connected',
-                ...json.summary,
-              } as unknown as Record<string, unknown>)
-            } else {
-              console.error('[META] business-login callback failed', json)
-            }
-          } catch (e) {
-            console.error('[META] business-login error', e)
-          } finally {
-            setConnecting(false)
-          }
-        })()
-      })
-    } catch (err) {
-      console.error('[META] FB.ui invocation error', err)
-      setConnecting(false)
+    if (typeof window === 'undefined') return
+    const url = new URL('/meta/oauth/start', window.location.origin)
+    url.searchParams.set('campaignId', campaign.id)
+    if (returnPath) {
+      url.searchParams.set('return', returnPath)
     }
+    window.location.href = url.toString()
   }
 
   const handleDisconnect = async () => {
@@ -212,10 +150,10 @@ export function MetaConnectStep() {
             <Button
               size="lg"
               onClick={handleConnect}
-              disabled={connecting || loadingSDK}
+              disabled={connecting}
               className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-8 mt-auto"
             >
-              {connecting || loadingSDK ? (
+              {connecting ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Connecting...

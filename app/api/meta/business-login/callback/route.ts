@@ -12,6 +12,7 @@ import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
 const FB_GRAPH_VERSION = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
 const FB_APP_SECRET = process.env.FB_APP_SECRET as string
+const FB_APP_ID = process.env.FB_APP_ID as string
 
 function decodeSignedRequest(signedRequest: string) {
   // The format is base64url(signature).base64url(payload)
@@ -27,8 +28,8 @@ function decodeSignedRequest(signedRequest: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!FB_APP_SECRET) {
-      return NextResponse.json({ error: 'Server missing FB app secret' }, { status: 500 })
+    if (!FB_APP_SECRET || !FB_APP_ID) {
+      return NextResponse.json({ error: 'Server missing FB app credentials' }, { status: 500 })
     }
 
     const { campaignId, signedRequest, requestId } = await req.json() as { campaignId?: string, signedRequest?: string, requestId?: string }
@@ -55,9 +56,9 @@ export async function POST(req: NextRequest) {
     const { payload: _payload } = decodeSignedRequest(signedRequest)
     // Payload may contain business info; selections are retrieved using request_id via Graph API
 
-    // Retrieve assets selected during embedded signup
-    // Doc references vary by program; using generic endpoint here for illustration
-    const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(requestId)}?fields=client_business{id},selected_ad_account{id,name},selected_page{id,name},selected_instagram_account{id,username},selected_pixel{id,name}`
+    // Retrieve assets selected during embedded signup (requires app access token)
+    const appAccessToken = `${FB_APP_ID}|${FB_APP_SECRET}`
+    const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(requestId)}?fields=client_business{id},selected_ad_account{id,name},selected_page{id,name},selected_instagram_account{id,username},selected_pixel{id,name}&access_token=${encodeURIComponent(appAccessToken)}`
     const res = await fetch(url)
     const json = await res.json()
 
