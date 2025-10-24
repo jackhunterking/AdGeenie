@@ -173,9 +173,9 @@ export function MetaConnectStep() {
 
       setStatus('success')
       setConnecting(false)
-    } catch (err: any) {
+    } catch (err) {
       console.error('[META CONNECT] Error:', err)
-      setError(err.message || 'An error occurred while connecting to Meta.')
+      setError(err instanceof Error ? err.message : 'An error occurred while connecting to Meta.')
       setStatus('error')
       setConnecting(false)
     }

@@ -93,9 +93,9 @@ function MetaOauthStartContent() {
       redirectTimeoutRef.current = setTimeout(() => {
         redirectBack()
       }, 1200)
-    } catch (err: any) {
+    } catch (err) {
       console.error('[META OAUTH] business-login error', err)
-      setError(err.message || 'An error occurred while connecting to Meta.')
+      setError(err instanceof Error ? err.message : 'An error occurred while connecting to Meta.')
       setStatus('error')
     }
   }, [campaignId, redirectBack, sdkReady])

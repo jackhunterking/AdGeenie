@@ -116,7 +116,7 @@ export const fbBusinessLogin = (
         permissions,
         payload: { campaignId },
       },
-      (response: any) => {
+      (response: unknown) => {
         console.log('[FB SDK] business_login response:', response)
 
         // User closed the dialog
