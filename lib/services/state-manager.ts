@@ -23,7 +23,8 @@ type StateField =
   | 'ad_copy_data'
   | 'ad_preview_data'
   | 'budget_data'
-  | 'generated_images';
+  | 'generated_images'
+  | 'meta_connect_data';
 
 // ============================================
 // State Manager Service
