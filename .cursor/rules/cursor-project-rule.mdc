@@ -28,6 +28,193 @@ Guarantee every feature is designed and implemented using the official reference
 6. This project must use **Vercel AI SDK V5 versioning ONLY. DO NOT USE LOWER VERSIONS.
 7. This will be build in vercel se pay attention to potential typescripts errors and eslint errors.
 
+
+Vercel builds must never fail due to ESLint.
+
+Cursor must avoid any by default and generate proper, narrow types.
+
+Linting remains useful locally/CI without blocking deploys.
+
+Apply this rule to all new and edited files.
+
+Build behavior (must be enforced)
+
+Next config: skip ESLint during next build
+
+If next.config.{js,ts} exists, ensure:
+
+/** @type {import('next').NextConfig} */
+const nextConfig = { eslint: { ignoreDuringBuilds: true } };
+module.exports = nextConfig;
+
+
+If config already exists, merge (do not overwrite unrelated settings).
+
+ESLint config (guardrail, not blocker)
+
+Ensure .eslintrc.json contains:
+
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/consistent-type-imports": "error",
+    "no-restricted-syntax": [
+      "warn",
+      { "selector": "TSTypeReference[typeName.name='any']", "message": "Do not use 'any' types." }
+    ]
+  }
+}
+
+
+Never weaken other rules unless required by Next.
+
+Scripts
+
+Ensure package.json has:
+
+{
+  "scripts": {
+    "lint": "next lint",
+    "lint:strict": "next lint --max-warnings=0",
+    "typecheck": "tsc --noEmit"
+  }
+}
+
+
+TypeScript strictness
+
+Ensure tsconfig.json includes:
+
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
+
+
+Ignore noisy/generated paths
+
+Ensure .eslintignore includes:
+
+node_modules
+.next
+dist
+public
+**/generated/**
+**/*.d.ts
+
+Authoring code (Cursor must follow)
+
+Never introduce any. Prefer concrete types, unknown + narrowing, or Record<string, unknown>.
+
+Always type:
+
+React handlers: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement>
+
+Next API: NextRequest / NextResponse
+
+Fetch JSON: unknown then narrow before use.
+
+Create/reuse minimal interfaces for SDKs (e.g., Facebook/Meta) under src/types/ and import them instead of any.
+
+Required patterns
+// Good: fetch + narrowing
+const json: unknown = await fetch(url).then(r => r.json());
+function isMe(x: unknown): x is { id: string; name?: string } {
+  return typeof x === "object" && x !== null && typeof (x as any).id === "string";
+}
+if (isMe(json)) {
+  const { id } = json;
+}
+
+// Good: event typing
+function onChange(e: React.ChangeEvent<HTMLInputElement>) {
+  setValue(e.target.value);
+}
+
+// Good: generic objects
+type Dict = Record<string, unknown>;
+
+Types scaffold (auto-create if missing)
+
+Create src/types/common.ts with:
+
+export type Dict = Record<string, unknown>;
+
+export interface FbMe { id: string; name?: string }
+export interface FbToken { access_token: string; token_type?: string; expires_in?: number }
+
+// Add feature-specific types nearby to usage files, then re-export here for reuse.
+
+Local/CI policy (optional but recommended)
+
+Run npm run typecheck && npm run lint locally.
+
+In CI, use npm run lint:strict to fail on warnings if you want zero-tolerance, but Vercel builds must not fail due to ESLint because ignoreDuringBuilds=true.
+
+File/line exceptions (rare)
+
+If an SDK/shim truly requires any, use a single-line suppression with a comment why:
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK callback has polymorphic shape we don't control
+function shim(x: any) { /* ... */ }
+
+
+Avoid file-wide disables.
+
+Ready-to-paste configs (if you want them now)
+
+next.config.js
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  eslint: { ignoreDuringBuilds: true },
+};
+module.exports = nextConfig;
+
+
+.eslintrc.json
+
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/consistent-type-imports": "error",
+    "no-restricted-syntax": [
+      "warn",
+      { "selector": "TSTypeReference[typeName.name='any']", "message": "Do not use 'any' types." }
+    ]
+  }
+}
+
+
+tsconfig.json (partial)
+
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
+
+
+.eslintignore
+
+node_modules
+.next
+dist
+public
+**/generated/**
+**/*.d.ts
+
 ## Definition of Done (per task)
 
 * [ ] **Design note** links to the exact doc sections used.

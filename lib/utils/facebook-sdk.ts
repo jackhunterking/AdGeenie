@@ -5,12 +5,37 @@
  *  - Medium Article: https://innocentanyaele.medium.com/how-to-use-facebook-js-sdk-for-login-on-react-or-next-js-5b988e7971df
  *  - Facebook JS SDK: https://developers.facebook.com/docs/javascript/quickstart/
  *  - Business Login: https://developers.facebook.com/docs/business-apps/business-login
+ *  - FB.ui Reference: https://developers.facebook.com/docs/javascript/reference/FB.ui
  */
 
-import type { FBLoginStatusResponse, FBBusinessLoginResponse } from '@/lib/types/facebook'
+import type { 
+  FBLoginStatusResponse, 
+  FBBusinessLoginResponse,
+  FBBusinessLoginCallbackResponse,
+  FBErrorResponse
+} from '@/lib/types/facebook'
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID as string
 const FB_GRAPH_VERSION = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+
+/**
+ * Type guard to check if response is an error response
+ */
+function isFBErrorResponse(response: FBBusinessLoginCallbackResponse): response is FBErrorResponse {
+  return response !== null && response !== undefined && 'error' in response
+}
+
+/**
+ * Type guard to check if response is a successful business login response
+ */
+function isFBBusinessLoginSuccess(response: FBBusinessLoginCallbackResponse): response is FBBusinessLoginResponse {
+  return (
+    response !== null && 
+    response !== undefined && 
+    'signed_request' in response && 
+    'request_id' in response
+  )
+}
 
 /**
  * Initialize Facebook SDK - Returns a Promise that resolves when SDK is ready
@@ -116,31 +141,32 @@ export const fbBusinessLogin = (
         permissions,
         payload: { campaignId },
       },
-      (response: unknown) => {
+      (response) => {
         console.log('[FB SDK] business_login response:', response)
 
-        // User closed the dialog
+        // User closed the dialog (null or undefined)
         if (!response) {
           reject(new Error('Dialog was closed by user'))
           return
         }
 
-        // Check for error response
-        if (response.error) {
+        // Check for error response using type guard
+        if (isFBErrorResponse(response)) {
           reject(new Error(response.error.message || 'Facebook business login failed'))
           return
         }
 
-        // Validate required fields
-        if (!response.signed_request || !response.request_id) {
-          reject(new Error('Missing signed_request or request_id in response'))
+        // Check for successful response using type guard
+        if (isFBBusinessLoginSuccess(response)) {
+          resolve({
+            signed_request: response.signed_request,
+            request_id: response.request_id,
+          })
           return
         }
 
-        resolve({
-          signed_request: response.signed_request,
-          request_id: response.request_id,
-        })
+        // Unexpected response shape
+        reject(new Error('Unexpected response format from Facebook'))
       }
     )
   })
