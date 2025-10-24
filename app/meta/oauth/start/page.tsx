@@ -242,7 +242,7 @@ export default function MetaOauthStartPage() {
                 Return to dashboard
               </Button>
               {sdkReady && (
-                <Button onClick={startBusinessLogin} disabled={status === 'launching' || status === 'exchanging'}>
+                <Button onClick={startBusinessLogin} disabled={!sdkReady}>
                   Continue to Meta
                 </Button>
               )}
