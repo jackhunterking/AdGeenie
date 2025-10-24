@@ -17,11 +17,20 @@ interface FBLoginStatusResponse {
   authResponse?: FBAuthResponse
 }
 
+interface FBBusinessLoginResponse {
+  signed_request: string
+  request_id: string
+}
+
 interface FBNamespace {
   init: (opts: { appId?: string; version?: string; cookie?: boolean; xfbml?: boolean }) => void
   ui: (
     params: Record<string, unknown>,
     cb?: (response: unknown) => void
+  ) => void
+  login?: (
+    cb: (res: FBLoginStatusResponse) => void,
+    opts?: { scope?: string }
   ) => void
   getLoginStatus?: (cb: (res: FBLoginStatusResponse) => void) => void
   api?: (path: string, cb: (res: unknown) => void) => void
@@ -35,6 +44,6 @@ declare global {
   }
 }
 
-export {}
+export type { FBLoginStatusResponse, FBBusinessLoginResponse, FBAuthResponse }
 
 

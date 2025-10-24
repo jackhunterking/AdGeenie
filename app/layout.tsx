@@ -43,6 +43,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" strategy="beforeInteractive" />
+        <Script 
+          src="https://connect.facebook.net/en_US/sdk.js"
+          strategy="beforeInteractive"
+          async
+          defer
+          crossOrigin="anonymous"
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

@@ -2,11 +2,11 @@
 
 /**
  * Feature: Meta OAuth Start Page
- * Purpose: Load FB JS SDK and, on user click, open Business Login; finalize via API then redirect back
+ * Purpose: Fallback page for Meta Business Login using Promise-based SDK utilities
  * References:
+ *  - Medium Article: https://innocentanyaele.medium.com/how-to-use-facebook-js-sdk-for-login-on-react-or-next-js-5b988e7971df
  *  - Business Login: https://developers.facebook.com/docs/business-apps/business-login
  *  - Embedded Signup: https://developers.facebook.com/docs/business-apps/embedded-signup
- *  - JS SDK / FB.ui: https://developers.facebook.com/docs/javascript/reference/FB.ui
  *  - Next.js Suspense for useSearchParams: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
  */
 
@@ -14,9 +14,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useSearchParams } from 'next/navigation'
 import { Loader2, AlertCircle, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID
-const FB_GRAPH_VERSION = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+import { initFacebookSdk, fbBusinessLogin } from '@/lib/utils/facebook-sdk'
 
 type Status = 'loading-sdk' | 'launching' | 'exchanging' | 'success' | 'error'
 
@@ -44,25 +42,25 @@ function MetaOauthStartContent() {
     window.location.assign(safeReturnPath)
   }, [safeReturnPath])
 
-  const startBusinessLogin = useCallback(() => {
+  const startBusinessLogin = useCallback(async () => {
     if (!campaignId) {
       setError('Missing campaignId parameter.')
       setStatus('error')
       return
     }
-    if (typeof window === 'undefined' || !window.FB) {
-      setError('Facebook SDK not available in this browser session.')
+
+    if (!sdkReady) {
+      setError('Facebook SDK is not ready yet. Please wait.')
       setStatus('error')
       return
     }
 
-    setError(null)
-    setStatus('launching')
+    try {
+      setError(null)
+      setStatus('launching')
 
-    window.FB.ui({
-      method: 'business_login',
-      display: 'popup',
-      permissions: [
+      // Use Promise-based business login
+      const response = await fbBusinessLogin(campaignId, [
         'business_management',
         'pages_show_list',
         'pages_read_engagement',
@@ -70,46 +68,37 @@ function MetaOauthStartContent() {
         'instagram_basic',
         'ads_read',
         'ads_management'
-      ],
-      payload: { campaignId }
-    }, async (response: unknown) => {
-      const resp = response as { signed_request?: string; request_id?: string }
-      if (!resp?.signed_request || !resp?.request_id) {
-        setError('The Meta login was cancelled or did not return any data.')
-        setStatus('error')
-        return
-      }
+      ])
 
       setStatus('exchanging')
-      try {
-        const res = await fetch('/api/meta/business-login/callback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            campaignId,
-            signedRequest: resp.signed_request,
-            requestId: resp.request_id,
-          })
-        })
-        const json = await res.json()
-        if (!res.ok) {
-          console.error('[META] business-login callback failed', json)
-          setError('We could not finalize the Meta connection. Please try again.')
-          setStatus('error')
-          return
-        }
 
-        setStatus('success')
-        redirectTimeoutRef.current = setTimeout(() => {
-          redirectBack()
-        }, 1200)
-      } catch (err) {
-        console.error('[META] business-login error', err)
-        setError('A network error occurred while finalizing the Meta connection.')
-        setStatus('error')
+      const res = await fetch('/api/meta/business-login/callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId,
+          signedRequest: response.signed_request,
+          requestId: response.request_id,
+        })
+      })
+
+      const json = await res.json()
+      
+      if (!res.ok) {
+        console.error('[META OAUTH] business-login callback failed', json)
+        throw new Error('Could not finalize the Meta connection')
       }
-    })
-  }, [campaignId, redirectBack])
+
+      setStatus('success')
+      redirectTimeoutRef.current = setTimeout(() => {
+        redirectBack()
+      }, 1200)
+    } catch (err: any) {
+      console.error('[META OAUTH] business-login error', err)
+      setError(err.message || 'An error occurred while connecting to Meta.')
+      setStatus('error')
+    }
+  }, [campaignId, redirectBack, sdkReady])
 
   useEffect(() => {
     if (!campaignId) {
@@ -117,61 +106,20 @@ function MetaOauthStartContent() {
       setStatus('error')
       return
     }
-    if (!FB_APP_ID) {
-      setError('Missing Facebook app configuration. Please contact support.')
-      setStatus('error')
-      return
-    }
-    if (typeof window === 'undefined') return
 
-    const initSDK = () => {
-      try {
-        window.FB?.init({ appId: FB_APP_ID, version: FB_GRAPH_VERSION, cookie: true })
-      } catch (err) {
-        console.error('[META] Failed to init FB SDK', err)
-      }
-      setSdkReady(true)
-      setStatus((prev) => (prev === 'loading-sdk' ? 'loading-sdk' : prev))
-    }
+    console.log('[META OAUTH] Initializing Facebook SDK...')
 
-    if (window.FB) {
-      initSDK()
-      return
-    }
-
-    const scriptId = 'facebook-jssdk'
-    const existingScript = document.getElementById(scriptId) as HTMLScriptElement | null
-
-    const handleLoad = () => {
-      initSDK()
-    }
-
-    const handleError = () => {
-      setError('Failed to load the Facebook SDK. Check for blockers or try again later.')
-      setStatus('error')
-    }
-
-    if (existingScript) {
-      existingScript.addEventListener('load', handleLoad)
-      existingScript.addEventListener('error', handleError)
-      return () => {
-        existingScript.removeEventListener('load', handleLoad)
-        existingScript.removeEventListener('error', handleError)
-      }
-    }
-
-    const script = document.createElement('script')
-    script.id = scriptId
-    script.src = 'https://connect.facebook.net/en_US/sdk.js'
-    script.async = true
-    script.addEventListener('load', handleLoad)
-    script.addEventListener('error', handleError)
-    document.body.appendChild(script)
-
-    return () => {
-      script.removeEventListener('load', handleLoad)
-      script.removeEventListener('error', handleError)
-    }
+    initFacebookSdk()
+      .then(() => {
+        console.log('[META OAUTH] SDK ready')
+        setSdkReady(true)
+        setStatus('loading-sdk')
+      })
+      .catch((error) => {
+        console.error('[META OAUTH] SDK initialization failed:', error)
+        setError(error.message || 'Failed to load the Facebook SDK. Please refresh and try again.')
+        setStatus('error')
+      })
   }, [campaignId])
 
   useEffect(() => {

@@ -2,11 +2,11 @@
 
 /**
  * Feature: Meta Connect Step UI
- * Purpose: Use Meta business_login dialog following Facebook's official SDK loading pattern
+ * Purpose: Use Meta business_login dialog with Promise-based SDK utilities
  * References:
+ *  - Medium Article: https://innocentanyaele.medium.com/how-to-use-facebook-js-sdk-for-login-on-react-or-next-js-5b988e7971df
  *  - Facebook JS SDK Quickstart: https://developers.facebook.com/docs/javascript/quickstart/
  *  - Business Login: https://developers.facebook.com/docs/business-apps/business-login
- *  - FB.ui Reference: https://developers.facebook.com/docs/javascript/reference/FB.ui
  */
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
@@ -14,9 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Facebook, Check, Loader2, Link2 } from 'lucide-react'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-
-const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
-const FB_GRAPH_VERSION = (process.env.NEXT_PUBLIC_FB_GRAPH_VERSION as string | undefined) || 'v24.0'
+import { initFacebookSdk, fbBusinessLogin } from '@/lib/utils/facebook-sdk'
 
 interface SummaryData {
   businessId?: string
@@ -40,13 +38,6 @@ interface RawMetaConnectData {
   adAccountId?: string
   adAccountName?: string
   pixel?: { id: string; name: string } | null
-}
-
-declare global {
-  interface Window {
-    FB?: any;
-    fbAsyncInit?: () => void;
-  }
 }
 
 export function MetaConnectStep() {
@@ -102,167 +93,93 @@ export function MetaConnectStep() {
     hydrate()
   }, [campaign?.id])
 
-  // Initialize Facebook SDK - FOLLOWING FACEBOOK'S OFFICIAL PATTERN EXACTLY
+  // Initialize Facebook SDK using Promise-based pattern
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (!FB_APP_ID) {
-      console.error('[META] Missing FB_APP_ID')
-      return
-    }
-
-    // If SDK already loaded
-    if (window.FB) {
-      console.log('[META] FB SDK already loaded')
-      setSdkReady(true)
-      return
-    }
-
-    // Check if script already exists
-    if (document.getElementById('facebook-jssdk')) {
-      console.log('[META] FB SDK script already in DOM')
-      return
-    }
-
-    console.log('[META] Loading FB SDK...')
-
-    // EXACT PATTERN FROM FACEBOOK DOCUMENTATION
-    window.fbAsyncInit = function() {
-      console.log('[META] fbAsyncInit called')
-      window.FB?.init({
-        appId      : FB_APP_ID,
-        cookie     : true,
-        xfbml      : true,
-        version    : FB_GRAPH_VERSION
+    console.log('[META CONNECT] Initializing Facebook SDK...')
+    setStatus('loading-sdk')
+    
+    initFacebookSdk()
+      .then(() => {
+        console.log('[META CONNECT] SDK ready')
+        setSdkReady(true)
+        setStatus('idle')
       })
-      
-      // Log page view as per Facebook documentation
-      window.FB?.AppEvents?.logPageView?.()
-      
-      // Check login status as per Facebook documentation
-      window.FB?.getLoginStatus?.(function(response: any) {
-        console.log('[META] Login status:', response.status)
+      .catch((error) => {
+        console.error('[META CONNECT] SDK initialization failed:', error)
+        setError(error.message || 'Failed to load Facebook SDK. Please refresh and try again.')
+        setStatus('error')
       })
-      
-      setSdkReady(true)
-      console.log('[META] FB SDK ready')
-    }
-
-    // EXACT SCRIPT LOADING PATTERN FROM FACEBOOK DOCUMENTATION
-    ;(function(d, s, id){
-       const fjs = d.getElementsByTagName(s)[0];
-       if (d.getElementById(id)) {return;}
-       const js = d.createElement(s) as HTMLScriptElement;
-       js.id = id;
-       js.src = "https://connect.facebook.net/en_US/sdk.js";
-       if (fjs && fjs.parentNode) {
-         fjs.parentNode.insertBefore(js, fjs);
-       }
-     }(document, 'script', 'facebook-jssdk'));
-
   }, [])
 
   const handleConnect = useCallback(async () => {
-    try {
-      if (!campaign?.id) {
-        console.error('[META] No campaign id available.')
-        return
-      }
-      if (!FB_APP_ID) {
-        setError('Missing Facebook app configuration. Please contact support.')
-        setStatus('error')
-        setDialogOpen(true)
-        return
-      }
-      if (!window.FB) {
-        setError('Facebook SDK not loaded. Please refresh and try again.')
-        setStatus('error')
-        setDialogOpen(true)
-        return
-      }
+    if (!campaign?.id) {
+      console.error('[META CONNECT] No campaign id')
+      return
+    }
 
+    if (!sdkReady) {
+      setError('Facebook SDK is not ready yet. Please wait a moment.')
+      setStatus('error')
+      setDialogOpen(true)
+      return
+    }
+
+    try {
       setConnecting(true)
       setDialogOpen(true)
       setStatus('launching')
 
-      console.log('[META] Launching business_login dialog...')
+      // Use Promise-based business login
+      const response = await fbBusinessLogin(campaign.id, [
+        'business_management',
+        'pages_show_list',
+        'pages_read_engagement',
+        'pages_manage_metadata',
+        'instagram_basic',
+        'ads_read',
+        'ads_management',
+      ])
 
-      // Use FB.ui with business_login method
-      window.FB.ui(
-        {
-          method: 'business_login',
-          display: 'popup',
-          permissions: [
-            'business_management',
-            'pages_show_list',
-            'pages_read_engagement',
-            'pages_manage_metadata',
-            'instagram_basic',
-            'ads_read',
-            'ads_management',
-          ],
-          payload: { campaignId: campaign.id },
-        },
-        (response: any) => {
-          console.log('[META] business_login response:', response)
-          
-          if (!response?.signed_request || !response?.request_id) {
-            console.warn('[META] No signed_request or request_id in response')
-            setError('The Meta login was cancelled or did not return any data.')
-            setStatus('error')
-            setConnecting(false)
-            return
-          }
+      setStatus('exchanging')
 
-          setStatus('exchanging')
-          ;(async () => {
-            try {
-              const res = await fetch('/api/meta/business-login/callback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  campaignId: campaign.id,
-                  signedRequest: response.signed_request,
-                  requestId: response.request_id,
-                }),
-              })
-              const json = await res.json()
-              if (!res.ok) {
-                console.error('[META] business-login callback failed', json)
-                setError('We could not finalize the Meta connection. Please try again.')
-                setStatus('error')
-                setConnecting(false)
-                return
-              }
+      // Exchange with backend
+      const res = await fetch('/api/meta/business-login/callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: campaign.id,
+          signedRequest: response.signed_request,
+          requestId: response.request_id,
+        }),
+      })
 
-              const data = json?.summary as SummaryData | undefined
-              if (data) {
-                setSummary({
-                  businessId: data.businessId,
-                  page: data.page,
-                  instagram: data.instagram ?? null,
-                  adAccount: data.adAccount,
-                  pixel: data.pixel ?? null,
-                })
-              }
+      const json = await res.json()
 
-              setStatus('success')
-              setConnecting(false)
-            } catch (err) {
-              console.error('[META] business-login error', err)
-              setError('A network error occurred while finalizing the Meta connection.')
-              setStatus('error')
-              setConnecting(false)
-            }
-          })()
-        }
-      )
-    } catch (e) {
-      console.error('[META] Error launching Meta connect', e)
-      setError('Failed to launch Meta connection.')
+      if (!res.ok) {
+        console.error('[META CONNECT] Callback failed', json)
+        throw new Error('Could not finalize Meta connection')
+      }
+
+      const data = json?.summary as SummaryData | undefined
+      if (data) {
+        setSummary({
+          businessId: data.businessId,
+          page: data.page,
+          instagram: data.instagram ?? null,
+          adAccount: data.adAccount,
+          pixel: data.pixel ?? null,
+        })
+      }
+
+      setStatus('success')
+      setConnecting(false)
+    } catch (err: any) {
+      console.error('[META CONNECT] Error:', err)
+      setError(err.message || 'An error occurred while connecting to Meta.')
       setStatus('error')
       setConnecting(false)
     }
-  }, [campaign?.id])
+  }, [campaign?.id, sdkReady])
 
   const handleDisconnect = async () => {
     if (!campaign?.id) return
