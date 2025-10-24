@@ -39,7 +39,6 @@ export function MetaConnectStep() {
   const { campaign, saveCampaignState } = useCampaignContext()
   const [loadingSDK, setLoadingSDK] = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [connecting, setConnecting] = useState(false)
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const appId = process.env.NEXT_PUBLIC_FB_APP_ID
   const businessId = process.env.NEXT_PUBLIC_FB_BUSINESS_ID
@@ -54,7 +53,7 @@ export function MetaConnectStep() {
     s.src = 'https://connect.facebook.net/en_US/sdk.js'
     s.async = true
     s.onload = () => {
-      window.FB?.init({ appId, version: process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v20.0', cookie: true })
+      window.FB?.init({ appId, version: process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0', cookie: true })
       setLoadingSDK(false)
     }
     document.body.appendChild(s)
