@@ -62,6 +62,8 @@ export async function PATCH(
       'ad_preview_data',
       'budget_data',
       'generated_images',
+      // Allow meta connect state to be persisted via the standard state API
+      'meta_connect_data',
     ]
     
     const updateData: Record<string, Json | null> = {}

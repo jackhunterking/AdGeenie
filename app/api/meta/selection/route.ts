@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     // Optionally, save a minimal meta_connect_data state to campaign_states for UI completion flags
     const metaConnectData: Record<string, unknown> = {
-      status: 'completed',
+      status: 'connected',
       pageId,
       igUserId: igUserId || null,
       adAccountId,
