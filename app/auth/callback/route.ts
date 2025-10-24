@@ -14,6 +14,13 @@ export async function GET(request: NextRequest) {
   let next = searchParams.get('next') ?? '/'
   if (!next.startsWith('/')) next = '/'
 
+  console.log('[OAUTH-CALLBACK] Starting OAuth callback', { 
+    hasCode: !!code, 
+    next, 
+    origin,
+    fullUrl: request.url 
+  })
+
   // We'll collect cookies set by Supabase and attach them to the redirect response
   const cookiesToSet: { name: string; value: string; options: Parameters<NextResponse['cookies']['set']>[2] }[] = []
 
@@ -26,6 +33,10 @@ export async function GET(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(newCookies) {
+          console.log('[OAUTH-CALLBACK] Setting cookies', { 
+            count: newCookies.length,
+            cookieNames: newCookies.map(c => c.name)
+          })
           newCookies.forEach(({ name, value, options }) => {
             cookiesToSet.push({ name, value, options })
           })
@@ -35,8 +46,17 @@ export async function GET(request: NextRequest) {
   )
 
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    console.log('[OAUTH-CALLBACK] Exchanging code for session')
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    
     if (!error) {
+      console.log('[OAUTH-CALLBACK] Code exchange successful', {
+        hasSession: !!data.session,
+        hasUser: !!data.user,
+        userId: data.user?.id,
+        userEmail: data.user?.email
+      })
+      
       // Build final redirect URL (handle load balancer header if present)
       const forwardedHost = request.headers.get('x-forwarded-host')
       const isLocal = process.env.NODE_ENV === 'development'
@@ -48,6 +68,8 @@ export async function GET(request: NextRequest) {
 
       // Add auth success indicator to trigger client-side session refresh
       redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + 'auth=success'
+
+      console.log('[OAUTH-CALLBACK] Redirecting to', { redirectUrl, cookieCount: cookiesToSet.length })
 
       const response = NextResponse.redirect(redirectUrl)
       
@@ -63,9 +85,14 @@ export async function GET(request: NextRequest) {
       })
       
       return response
+    } else {
+      console.error('[OAUTH-CALLBACK] Code exchange failed', { error: error.message })
     }
+  } else {
+    console.error('[OAUTH-CALLBACK] No code provided in callback')
   }
 
+  console.log('[OAUTH-CALLBACK] Redirecting to error page')
   const errorResponse = NextResponse.redirect(`${origin}/auth/auth-code-error`)
   cookiesToSet.forEach(({ name, value, options }) => errorResponse.cookies.set(name, value, options))
   return errorResponse

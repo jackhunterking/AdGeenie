@@ -19,10 +19,22 @@ function PostLoginContent() {
 
   useEffect(() => {
     const run = async () => {
-      if (loading) return
+      console.log('[POST-LOGIN] Starting post-login flow', { 
+        loading, 
+        hasUser: !!user,
+        userId: user?.id,
+        userEmail: user?.email,
+        url: typeof window !== 'undefined' ? window.location.href : 'SSR'
+      })
+
+      if (loading) {
+        console.log('[POST-LOGIN] Still loading, waiting...')
+        return
+      }
 
       // If no user, bounce to home. This page only handles post-auth.
       if (!user) {
+        console.log('[POST-LOGIN] No user found, redirecting to homepage')
         router.replace("/")
         return
       }
@@ -30,6 +42,7 @@ function PostLoginContent() {
       // Avoid double processing across reloads
       const sentinelKey = "post_login_processed"
       if (sessionStorage.getItem(sentinelKey)) {
+        console.log('[POST-LOGIN] Already processed, redirecting to homepage')
         router.replace("/")
         return
       }
@@ -41,19 +54,29 @@ function PostLoginContent() {
           ? localStorage.getItem("temp_prompt_id")
           : null
 
-        // If we have no local id, try user metadata as a fallback (e.g., email flows)
+        // If we have no local id, try user metadata as a fallback (e.g., OAuth flows)
         // Safely read metadata without using any
         const meta = (user?.user_metadata ?? {}) as { temp_prompt_id?: unknown }
         const metaPromptId = typeof meta.temp_prompt_id === "string" ? meta.temp_prompt_id : undefined
 
         const idToUse = tempPromptId || metaPromptId || null
 
+        console.log('[POST-LOGIN] Checking for temp prompt', { 
+          hasLocalStorage: !!tempPromptId,
+          hasMetadata: !!metaPromptId,
+          idToUse,
+          userMetadata: user?.user_metadata
+        })
+
         if (!idToUse) {
           // Nothing to process – go back home gracefully
+          console.log('[POST-LOGIN] No temp prompt found, redirecting to homepage')
+          sessionStorage.removeItem(sentinelKey)
           router.replace("/")
           return
         }
 
+        console.log('[POST-LOGIN] Creating campaign with temp prompt:', idToUse)
         setStatusText("Creating your campaign…")
 
         const res = await fetch("/api/campaigns", {
@@ -64,14 +87,18 @@ function PostLoginContent() {
 
         if (!res.ok) {
           // If for some reason the temp prompt was used/expired, just return home
+          console.warn('[POST-LOGIN] Failed to create campaign:', await res.text())
+          sessionStorage.removeItem(sentinelKey)
           router.replace("/")
           return
         }
 
         const { campaign } = await res.json()
+        console.log('[POST-LOGIN] Campaign created successfully:', campaign.id)
 
         // Clean up client state
         if (tempPromptId) {
+          console.log('[POST-LOGIN] Removing temp_prompt_id from localStorage')
           localStorage.removeItem("temp_prompt_id")
         }
 
@@ -81,8 +108,11 @@ function PostLoginContent() {
           window.history.replaceState({}, "", "/auth/post-login")
         }
 
+        console.log('[POST-LOGIN] Redirecting to campaign:', campaign.id)
         router.replace(`/${campaign.id}`)
-      } catch {
+      } catch (error) {
+        console.error('[POST-LOGIN] Error in post-login flow:', error)
+        sessionStorage.removeItem(sentinelKey)
         router.replace("/")
       }
     }

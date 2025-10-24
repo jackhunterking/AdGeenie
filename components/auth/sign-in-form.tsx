@@ -47,7 +47,7 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
           type="button"
           variant="outline"
           className="w-full h-11 text-base font-medium"
-          onClick={() => { void signInWithGoogle('/') }}
+          onClick={() => { void signInWithGoogle('/auth/post-login') }}
         >
           <span className="flex items-center justify-center gap-2">
             Continue with Google

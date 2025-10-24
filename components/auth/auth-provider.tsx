@@ -55,15 +55,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (window.location.search.includes('auth=success') || 
        window.location.search.includes('code='))
 
+    console.log('[AUTH-PROVIDER] Initializing auth', { 
+      hasAuthCallback, 
+      url: typeof window !== 'undefined' ? window.location.href : 'SSR',
+      search: typeof window !== 'undefined' ? window.location.search : ''
+    })
+
     const initAuth = async () => {
       try {
         // Force refresh session if coming from OAuth callback
         if (hasAuthCallback) {
+          console.log('[AUTH-PROVIDER] Detected OAuth callback, refreshing session')
           await supabase.auth.refreshSession()
         }
         
         // Get current session
         const { data: { session } } = await supabase.auth.getSession()
+        console.log('[AUTH-PROVIDER] Got session', { 
+          hasSession: !!session, 
+          hasUser: !!session?.user,
+          userId: session?.user?.id,
+          userEmail: session?.user?.email
+        })
+        
         setSession(session)
         setUser(session?.user ?? null)
         
@@ -75,10 +89,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Clean up URL parameters after successful auth
         if (hasAuthCallback && typeof window !== 'undefined') {
+          console.log('[AUTH-PROVIDER] Cleaning up URL parameters')
           window.history.replaceState({}, '', window.location.pathname)
         }
       } catch (error) {
-        console.error('Error initializing auth:', error)
+        console.error('[AUTH-PROVIDER] Error initializing auth:', error)
         setLoading(false)
       }
     }
@@ -88,7 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[AUTH-PROVIDER] Auth state changed', { 
+        event, 
+        hasSession: !!session,
+        userId: session?.user?.id 
+      })
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -157,16 +177,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithGoogle = async (nextPath: string = '/auth/post-login') => {
+    // Read temp_prompt_id from localStorage before OAuth redirect
+    const tempPromptId = typeof window !== 'undefined' 
+      ? localStorage.getItem('temp_prompt_id')
+      : null
+
+    console.log('[AUTH-PROVIDER] Starting Google OAuth', { 
+      nextPath, 
+      hasTempPrompt: !!tempPromptId,
+      tempPromptId 
+    })
+
     const origin = typeof window !== 'undefined' ? window.location.origin : undefined
     const redirectTo = origin
       ? `${origin}/auth/callback?next=${encodeURIComponent(nextPath ?? '/')}`
       : undefined
 
+    // Build OAuth options with temp_prompt_id in user metadata if available
+    const oauthOptions: {
+      redirectTo?: string
+      data?: { temp_prompt_id: string }
+    } = {}
+    
+    if (redirectTo) {
+      oauthOptions.redirectTo = redirectTo
+    }
+    
+    if (tempPromptId) {
+      oauthOptions.data = { temp_prompt_id: tempPromptId }
+      console.log('[AUTH-PROVIDER] Attaching temp_prompt_id to OAuth metadata')
+    }
+
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo,
-      },
+      options: Object.keys(oauthOptions).length > 0 ? oauthOptions : undefined,
     })
   }
 
