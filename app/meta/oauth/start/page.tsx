@@ -7,9 +7,10 @@
  *  - Business Login: https://developers.facebook.com/docs/business-apps/business-login
  *  - Embedded Signup: https://developers.facebook.com/docs/business-apps/embedded-signup
  *  - JS SDK / FB.ui: https://developers.facebook.com/docs/javascript/reference/FB.ui
+ *  - Next.js Suspense for useSearchParams: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Loader2, AlertCircle, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,7 +32,7 @@ interface FBNamespace {
 
 type Status = 'loading-sdk' | 'launching' | 'exchanging' | 'success' | 'error'
 
-export default function MetaOauthStartPage() {
+function MetaOauthStartContent() {
   const searchParams = useSearchParams()
   const campaignId = searchParams?.get('campaignId') ?? null
   const returnParam = searchParams?.get('return') ?? null
@@ -271,4 +272,22 @@ export default function MetaOauthStartPage() {
   )
 }
 
-
+export default function MetaOauthStartPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background px-6 py-12">
+        <div className="max-w-md w-full rounded-2xl border border-border bg-card p-10 shadow-sm text-center space-y-6">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
+            <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold">Meta Business Login</h1>
+            <p className="text-sm text-muted-foreground">Preparing…</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <MetaOauthStartContent />
+    </Suspense>
+  )
+}
