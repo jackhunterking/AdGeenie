@@ -7,11 +7,11 @@
  *  - Supabase (Advanced SSR Auth): https://supabase.com/docs/guides/auth/server-side/advanced-guide
  *  - Supabase (Code exchange route pattern): https://supabase.com/docs/guides/auth/auth-helpers/nextjs#managing-sign-in-with-code-exchange
  */
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 
-export default function PostLoginPage() {
+function PostLoginContent() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -97,6 +97,21 @@ export default function PostLoginPage() {
         <p className="text-sm text-muted-foreground">{statusText}</p>
       </div>
     </div>
+  )
+}
+
+export default function PostLoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
+      </div>
+    }>
+      <PostLoginContent />
+    </Suspense>
   )
 }
 
