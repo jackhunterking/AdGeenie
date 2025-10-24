@@ -70,39 +70,50 @@ export function MetaConnectStep() {
     run()
   }, [campaign?.id])
 
-  const handleConnect = async () => {
+  const handleConnect = () => {
     if (!window.FB) return
     setConnecting(true)
-    window.FB.login(async (response: { authResponse?: { accessToken?: string } }) => {
-      try {
-        if (response?.authResponse?.accessToken && campaign?.id) {
-          const res = await fetch('/api/meta/auth/exchange', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shortLivedToken: response.authResponse.accessToken, campaignId: campaign.id })
-          })
-          const json = await res.json()
-          if (res.ok) {
-            setPages(json.pages || [])
-            setAdAccounts(json.adAccounts || [])
+    try {
+      window.FB.login((response: { authResponse?: { accessToken?: string } }) => {
+        ;(async () => {
+          try {
+            if (response?.authResponse?.accessToken && campaign?.id) {
+              const res = await fetch('/api/meta/auth/exchange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shortLivedToken: response.authResponse.accessToken, campaignId: campaign.id })
+              })
+              const json = await res.json()
+              if (res.ok) {
+                setPages(json.pages || [])
+                setAdAccounts(json.adAccounts || [])
+              } else {
+                console.error('[META] Exchange failed', json)
+              }
+            }
+          } catch (err) {
+            console.error('[META] FB.login callback error', err)
+          } finally {
+            setConnecting(false)
           }
-        }
-      } finally {
-        setConnecting(false)
-      }
-    }, {
-      scope: [
-        'public_profile',
-        'email',
-        'pages_show_list',
-        'pages_read_engagement',
-        'pages_manage_metadata',
-        'instagram_basic',
-        'ads_read',
-        'ads_management',
-        'business_management'
-      ].join(',')
-    })
+        })()
+      }, {
+        scope: [
+          'public_profile',
+          'email',
+          'pages_show_list',
+          'pages_read_engagement',
+          'pages_manage_metadata',
+          'instagram_basic',
+          'ads_read',
+          'ads_management',
+          'business_management'
+        ].join(',')
+      })
+    } catch (err) {
+      console.error('[META] FB.login invocation error', err)
+      setConnecting(false)
+    }
   }
 
   const onSelectPage = async (page: PageItem) => {
