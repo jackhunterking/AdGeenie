@@ -10,6 +10,7 @@ import { useGeneration } from "@/lib/context/generation-context"
 import { newEditSession } from "@/lib/utils/edit-session"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { useGoal } from "@/lib/context/goal-context"
+import { useEffect as useEffectReact } from 'react'
 
 export function AdCopySelectionCanvas() {
   const { adCopyState, setSelectedCopyIndex, getActiveVariations, setCustomCopyVariations } = useAdCopy()
@@ -107,6 +108,20 @@ export function AdCopySelectionCanvas() {
       detail: referenceContext
     }))
   }
+
+  // Listen for adCopyEdited events to update the selected variation
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { variationIndex: number; newCopy: { primaryText: string; headline: string; description: string } } | undefined;
+      if (!detail) return;
+      const { variationIndex, newCopy } = detail;
+      const currentVariations = getActiveVariations();
+      const updated = currentVariations.map((v, i) => i === variationIndex ? { ...v, ...newCopy } : v);
+      setCustomCopyVariations(updated as unknown as ReturnType<typeof getActiveVariations>);
+    };
+    window.addEventListener('adCopyEdited', handler as EventListener);
+    return () => window.removeEventListener('adCopyEdited', handler as EventListener);
+  }, [getActiveVariations, setCustomCopyVariations]);
 
   // Auto-generate ad copy variations when images are ready and no custom copy exists yet
   useEffect(() => {

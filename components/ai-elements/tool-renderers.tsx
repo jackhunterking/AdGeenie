@@ -80,4 +80,32 @@ export function renderRegenerateImageResult(opts: {
   );
 }
 
+export function renderEditAdCopyResult(opts: {
+  callId: string;
+  keyId?: string;
+  input: { prompt?: string; current?: { primaryText?: string; headline?: string; description?: string } };
+  output: { success?: boolean; copy?: { primaryText: string; headline: string; description: string } };
+}): React.JSX.Element {
+  const { callId, keyId, output } = opts;
+  const copy = output.copy;
+  return (
+    <Fragment key={keyId || callId}>
+      <div className="border rounded-lg p-3 my-2 bg-green-500/5 border-green-500/30">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-600">Ad copy updated</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check the ad variations above to see your edit</p>
+          </div>
+        </div>
+      </div>
+      {copy && (
+        <div className="max-w-md mx-auto my-2">
+          <AdMockup format="feed" primaryText={copy.primaryText} headline={copy.headline} description={copy.description} />
+        </div>
+      )}
+    </Fragment>
+  );
+}
+
 

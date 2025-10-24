@@ -39,7 +39,7 @@ const SingleRequestSchema = z.object({
 })
 
 // Loosen schema to reduce model mismatch while keeping essential fields required
-const CopyItemSchema = z.object({
+export const CopyItemSchema = z.object({
   primaryText: z.string().min(12).max(220),
   headline: z.string().min(3).max(80),
   description: z.string().min(3).max(120),
@@ -52,7 +52,7 @@ const CopySchema = z.object({
   variations: z.array(CopyItemSchema).length(6),
 })
 
-const SingleCopySchema = CopyItemSchema
+export const SingleCopySchema = CopyItemSchema
 
 const SYSTEM_INSTRUCTIONS = `You are an expert Meta ads copywriter. Write six unique ad copy variations for the same creative.
 
