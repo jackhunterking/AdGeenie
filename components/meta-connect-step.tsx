@@ -126,11 +126,15 @@ export function MetaConnectStep() {
           'ads_management'
         ],
         payload: { campaignId: campaign.id }
-      }, async (response: unknown) => {
-        try {
-          const resp = response as { signed_request?: string; request_id?: string }
-          // On success Meta returns a signed_request and request_id
-          if (resp?.signed_request && resp?.request_id) {
+      }, (response: unknown) => {
+        const resp = response as { signed_request?: string; request_id?: string }
+        // If user cancels or Meta returns no data, stop the spinner and exit
+        if (!resp?.signed_request || !resp?.request_id) {
+          setConnecting(false)
+          return
+        }
+        ;(async () => {
+          try {
             const res = await fetch('/api/meta/business-login/callback', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -150,12 +154,12 @@ export function MetaConnectStep() {
             } else {
               console.error('[META] business-login callback failed', json)
             }
+          } catch (e) {
+            console.error('[META] business-login error', e)
+          } finally {
+            setConnecting(false)
           }
-        } catch (e) {
-          console.error('[META] business-login error', e)
-        } finally {
-          setConnecting(false)
-        }
+        })()
       })
     } catch (err) {
       console.error('[META] FB.ui invocation error', err)
