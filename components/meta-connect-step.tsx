@@ -35,6 +35,22 @@ interface SummaryData {
   pixel?: { id: string; name: string } | null
 }
 
+// Shape of meta_connect_data as stored in campaign state
+interface RawMetaConnectData {
+  status?: string
+  businessId?: string
+  page?: { id: string; name: string }
+  pageId?: string
+  pageName?: string
+  instagram?: { id: string; username: string } | null
+  igUserId?: string
+  igUsername?: string
+  adAccount?: { id: string; name: string }
+  adAccountId?: string
+  adAccountName?: string
+  pixel?: { id: string; name: string } | null
+}
+
 export function MetaConnectStep() {
   const { campaign, saveCampaignState } = useCampaignContext()
   const [loadingSDK, setLoadingSDK] = useState(false)
@@ -67,14 +83,14 @@ export function MetaConnectStep() {
         const res = await fetch(`/api/campaigns/${campaign.id}/state`)
         if (!res.ok) return
         const { state } = await res.json()
-        const data = state?.meta_connect_data as Record<string, unknown> | undefined
+        const data = state?.meta_connect_data as RawMetaConnectData | undefined
         if (data?.status === 'connected') {
           setSummary({
-            businessId: data.businessId || undefined,
+            businessId: typeof data.businessId === 'string' ? data.businessId : undefined,
             page: data.page || (data.pageId ? { id: data.pageId, name: data.pageName || 'Page' } : undefined),
-            instagram: data.instagram || (data.igUserId ? { id: data.igUserId, username: data.igUsername || '' } : null),
+            instagram: data.instagram ?? (data.igUserId ? { id: data.igUserId, username: data.igUsername || '' } : null),
             adAccount: data.adAccount || (data.adAccountId ? { id: data.adAccountId, name: data.adAccountName || 'Ad Account' } : undefined),
-            pixel: data.pixel || null,
+            pixel: data.pixel ?? null,
           })
         }
       } catch {}
