@@ -20,11 +20,16 @@ function HomeContent() {
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signin')
   const [processingPrompt, setProcessingPrompt] = useState(false)
 
-  // Check for temp_prompt_id after login and create campaign
+  // Check for temp_prompt_id after login and create campaign (fallback only)
   useEffect(() => {
     const handlePostAuth = async () => {
       if (!user || loading) return
       
+      // If we already processed in dedicated post-login flow, skip
+      if (typeof window !== 'undefined' && sessionStorage.getItem('post_login_processed')) {
+        return
+      }
+
       const isVerified = searchParams?.get('verified') === 'true'
       if (!isVerified) return
       
@@ -105,10 +110,14 @@ function HomeContent() {
     handlePostAuth()
   }, [user, loading, router, searchParams, createCampaign])
 
-  // Handle normal sign-in or OAuth sign-in: consume temp_prompt_id from localStorage
+  // Handle normal sign-in or OAuth sign-in: consume temp_prompt_id from localStorage (fallback only)
   useEffect(() => {
     const tryConsumeLocalTempPrompt = async () => {
       if (loading || !user) return
+
+      if (typeof window !== 'undefined' && sessionStorage.getItem('post_login_processed')) {
+        return
+      }
 
       // Avoid double runs across reloads
       const alreadyProcessing = sessionStorage.getItem('processed_temp_prompt')

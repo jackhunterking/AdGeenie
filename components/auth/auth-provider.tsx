@@ -156,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null)
   }
 
-  const signInWithGoogle = async (nextPath?: string) => {
+  const signInWithGoogle = async (nextPath: string = '/auth/post-login') => {
     const origin = typeof window !== 'undefined' ? window.location.origin : undefined
     const redirectTo = origin
       ? `${origin}/auth/callback?next=${encodeURIComponent(nextPath ?? '/')}`
