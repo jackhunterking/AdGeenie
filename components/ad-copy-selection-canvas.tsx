@@ -10,7 +10,6 @@ import { useGeneration } from "@/lib/context/generation-context"
 import { newEditSession } from "@/lib/utils/edit-session"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { useGoal } from "@/lib/context/goal-context"
-import { useEffect as useEffectReact } from 'react'
 
 export function AdCopySelectionCanvas() {
   const { adCopyState, setSelectedCopyIndex, getActiveVariations, setCustomCopyVariations } = useAdCopy()
