@@ -67,7 +67,7 @@ export function MetaConnectStep() {
         const res = await fetch(`/api/campaigns/${campaign.id}/state`)
         if (!res.ok) return
         const { state } = await res.json()
-        const data = state?.meta_connect_data as any
+        const data = state?.meta_connect_data as Record<string, unknown> | undefined
         if (data?.status === 'connected') {
           setSummary({
             businessId: data.businessId || undefined,
@@ -101,17 +101,18 @@ export function MetaConnectStep() {
           'ads_management'
         ],
         payload: { campaignId: campaign.id }
-      }, async (response: any) => {
+      }, async (response: unknown) => {
         try {
+          const resp = response as { signed_request?: string; request_id?: string }
           // On success Meta returns a signed_request and request_id
-          if (response?.signed_request && response?.request_id) {
+          if (resp?.signed_request && resp?.request_id) {
             const res = await fetch('/api/meta/business-login/callback', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 campaignId: campaign.id,
-                signedRequest: response.signed_request,
-                requestId: response.request_id,
+                signedRequest: resp.signed_request,
+                requestId: resp.request_id,
               })
             })
             const json = await res.json()

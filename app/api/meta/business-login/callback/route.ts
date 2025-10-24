@@ -15,7 +15,7 @@ const FB_APP_SECRET = process.env.FB_APP_SECRET as string
 
 function decodeSignedRequest(signedRequest: string) {
   // The format is base64url(signature).base64url(payload)
-  const [encodedSig, encodedPayload] = signedRequest.split('.')
+  const [_encodedSig, encodedPayload] = signedRequest.split('.')
   const base64ToString = (str: string) => Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
   try {
     const payload = JSON.parse(base64ToString(encodedPayload))
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Decode signed_request payload (basic integrity; full HMAC verification can be added if needed)
-    const { payload } = decodeSignedRequest(signedRequest)
+    const { payload: _payload } = decodeSignedRequest(signedRequest)
     // Payload may contain business info; selections are retrieved using request_id via Graph API
 
     // Retrieve assets selected during embedded signup
