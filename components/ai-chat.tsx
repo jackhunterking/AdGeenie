@@ -53,7 +53,7 @@ import { generateImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
 import { ImageEditProgressLoader } from "@/components/ai-elements/image-edit-progress-loader";
-import { renderEditImageResult, renderRegenerateImageResult } from "@/components/ai-elements/tool-renderers";
+import { renderEditImageResult, renderRegenerateImageResult, renderEditAdCopyResult } from "@/components/ai-elements/tool-renderers";
 import { useAdPreview } from "@/lib/context/ad-preview-context";
 import { searchLocations, getLocationBoundary } from "@/app/actions/geocoding";
 import { useGoal } from "@/lib/context/goal-context";
@@ -1157,7 +1157,8 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               switch (part.state) {
                                 case 'input-streaming':
-                                  // Server-side execution - show animated progress loader
+                                case 'input-available':
+                                  // Server-side execution - keep animated progress loader visible until output arrives
                                   return <ImageEditProgressLoader key={callId} type="edit" />;
                                 
                                 case 'output-available': {
@@ -1261,7 +1262,8 @@ Make it conversational and easy to understand for a business owner.`,
                               
                               switch (part.state) {
                                 case 'input-streaming':
-                                  // Server-side execution - show animated progress loader
+                                case 'input-available':
+                                  // Server-side execution - keep animated progress loader visible until output arrives
                                   return <ImageEditProgressLoader key={callId} type="regenerate" />;
                                 
                                 case 'output-available': {
@@ -1376,6 +1378,89 @@ Make it conversational and easy to understand for a business owner.`,
                                   return null;
                               }
                             }
+                          case "tool-editAdCopy": {
+                            const callId = part.toolCallId;
+                            const input = part.input as { prompt?: string; current?: { primaryText?: string; headline?: string; description?: string } };
+
+                            switch (part.state) {
+                              case 'input-streaming':
+                              case 'input-available':
+                                return <ImageEditProgressLoader key={callId} type="edit" />;
+                              case 'output-available': {
+                                const output = ((part as unknown as { output?: unknown; result?: unknown }).output || (part as unknown as { output?: unknown; result?: unknown }).result) as { 
+                                  success?: boolean;
+                                  variationIndex?: number;
+                                  copy?: { primaryText: string; headline: string; description: string };
+                                  error?: string;
+                                };
+
+                                if (isSubmitting) {
+                                  setTimeout(() => {
+                                    setIsSubmitting(false);
+                                    setIsGenerating(false);
+                                  }, 0);
+                                }
+
+                                if (!output?.success || output?.error) {
+                                  return (
+                                    <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
+                                      Error: {output?.error || 'Failed to edit ad copy'}
+                                    </div>
+                                  );
+                                }
+
+                                // Dispatch adCopyEdited event
+                                if (output.copy && typeof output.variationIndex === 'number') {
+                                  const eventKey = `${callId}-${output.variationIndex}`;
+                                  if (!dispatchedEvents.current.has(eventKey)) {
+                                    dispatchedEvents.current.add(eventKey);
+                                    setTimeout(() => {
+                                      emitBrowserEvent('adCopyEdited', {
+                                        variationIndex: output.variationIndex,
+                                        newCopy: output.copy,
+                                      });
+                                    }, 0);
+                                  }
+                                }
+
+                                // Resolve the correct image and format to mirror the preview mock-up
+                                const variationIndex = output.variationIndex;
+                                const resolvedFormat =
+                                  (adEditReference as unknown as { format?: 'feed' | 'story' })?.format ?? 'feed';
+
+                                const resolvedImageUrl =
+                                  typeof variationIndex === 'number'
+                                    ? (adContent?.imageVariations?.[variationIndex] ??
+                                       (adEditReference as unknown as { imageUrl?: string })?.imageUrl ??
+                                       adContent?.imageUrl)
+                                    : (adEditReference as unknown as { imageUrl?: string })?.imageUrl ??
+                                      adContent?.imageUrl;
+
+                                return renderEditAdCopyResult({
+                                  callId,
+                                  keyId: `${callId}-output-available`,
+                                  input,
+                                  output,
+                                  imageUrl: resolvedImageUrl,
+                                  format: resolvedFormat,
+                                });
+                              }
+                              case 'output-error':
+                                if (isSubmitting) {
+                                  setTimeout(() => {
+                                    setIsSubmitting(false);
+                                    setIsGenerating(false);
+                                  }, 0);
+                                }
+                                return (
+                                  <div key={callId} className="text-sm text-destructive p-3 border border-destructive/50 rounded-lg my-2">
+                                    Error: {part.errorText || 'Failed to edit ad copy'}
+                                  </div>
+                                );
+                              default:
+                                return null;
+                            }
+                          }
                             case "tool-locationTargeting": {
                               const callId = part.toolCallId;
                               const isProcessing = processingLocations.has(callId);

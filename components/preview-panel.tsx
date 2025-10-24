@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Play, ImageIcon, Video, Layers, Sparkles, DollarSign, Plus, Minus, Building2, Check, Facebook, Loader2, Edit2, RefreshCw, Palette, Type, MapPin, Target, Rocket, Flag } from "lucide-react"
+import { Play, ImageIcon, Video, Layers, Sparkles, DollarSign, Plus, Minus, Building2, Check, Facebook, Loader2, Edit2, Palette, Type, MapPin, Target, Rocket, Flag, Link2 } from "lucide-react"
 import { LocationSelectionCanvas } from "./location-selection-canvas"
 import { AudienceSelectionCanvas } from "./audience-selection-canvas"
 import { AdCopySelectionCanvas } from "./ad-copy-selection-canvas"
@@ -28,7 +28,7 @@ const mockAdAccounts = [
 
 export function PreviewPanel() {
   const [activeFormat, setActiveFormat] = useState("feed")
-  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null)
+  // Removed regenerate feature: no regenerating state
   const { adContent, setAdContent, isPublished, setIsPublished, selectedImageIndex, setSelectedCreativeVariation, setSelectedImageIndex } = useAdPreview()
   const { budgetState, setDailyBudget, setSelectedAdAccount, setIsConnected, isComplete } = useBudget()
   const { locationState } = useLocation()
@@ -200,11 +200,10 @@ export function PreviewPanel() {
           : { width: 500, height: 500, aspect: '1:1' }
       },
       
-      // Metadata
+    // Metadata
       metadata: {
         timestamp: new Date().toISOString(),
         editMode: true,
-        canRegenerate: true,
         selectedFormat: currentFormat
       }
     }
@@ -216,35 +215,7 @@ export function PreviewPanel() {
     }))
   }
 
-  const handleRegenerateAd = async (index: number) => {
-    setRegeneratingIndex(index)
-    
-    // Prepare context message for AI - create similar variation of this specific ad
-    const variation = adVariations[index]
-    const currentFormat = activeFormat
-    const message = `Create a similar variation of ad ${index + 1} (${variation.title}). Reference the existing ${currentFormat} format design, maintain similar style and color scheme (${variation.gradient}), but generate fresh creative elements with different imagery, slightly varied copy, and alternative visual approach. Keep the same brand message and ad structure but make it feel like a new variation of this specific design.`
-    
-    // Dispatch event to AI chat to regenerate this specific variation
-    window.dispatchEvent(new CustomEvent('sendMessageToAI', { 
-      detail: { 
-        message,
-        context: {
-          action: 'regenerate',
-          variationIndex: index,
-          format: currentFormat,
-          variationTitle: variation.title,
-          gradient: variation.gradient,
-          referenceImage: adContent?.imageUrl,
-          originalDesign: true
-        }
-      } 
-    }))
-    
-    // Simulate regeneration delay
-    setTimeout(() => {
-      setRegeneratingIndex(null)
-    }, 2500)
-  }
+  // Removed regenerate handler
 
   // Check if all steps are complete
   const allStepsComplete = 
@@ -268,8 +239,7 @@ export function PreviewPanel() {
   // Render single Feed ad mockup
   const renderFeedAd = (variation: typeof adVariations[0], index: number) => {
     const isSelected = selectedImageIndex === index
-    const isRegenerating = regeneratingIndex === index
-    const isProcessing = isRegenerating
+    const isProcessing = false
     
     return (
       <div 
@@ -309,7 +279,7 @@ export function PreviewPanel() {
                   "text-xs h-8 px-3 font-medium backdrop-blur-sm",
                   isSelected ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-400" : "bg-white/90 hover:bg-white text-black"
                 )}
-                disabled={regeneratingIndex === index}
+                
               >
                 {isSelected ? 'Unselect' : 'Select'}
               </Button>
@@ -318,30 +288,12 @@ export function PreviewPanel() {
                 variant="secondary"
                 onClick={() => handleEditAd(index)}
                 className="text-xs h-8 px-3 font-medium bg-white/90 hover:bg-white text-black backdrop-blur-sm"
-                disabled={regeneratingIndex === index}
+                
               >
                 <Edit2 className="h-3 w-3 mr-1.5" />
                 Edit
               </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => handleRegenerateAd(index)}
-                className="text-xs h-8 px-3 font-medium bg-white/90 hover:bg-white text-black backdrop-blur-sm"
-                disabled={regeneratingIndex === index}
-              >
-                {regeneratingIndex === index ? (
-                  <>
-                    <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                    Regenerating...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-1.5" />
-                    Regenerate
-                  </>
-                )}
-              </Button>
+              
             </div>
           </div>
         )}
@@ -391,8 +343,7 @@ export function PreviewPanel() {
   // Render single Story ad mockup
   const renderStoryAd = (variation: typeof adVariations[0], index: number) => {
     const isSelected = selectedImageIndex === index
-    const isRegenerating = regeneratingIndex === index
-    const isProcessing = isRegenerating
+    const isProcessing = false
     
     return (
       <div 
@@ -432,7 +383,7 @@ export function PreviewPanel() {
                   "text-xs h-8 px-2.5 font-medium backdrop-blur-sm",
                   isSelected ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-400" : "bg-white/95 hover:bg-white text-black"
                 )}
-                disabled={regeneratingIndex === index}
+                
               >
                 {isSelected ? (
                   <>
@@ -448,30 +399,12 @@ export function PreviewPanel() {
                 variant="secondary"
                 onClick={() => handleEditAd(index)}
                 className="text-xs h-8 px-2.5 font-medium bg-white/95 hover:bg-white text-black backdrop-blur-sm"
-                disabled={regeneratingIndex === index}
+                
               >
                 <Edit2 className="h-3 w-3 mr-1" />
                 Edit
               </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => handleRegenerateAd(index)}
-                className="text-xs h-8 px-2.5 font-medium bg-white/95 hover:bg-white text-black backdrop-blur-sm"
-                disabled={regeneratingIndex === index}
-              >
-                {regeneratingIndex === index ? (
-                  <>
-                    <Loader2 className="h-3 w-3 mr-1" />
-                    Regenerating...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-1" />
-                    Regenerate
-                  </>
-                )}
-              </Button>
+              
             </div>
           </div>
         )}
@@ -569,9 +502,7 @@ export function PreviewPanel() {
       {/* Info Section */}
       {!adContent?.imageVariations && (
         <div className="text-center py-6">
-          <p className="text-sm text-muted-foreground">
-            Hover over any ad to select, edit, or regenerate
-          </p>
+          <p className="text-sm text-muted-foreground">Hover over any ad to select or edit</p>
         </div>
       )}
     </div>
@@ -759,7 +690,7 @@ export function PreviewPanel() {
       description: "Authenticate and select Page, IG (optional) and Ad Account",
       completed: (budgetState as unknown as { meta_connect_data?: { status?: string } })?.meta_connect_data?.status === 'completed',
       content: <MetaConnectStep />,
-      icon: Facebook,
+      icon: Link2,
     },
     {
       id: "goal",

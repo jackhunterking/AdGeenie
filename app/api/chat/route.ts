@@ -26,6 +26,7 @@ import { regenerateImageTool } from '@/tools/regenerate-image-tool';
 import { locationTargetingTool } from '@/tools/location-targeting-tool';
 import { audienceTargetingTool } from '@/tools/audience-targeting-tool';
 import { setupGoalTool } from '@/tools/setup-goal-tool';
+import { editAdCopyTool } from '@/tools/edit-ad-copy-tool';
 import { getModel } from '@/lib/ai/gateway-provider';
 import { messageStore } from '@/lib/services/message-store';
 import { conversationManager } from '@/lib/services/conversation-manager';
@@ -122,6 +123,7 @@ export async function POST(req: Request) {
     locationTargeting: locationTargetingTool,
     audienceTargeting: audienceTargetingTool,
     setupGoal: setupGoalTool,
+    editAdCopy: editAdCopyTool,
   };
 
   // Get or create conversation
@@ -244,15 +246,30 @@ export async function POST(req: Request) {
         if (content.headline) referenceContext += `- Headline: "${content.headline}"\n`;
         if (content.description) referenceContext += `- Description: "${content.description}"\n`;
       }
-      
-      referenceContext += `\n**You MUST use one of these tools:**\n`;
-      referenceContext += `- editImage: If user wants to MODIFY this image (change colors, adjust brightness, remove/add elements)\n`;
-      referenceContext += `- regenerateImage: If user wants a COMPLETELY NEW VERSION of this variation\n`;
-      referenceContext += `\n**Required parameters:**\n`;
-      referenceContext += `- imageUrl: ${ref.imageUrl}\n`;
-      referenceContext += `- variationIndex: ${ref.variationIndex}\n`;
-      referenceContext += `- campaignId: (from context)\n`;
-      referenceContext += `\nThe user's message below describes the changes they want to make.\n`;
+
+      // Decide which toolset to expose based on fields
+      const isCopyEdit = Array.isArray((ref as { metadata?: { fields?: string[] } }).metadata?.fields)
+        ? ((ref as { metadata?: { fields?: string[] } }).metadata!.fields!).some((f: string) => ['primaryText','headline','description'].includes(f))
+        : Boolean(ref.content);
+
+      if (isCopyEdit) {
+        referenceContext += `\n**You MUST call this tool:**\n`;
+        referenceContext += `- editAdCopy: Rewrite primaryText/headline/description based on the user's instruction.\n`;
+        referenceContext += `\n**Required parameters:**\n`;
+        referenceContext += `- variationIndex: ${ref.variationIndex}\n`;
+        referenceContext += `- current: {primaryText, headline, description} from context above\n`;
+        referenceContext += `- prompt: The user's instruction\n`;
+        referenceContext += `\nAfter calling editAdCopy, do not output any other text.\n`;
+      } else {
+        referenceContext += `\n**You MUST use one of these tools:**\n`;
+        referenceContext += `- editImage: If user wants to MODIFY this image (change colors, adjust brightness, remove/add elements)\n`;
+        referenceContext += `- regenerateImage: If user wants a COMPLETELY NEW VERSION of this variation\n`;
+        referenceContext += `\n**Required parameters:**\n`;
+        referenceContext += `- imageUrl: ${ref.imageUrl}\n`;
+        referenceContext += `- variationIndex: ${ref.variationIndex}\n`;
+        referenceContext += `- campaignId: (from context)\n`;
+        referenceContext += `\nThe user's message below describes the changes they want to make.\n`;
+      }
 
       // Wrap edit tools to enforce the locked reference during this request
       const locked = { 
@@ -280,6 +297,16 @@ export async function POST(req: Request) {
             const enforced = { ...provided, variationIndex: locked.variationIndex };
             console.log('[LOCK] regenerateImage enforced index:', { lockedIndex: locked.variationIndex, provided: provided.variationIndex });
             const exec = (regenerateImageTool as unknown as { execute: (i: unknown, c: unknown) => Promise<unknown> }).execute;
+            const result = await exec(enforced, ctx);
+            return { ...(result as object), variationIndex: locked.variationIndex, sessionId: locked.sessionId };
+          }
+        } as unknown;
+        (tools as unknown as Record<string, unknown>).editAdCopy = {
+          ...editAdCopyTool,
+          execute: async (input: unknown, ctx: unknown) => {
+            const provided = input as { variationIndex?: number; current?: { primaryText?: string; headline?: string; description?: string } };
+            const enforced = { ...provided, variationIndex: locked.variationIndex };
+            const exec = (editAdCopyTool as unknown as { execute: (i: unknown, c: unknown) => Promise<unknown> }).execute;
             const result = await exec(enforced, ctx);
             return { ...(result as object), variationIndex: locked.variationIndex, sessionId: locked.sessionId };
           }
