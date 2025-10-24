@@ -10,23 +10,15 @@
  *  - FB.ui business_login: https://developers.facebook.com/docs/javascript/reference/FB.ui
  */
 
-import { useEffect, useMemo, useState } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Facebook, Check, Loader2, Link2 } from 'lucide-react'
 import { useCampaignContext } from '@/lib/context/campaign-context'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { loadFacebookSDK } from '@/lib/utils/load-fb-sdk'
 
-declare global {
-  interface Window { FB?: FBNamespace }
-}
-
-interface FBNamespace {
-  init: (opts: { appId?: string; version?: string; cookie?: boolean }) => void;
-  ui: (
-    params: Record<string, unknown>,
-    cb?: (response: unknown) => void
-  ) => void;
-}
+const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
+const FB_GRAPH_VERSION = (process.env.NEXT_PUBLIC_FB_GRAPH_VERSION as string | undefined) || 'v24.0'
 
 interface SummaryData {
   businessId?: string
@@ -56,16 +48,30 @@ export function MetaConnectStep() {
   const { campaign, saveCampaignState } = useCampaignContext()
   const [connecting, setConnecting] = useState(false)
   const [summary, setSummary] = useState<SummaryData | null>(null)
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'loading-sdk' | 'launching' | 'exchanging' | 'success' | 'error'>(
+    'idle'
+  )
+  const [error, setError] = useState<string | null>(null)
 
   const isConnected = useMemo(() => Boolean(summary?.page && summary?.adAccount), [summary])
 
-  const returnPath = useMemo(() => {
-    if (!pathname) return null
-    const query = searchParams.toString()
-    return `${pathname}${query ? `?${query}` : ''}`
-  }, [pathname, searchParams])
+  const statusMessage = useMemo(() => {
+    switch (status) {
+      case 'loading-sdk':
+        return 'Loading the Meta SDK...'
+      case 'launching':
+        return 'Opening Meta to select your business assets...'
+      case 'exchanging':
+        return 'Finalizing your Meta connection...'
+      case 'success':
+        return 'Meta connection complete!'
+      case 'error':
+        return error || 'Something went wrong while connecting to Meta.'
+      default:
+        return ''
+    }
+  }, [status, error])
 
   // Load saved connection summary from campaign state if available
   useEffect(() => {
@@ -90,20 +96,97 @@ export function MetaConnectStep() {
     hydrate()
   }, [campaign?.id])
 
-  const handleConnect = () => {
-    if (!campaign?.id) {
-      console.error('[META] No campaign id available.')
-      return
+  const handleConnect = useCallback(async () => {
+    try {
+      if (!campaign?.id) {
+        console.error('[META] No campaign id available.')
+        return
+      }
+      if (!FB_APP_ID) {
+        setError('Missing Facebook app configuration. Please contact support.')
+        setStatus('error')
+        setDialogOpen(true)
+        return
+      }
+      setConnecting(true)
+      setDialogOpen(true)
+      setStatus('loading-sdk')
+
+      const FB = await loadFacebookSDK({ appId: FB_APP_ID, version: FB_GRAPH_VERSION, cookie: true, xfbml: false })
+
+      setStatus('launching')
+      FB.ui(
+        {
+          method: 'business_login',
+          display: 'popup',
+          permissions: [
+            'business_management',
+            'pages_show_list',
+            'pages_read_engagement',
+            'pages_manage_metadata',
+            'instagram_basic',
+            'ads_read',
+            'ads_management',
+          ],
+          payload: { campaignId: campaign.id },
+        },
+        async (response: unknown) => {
+          const resp = response as { signed_request?: string; request_id?: string }
+          if (!resp?.signed_request || !resp?.request_id) {
+            setError('The Meta login was cancelled or did not return any data.')
+            setStatus('error')
+            setConnecting(false)
+            return
+          }
+
+          setStatus('exchanging')
+          try {
+            const res = await fetch('/api/meta/business-login/callback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                campaignId: campaign.id,
+                signedRequest: resp.signed_request,
+                requestId: resp.request_id,
+              }),
+            })
+            const json = await res.json()
+            if (!res.ok) {
+              console.error('[META] business-login callback failed', json)
+              setError('We could not finalize the Meta connection. Please try again.')
+              setStatus('error')
+              setConnecting(false)
+              return
+            }
+
+            const data = json?.summary as SummaryData | undefined
+            if (data) {
+              setSummary({
+                businessId: data.businessId,
+                page: data.page,
+                instagram: data.instagram ?? null,
+                adAccount: data.adAccount,
+                pixel: data.pixel ?? null,
+              })
+            }
+
+            setStatus('success')
+            setConnecting(false)
+          } catch (err) {
+            console.error('[META] business-login error', err)
+            setError('A network error occurred while finalizing the Meta connection.')
+            setStatus('error')
+            setConnecting(false)
+          }
+        }
+      )
+    } catch (e) {
+      console.error('[META] Error launching Meta connect', e)
+      setError('Failed to launch Meta connection.')
+      setStatus('error')
+      setConnecting(false)
     }
-    setConnecting(true)
-    if (typeof window === 'undefined') return
-    const url = new URL('/meta/oauth/start', window.location.origin)
-    url.searchParams.set('campaignId', campaign.id)
-    if (returnPath) {
-      url.searchParams.set('return', returnPath)
-    }
-    window.location.href = url.toString()
-  }
+  }, [campaign?.id])
 
   const handleDisconnect = async () => {
     if (!campaign?.id) return
@@ -193,6 +276,38 @@ export function MetaConnectStep() {
           </div>
         )}
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle>Meta Business Login</DialogTitle>
+            <DialogDescription>{statusMessage}</DialogDescription>
+          </DialogHeader>
+          <div className="p-6 pt-2">
+            <div className="flex items-center gap-3">
+              {status === 'error' ? (
+                <Loader2 className="h-5 w-5 text-destructive" />
+              ) : status === 'success' ? (
+                <Check className="h-5 w-5 text-green-600" />
+              ) : (
+                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+              )}
+              <span className="text-sm text-muted-foreground">{statusMessage}</span>
+            </div>
+          </div>
+          <DialogFooter className="p-6 pt-0">
+            {status === 'error' ? (
+              <Button variant="outline" onClick={handleConnect}>Retry</Button>
+            ) : status === 'success' ? (
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Close</Button>
+            ) : (
+              <Button variant="outline" disabled>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Working...
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
