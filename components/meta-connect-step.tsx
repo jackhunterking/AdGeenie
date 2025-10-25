@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Facebook, Check, Loader2, Link2 } from 'lucide-react'
 import { useCampaignContext } from '@/lib/context/campaign-context'
+import { useBudget } from '@/lib/context/budget-context'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { fbLogin } from '@/lib/utils/facebook-sdk'
 
@@ -41,6 +42,7 @@ interface RawMetaConnectData {
 
 export function MetaConnectStep() {
   const { campaign, saveCampaignState } = useCampaignContext()
+  const { setIsConnected, setSelectedAdAccount } = useBudget()
   const [connecting, setConnecting] = useState(false)
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -80,6 +82,10 @@ export function MetaConnectStep() {
             adAccount: data.adAccount || (data.adAccountId ? { id: data.adAccountId, name: data.adAccountName || 'Ad Account' } : undefined),
             pixel: data.pixel ?? null,
           })
+          // Keep budget UI in sync so later steps can enable Next immediately
+          if (data.adAccountId) setSelectedAdAccount(data.adAccountId)
+          if (data.adAccount?.id) setSelectedAdAccount(data.adAccount.id)
+          setIsConnected(true)
         }
       } catch {}
     }
@@ -142,6 +148,11 @@ export function MetaConnectStep() {
           adAccount: data.adAccount,
           pixel: data.pixel ?? null,
         })
+        // Reflect connection in budget context for UI completion checks
+        if (data.adAccount?.id) setSelectedAdAccount(data.adAccount.id)
+        setIsConnected(true)
+        // Auto-advance to next step per product requirement
+        window.dispatchEvent(new CustomEvent('autoAdvanceStep'))
       }
 
       setStatus('success')

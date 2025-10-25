@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from "react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { useAutoSave } from "@/lib/hooks/use-auto-save"
 import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
@@ -112,6 +112,17 @@ export function AudienceProvider({ children }: { children: ReactNode }) {
   const setSelected = (selected: boolean) => {
     setAudienceState(prev => ({ ...prev, isSelected: selected }))
   }
+
+  // Auto-advance when AI targeting completes
+  const prevStatus = useRef<AudienceStatus>(audienceState.status)
+  useEffect(() => {
+    const justCompleted = prevStatus.current !== "completed" && audienceState.status === "completed"
+    const isAIMode = audienceState.targeting?.mode === "ai"
+    if (justCompleted && isAIMode) {
+      window.dispatchEvent(new CustomEvent("autoAdvanceStep"))
+    }
+    prevStatus.current = audienceState.status
+  }, [audienceState.status, audienceState.targeting?.mode])
 
   return (
     <AudienceContext.Provider 
