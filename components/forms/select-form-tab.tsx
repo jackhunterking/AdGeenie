@@ -1,16 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, FileText, Check, Calendar, User, Mail, Phone } from "lucide-react"
+import { Search, FileText, Check, Calendar } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useCampaignContext } from "@/lib/context/campaign-context"
 
 interface LeadForm {
   id: string
   name: string
   created_time: string
-  fields: number
 }
 
 interface SelectFormTabProps {
@@ -18,37 +18,42 @@ interface SelectFormTabProps {
 }
 
 export function SelectFormTab({ onFormSelected }: SelectFormTabProps) {
+  const { campaign } = useCampaignContext()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
-  const [isLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [forms, setForms] = useState<LeadForm[]>([])
 
-  // Mock data - will be replaced with API call
-  const forms: LeadForm[] = [
-    {
-      id: "form-1",
-      name: "Toronto Home Buyers Lead",
-      created_time: "2025-01-15T10:30:00Z",
-      fields: 3,
-    },
-    {
-      id: "form-2",
-      name: "Real Estate Inquiry Form",
-      created_time: "2025-01-10T14:20:00Z",
-      fields: 3,
-    },
-    {
-      id: "form-3",
-      name: "Newsletter Signup",
-      created_time: "2025-01-05T09:15:00Z",
-      fields: 2,
-    },
-  ]
+  useEffect(() => {
+    const fetchForms = async () => {
+      if (!campaign?.id) return
+      setIsLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(`/api/meta/forms?campaignId=${encodeURIComponent(campaign.id)}`)
+        const json: unknown = await res.json()
+        if (!res.ok) {
+          const msg = typeof (json as { error?: string }).error === 'string' ? (json as { error?: string }).error! : 'Failed to load forms'
+          throw new Error(msg)
+        }
+        const data = (json as { forms?: LeadForm[] }).forms
+        setForms(Array.isArray(data) ? data : [])
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load forms')
+        setForms([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchForms()
+  }, [campaign?.id])
 
-  const filteredForms = forms.filter((form) => {
-    return form.name.toLowerCase().includes(searchQuery.toLowerCase())
-  })
+  const filteredForms = useMemo(() =>
+    forms.filter((form) => form.name.toLowerCase().includes(searchQuery.toLowerCase())),
+  [forms, searchQuery])
 
-  const selectedForm = forms.find((f) => f.id === selectedFormId)
+  const selectedForm = useMemo(() => forms.find((f) => f.id === selectedFormId) || null, [forms, selectedFormId])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -85,6 +90,13 @@ export function SelectFormTab({ onFormSelected }: SelectFormTabProps) {
           />
         </div>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive mb-2">
+          {error}
+        </div>
+      )}
 
       {/* Forms List */}
       <div className="space-y-2">
@@ -125,7 +137,7 @@ export function SelectFormTab({ onFormSelected }: SelectFormTabProps) {
                     {selectedFormId === form.id && <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-muted-foreground">{form.fields} fields</span>
+                    {/* Fields count not available from list response */}
                   </div>
                   <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3" />
@@ -153,30 +165,6 @@ export function SelectFormTab({ onFormSelected }: SelectFormTabProps) {
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Created {formatDate(selectedForm.created_time)}</span>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-foreground mb-2">Fields Collected:</p>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <User className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <span className="text-xs text-foreground">Full Name</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <Mail className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <span className="text-xs text-foreground">Email Address</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <Phone className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <span className="text-xs text-foreground">Phone Number</span>
-                </div>
-              </div>
             </div>
           </div>
 

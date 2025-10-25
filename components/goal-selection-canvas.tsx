@@ -5,9 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useGoal } from "@/lib/context/goal-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CreateFormTab } from "@/components/forms/create-form-tab"
+import { SelectFormTab } from "@/components/forms/select-form-tab"
+import { CallConfiguration } from "@/components/forms/call-configuration"
+import { WebsiteConfiguration } from "@/components/forms/website-configuration"
 
 export function GoalSelectionCanvas() {
-  const { goalState, setSelectedGoal, startSetup, resetGoal } = useGoal()
+  const { goalState, setSelectedGoal, startSetup, resetGoal, setFormData } = useGoal()
   const { isPublished } = useAdPreview()
   
   const handleSetupClick = () => {
@@ -236,21 +241,52 @@ export function GoalSelectionCanvas() {
             </div>
           </div>
 
-          <div className="flex justify-center gap-4 pt-4">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={resetGoal}
-            >
+          {/* Inline Setup UI per goal */}
+          {goalState.selectedGoal === 'leads' && (
+            <div className="mt-2">
+              <div className="mb-3 text-center">
+                <p className="text-sm text-muted-foreground">Create a new Instant Form or select an existing one</p>
+              </div>
+              <Tabs defaultValue="select" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="create">Create New</TabsTrigger>
+                  <TabsTrigger value="select">Select Existing</TabsTrigger>
+                </TabsList>
+                <TabsContent value="create" className="mt-4">
+                  <CreateFormTab onFormCreated={(data) => {
+                    setFormData({ id: data.id, name: data.name })
+                  }} />
+                </TabsContent>
+                <TabsContent value="select" className="mt-4">
+                  <SelectFormTab onFormSelected={(data) => {
+                    setFormData({ id: data.id, name: data.name })
+                  }} />
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+
+          {goalState.selectedGoal === 'calls' && (
+            <div className="mt-2">
+              <CallConfiguration />
+            </div>
+          )}
+
+          {goalState.selectedGoal === 'website-visits' && (
+            <div className="mt-2">
+              <WebsiteConfiguration />
+            </div>
+          )}
+
+          <div className="flex justify-center gap-4 pt-6">
+            <Button variant="outline" size="lg" onClick={resetGoal}>
               Change Goal
             </Button>
-            <Button
-              size="lg"
-              onClick={handleSetupClick}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8"
-            >
-              Setup {goalState.selectedGoal}
-            </Button>
+            {goalState.selectedGoal === 'leads' && (
+              <Button size="lg" onClick={handleSetupClick} className="bg-blue-600 hover:bg-blue-700 text-white px-8">
+                Setup {goalState.selectedGoal}
+              </Button>
+            )}
           </div>
         </div>
       </div>

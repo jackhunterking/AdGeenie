@@ -9,12 +9,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronRight, Info, User, Mail, Phone } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useCampaignContext } from "@/lib/context/campaign-context"
 
 interface CreateFormTabProps {
   onFormCreated?: (formData: { id: string; name: string }) => void
 }
 
 export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
+  const { campaign } = useCampaignContext()
   const [formName, setFormName] = useState("")
   const [privacyUrl, setPrivacyUrl] = useState("")
   const [privacyLinkText, setPrivacyLinkText] = useState("Privacy Policy")
@@ -30,6 +32,7 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -63,29 +66,43 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
     if (!validateForm()) return
 
     setIsCreating(true)
-    // TODO: API call to create form
-    console.log("[v0] Creating form with data:", {
-      name: formName,
-      privacy_policy: { url: privacyUrl, link_text: privacyLinkText },
-      locale,
-      questions: [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
-      thank_you_page: thankYouOpen
-        ? {
-            title: thankYouTitle,
-            body: thankYouMessage,
-            button_text: thankYouButtonText,
-            button_url: thankYouButtonUrl,
-          }
-        : undefined,
-    })
-
-    setTimeout(() => {
-      setIsCreating(false)
-      const newFormId = `form-${Date.now()}`
-      if (onFormCreated) {
-        onFormCreated({ id: newFormId, name: formName })
+    setError(null)
+    try {
+      if (!campaign?.id) throw new Error('Missing campaignId')
+      const res = await fetch('/api/meta/forms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: campaign.id,
+          name: formName,
+          privacyPolicy: { url: privacyUrl, link_text: privacyLinkText },
+          locale,
+          questions: [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
+          thankYouPage: thankYouOpen
+            ? {
+                title: thankYouTitle,
+                body: thankYouMessage,
+                button_text: thankYouButtonText,
+                button_url: thankYouButtonUrl,
+              }
+            : undefined,
+        }),
+      })
+      const json: unknown = await res.json()
+      if (!res.ok) {
+        const msg = typeof (json as { error?: string }).error === 'string' ? (json as { error?: string }).error! : 'Failed to create form'
+        throw new Error(msg)
       }
-    }, 2000)
+      const id = (json as { id?: string }).id
+      if (!id) throw new Error('Form ID not returned')
+      if (onFormCreated) {
+        onFormCreated({ id, name: formName })
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create form')
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   const handlePreview = () => {
@@ -95,6 +112,11 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       {/* Form Name */}
       <div className="space-y-2">
         <Label htmlFor="form-name" className="text-sm font-medium text-foreground">
