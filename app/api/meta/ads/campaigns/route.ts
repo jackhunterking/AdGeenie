@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import type { Json } from '@/lib/supabase/database.types'
 import { getGraphVersion } from '@/lib/meta/graph'
 
 export async function POST(req: NextRequest) {
@@ -53,12 +54,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: json?.error?.message || 'Failed to create campaign' }, { status: res.status })
     }
 
-    // Persist id to campaign_states.delivery_data
+    // Persist id to campaign_states.meta_connect_data.delivery_data (merge)
     const id = json?.id as string | undefined
     if (id) {
+      const { data: stateRow } = await supabaseServer
+        .from('campaign_states')
+        .select('meta_connect_data')
+        .eq('campaign_id', campaignId)
+        .single()
+
+      const current = (stateRow?.meta_connect_data as Record<string, unknown> | null) || {}
+      const existingDelivery = (current.delivery_data as Record<string, unknown> | undefined) || {}
+      const nextMeta = { ...current, delivery_data: { ...existingDelivery, campaignId: id } }
       await supabaseServer
         .from('campaign_states')
-        .update({ delivery_data: { campaignId: id } })
+        .update({ meta_connect_data: nextMeta as Json })
         .eq('campaign_id', campaignId)
     }
 

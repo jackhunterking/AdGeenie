@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import type { Json } from '@/lib/supabase/database.types'
 import { getGraphVersion } from '@/lib/meta/graph'
 
 export async function POST(req: NextRequest) {
@@ -47,9 +48,18 @@ export async function POST(req: NextRequest) {
 
     const id = json?.id as string | undefined
     if (id) {
+      const { data: stateRow } = await supabaseServer
+        .from('campaign_states')
+        .select('meta_connect_data')
+        .eq('campaign_id', campaignId)
+        .single()
+
+      const current = (stateRow?.meta_connect_data as Record<string, unknown> | null) || {}
+      const existingDelivery = (current.delivery_data as Record<string, unknown> | undefined) || {}
+      const nextMeta = { ...current, delivery_data: { ...existingDelivery, adId: id } }
       await supabaseServer
         .from('campaign_states')
-        .update({ delivery_data: { adId: id } })
+        .update({ meta_connect_data: nextMeta as Json })
         .eq('campaign_id', campaignId)
     }
 
