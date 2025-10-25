@@ -51,9 +51,10 @@ const stepHeaders: Record<string, { title: string; subtitle: string; subtext: st
 
 interface CampaignStepperProps {
   steps: Step[]
+  campaignId?: string
 }
 
-export function CampaignStepper({ steps }: CampaignStepperProps) {
+export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
   const hasInitializedRef = useRef(false)
@@ -65,18 +66,38 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
     if (hasInitializedRef.current) return
 
     const completedCount = steps.filter(s => s.completed).length
-    if (completedCount === 0) return // nothing restored yet
+    if (completedCount < 1) return // wait until at least one step reports completed
 
-    // Heuristic: if 2 or more steps are already completed on first load,
-    // we likely restored. Jump to first incomplete (or last if all done).
-    if (completedCount >= 2) {
-      const firstIncomplete = steps.findIndex(s => !s.completed)
-      const targetIndex = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete
-      setCurrentStepIndex(targetIndex)
+    // Determine the first incomplete (or last if all done)
+    const firstIncomplete = steps.findIndex(s => !s.completed)
+    const targetIndex = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete
+
+    // Try sessionStorage fallback to restore exact last seen step for this campaign
+    let initialIndex = targetIndex
+    try {
+      const key = `campaign:${campaignId ?? 'global'}:lastStepId`
+      const savedId = typeof window !== 'undefined' ? window.sessionStorage.getItem(key) : null
+      const savedIndex = savedId ? steps.findIndex(s => s.id === savedId) : -1
+      // Never jump past the first incomplete step
+      if (savedIndex >= 0) initialIndex = Math.min(savedIndex, targetIndex)
+    } catch {
+      // no-op: sessionStorage may be unavailable
     }
 
+    setCurrentStepIndex(initialIndex)
     hasInitializedRef.current = true
-  }, [steps])
+  }, [steps, campaignId])
+
+  // Persist last seen step id in sessionStorage for instant restore on refresh
+  useEffect(() => {
+    try {
+      const key = `campaign:${campaignId ?? 'global'}:lastStepId`
+      const step = steps[currentStepIndex]
+      if (step) window.sessionStorage.setItem(key, step.id)
+    } catch {
+      // ignore write failures (private mode, etc.)
+    }
+  }, [currentStepIndex, steps, campaignId])
 
   const currentStep = steps[currentStepIndex]
   const isFirstStep = currentStepIndex === 0
