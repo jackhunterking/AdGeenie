@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CreateFormTab } from "@/components/forms/create-form-tab"
 import { SelectFormTab } from "@/components/forms/select-form-tab"
+import { InstantFormCanvas } from "@/components/forms/instant-form-canvas"
 
 type Objective = "leads"
 type ConversionMethod = "instant-forms"
@@ -59,27 +60,7 @@ export function GoalTab() {
         </button>
 
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-4">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-foreground">Instant Forms on Facebook & Instagram</h2>
-            <p className="text-xs text-muted-foreground">People can submit without leaving Facebook or Instagram. Faster, fewer drop‑offs. You receive their details instantly.</p>
-          </div>
-
-          <Tabs defaultValue="select" className="w-full">
-            <TabsList className="w-full">
-              <TabsTrigger value="create">Create New</TabsTrigger>
-              <TabsTrigger value="select">Select Existing</TabsTrigger>
-            </TabsList>
-
-            <p className="text-xs text-muted-foreground mt-1">Minimum fields collected: Full name, Email, Phone.</p>
-
-            <TabsContent value="create" className="mt-3">
-              <CreateFormTab onFormCreated={handleFormSelected} />
-            </TabsContent>
-
-            <TabsContent value="select" className="mt-3">
-              <SelectFormTab onFormSelected={handleFormSelected} />
-            </TabsContent>
-          </Tabs>
+          <InstantFormCanvas onFormSelected={handleFormSelected} />
         </div>
       </div>
     )

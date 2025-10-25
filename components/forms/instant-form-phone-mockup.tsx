@@ -8,7 +8,7 @@
  */
 
 import { cn } from "@/lib/utils"
-import { MapPin, Shield, User, Mail, Phone, Check } from "lucide-react"
+import { MapPin, Shield, User, Mail, Phone, Check, Pencil } from "lucide-react"
 
 interface MockField {
   id: string
@@ -24,6 +24,10 @@ interface InstantFormPhoneMockupProps {
   thankYouTitle: string
   thankYouMessage: string
   showThankYou?: boolean
+  editable?: boolean
+  onTitleClick?: () => void
+  onFieldClick?: (id: string) => void
+  onPrivacyClick?: () => void
 }
 
 export function InstantFormPhoneMockup({
@@ -33,6 +37,10 @@ export function InstantFormPhoneMockup({
   thankYouTitle,
   thankYouMessage,
   showThankYou = false,
+  editable = false,
+  onTitleClick,
+  onFieldClick,
+  onPrivacyClick,
 }: InstantFormPhoneMockupProps) {
   return (
     <div className="mx-auto w-[320px]">
@@ -51,7 +59,18 @@ export function InstantFormPhoneMockup({
 
         {/* Body */}
         <div className="p-3 space-y-3">
-          <div className="text-sm font-semibold">{formName}</div>
+          <div className="text-sm font-semibold flex items-center gap-1">
+            <button
+              type="button"
+              className={cn("text-left", editable && "hover:underline")}
+              onClick={editable ? onTitleClick : undefined}
+            >
+              {formName}
+            </button>
+            {editable && (
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </div>
 
           {showThankYou ? (
             <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-1">
@@ -69,7 +88,13 @@ export function InstantFormPhoneMockup({
                     {f.type === "full_name" && <User className="h-3 w-3" />}
                     {f.type === "email" && <Mail className="h-3 w-3" />}
                     {f.type === "phone" && <Phone className="h-3 w-3" />}
-                    <span>{f.label}</span>
+                    <button
+                      type="button"
+                      className={cn("text-left", editable && "hover:underline")}
+                      onClick={editable ? () => onFieldClick && onFieldClick(f.id) : undefined}
+                    >
+                      {f.label}
+                    </button>
                     {f.required && <span className="text-red-500">*</span>}
                   </label>
                   <input
@@ -90,14 +115,24 @@ export function InstantFormPhoneMockup({
           )}
 
           <div className="pt-2">
-            <a
-              href={privacyUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-            >
-              <Shield className="h-3 w-3" /> Privacy Policy
-            </a>
+            {editable ? (
+              <button
+                type="button"
+                onClick={onPrivacyClick}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <Shield className="h-3 w-3" /> Privacy Policy
+              </button>
+            ) : (
+              <a
+                href={privacyUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <Shield className="h-3 w-3" /> Privacy Policy
+              </a>
+            )}
           </div>
         </div>
       </div>
