@@ -115,6 +115,22 @@ export function GoalSelectionCanvas() {
     )
   }
 
+  // LEADS: Always show builder for all statuses (when not published)
+  if (goalState.selectedGoal === 'leads') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <div className="max-w-2xl w-full space-y-8">
+          <LeadFormSetup
+            onFormSelected={(data) => {
+              setFormData({ id: data.id, name: data.name })
+            }}
+            onChangeGoal={resetGoal}
+          />
+        </div>
+      </div>
+    )
+  }
+
   // Initial state - no goal selected
   if (goalState.status === "idle") {
     return (

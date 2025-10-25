@@ -78,8 +78,8 @@ export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
       const key = `campaign:${campaignId ?? 'global'}:lastStepId`
       const savedId = typeof window !== 'undefined' ? window.sessionStorage.getItem(key) : null
       const savedIndex = savedId ? steps.findIndex(s => s.id === savedId) : -1
-      // Never jump past the first incomplete step
-      if (savedIndex >= 0) initialIndex = Math.min(savedIndex, targetIndex)
+      // Never restore behind the first incomplete step (prefer first incomplete)
+      if (savedIndex >= 0) initialIndex = Math.max(savedIndex, targetIndex)
     } catch {
       // no-op: sessionStorage may be unavailable
     }

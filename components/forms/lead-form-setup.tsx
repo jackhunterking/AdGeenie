@@ -107,6 +107,10 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
                 setSelectedFormId(created.id)
                 setTab("existing")
                 onFormSelected(created)
+                // Signal stepper to advance once state completes
+                setTimeout(() => {
+                  try { window.dispatchEvent(new Event('autoAdvanceStep')) } catch {}
+                }, 0)
               }}
             />
           )}
@@ -121,6 +125,10 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
               onConfirm={(existing) => {
                 setSelectedFormId(existing.id)
                 onFormSelected(existing)
+                // Signal stepper to advance once state completes
+                setTimeout(() => {
+                  try { window.dispatchEvent(new Event('autoAdvanceStep')) } catch {}
+                }, 0)
               }}
               onRequestCreate={() => setTab("create")}
               selectedFormId={selectedFormId}
