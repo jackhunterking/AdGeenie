@@ -19,7 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { InstantFormPhoneMockup } from "./instant-form-phone-mockup"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { SelectFormDialog } from "./select-form-dialog"
-import { Info, Shield, Cog, X } from "lucide-react"
+import { LeadFormSettingsDialog } from "./lead-form-settings-dialog"
+import { Info, Shield, Cog, X, Settings } from "lucide-react"
 
 type FieldType = "full_name" | "email" | "phone"
 
@@ -42,6 +43,7 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
 
   // Form state
   const [formName, setFormName] = useState<string>("Lead Form")
+  const [locale, setLocale] = useState<string>("en_US")
   const defaultPrivacyUrl = "https://adpilot.studio/general-privacy-policy"
   const [useDefaultPrivacy, setUseDefaultPrivacy] = useState<boolean>(true)
   const [privacyUrl, setPrivacyUrl] = useState<string>(defaultPrivacyUrl)
@@ -54,16 +56,13 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
   ])
 
   // Thank you configuration
-  const [thankYouOpen, setThankYouOpen] = useState<boolean>(false)
   const [thankYouTitle, setThankYouTitle] = useState<string>("Thanks for your interest!")
   const [thankYouMessage, setThankYouMessage] = useState<string>("We'll contact you within 24 hours")
   const [thankYouButtonText, setThankYouButtonText] = useState<string>("Visit Website")
   const [thankYouButtonUrl, setThankYouButtonUrl] = useState<string>("")
 
   // UI overlays
-  const [editingTitle, setEditingTitle] = useState<boolean>(false)
-  const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
-  const [privacyOpen, setPrivacyOpen] = useState<boolean>(false)
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false)
   const [selectDialogOpen, setSelectDialogOpen] = useState<boolean>(false)
 
   const errors = useMemo(() => {
@@ -101,7 +100,7 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
         campaignId: campaign.id,
         name: formName,
         privacyPolicy: { url: privacyUrl, link_text: privacyLinkText },
-        locale: "en_US",
+        locale,
         questions: [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
         thankYouPage: thankYouOpen
           ? { title: thankYouTitle, body: thankYouMessage, button_text: thankYouButtonText, button_url: thankYouButtonUrl }
@@ -150,36 +149,25 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
 
       {/* Canvas */}
       <div className="flex flex-col items-center gap-6">
-        {/* Title row with gear - positioned above phone */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditingTitle(true)}
-            className="text-sm font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors"
-            aria-label="Edit form title"
+        {/* Title row with settings */}
+        <div className="flex items-center gap-3">
+          <h3 className="text-base font-semibold text-foreground">{formName}</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSettingsOpen(true)}
+            className="gap-1.5 text-xs"
           >
-            {formName}
-          </button>
-          <button
-            onClick={() => setThankYouOpen(true)}
-            className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label="Thank you settings"
-            title="Thank You Page (Optional)"
-          >
-            <Cog className="h-4 w-4" />
-          </button>
+            <Settings className="h-3.5 w-3.5" />
+            Settings
+          </Button>
         </div>
 
         <InstantFormPhoneMockup
           formName={formName}
           fields={mockFields}
           privacyUrl={privacyUrl}
-          thankYouTitle={thankYouTitle}
-          thankYouMessage={thankYouMessage}
-          showThankYou={false}
-          editable
-          onTitleClick={() => setEditingTitle(true)}
-          onFieldClick={(id) => setEditingFieldId(id)}
-          onPrivacyClick={() => setPrivacyOpen(true)}
+          privacyLinkText={privacyLinkText}
         />
 
         {/* Primary action with validation feedback */}
@@ -202,158 +190,30 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
         )}
       </div>
 
-      {/* Edit title dialog */}
-      <Dialog open={editingTitle} onOpenChange={setEditingTitle}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Form Name</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Input value={formName} onChange={(e) => setFormName(e.target.value)} maxLength={100} />
-            {errors.formName && <p className="text-xs text-red-500">{errors.formName}</p>}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit field dialog */}
-      <Dialog open={editingFieldId !== null} onOpenChange={(o) => setEditingFieldId(o ? editingFieldId : null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Field</DialogTitle>
-          </DialogHeader>
-          {editingFieldId && (
-            <div className="space-y-3">
-              {(() => {
-                const f = fields.find((x) => x.id === editingFieldId)
-                if (!f) return null
-                const isCore = f.type === "full_name" || f.type === "email"
-                return (
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label>Label</Label>
-                      <Input
-                        value={f.label}
-                        onChange={(e) => handleFieldLabelChange(f.id, e.target.value)}
-                        disabled={isCore}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">Required</Label>
-                      <Switch
-                        checked={f.required}
-                        onCheckedChange={() => handleToggleRequired(f.id)}
-                        disabled={isCore}
-                      />
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Privacy dialog */}
-      <Dialog open={privacyOpen} onOpenChange={setPrivacyOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Shield className="h-4 w-4" /> Privacy Policy</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Use default privacy policy</Label>
-              <Switch
-                checked={useDefaultPrivacy}
-                onCheckedChange={(v) => {
-                  setUseDefaultPrivacy(v)
-                  if (v) setPrivacyUrl(defaultPrivacyUrl)
-                }}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="privacy-url">Privacy Policy URL</Label>
-              <Input
-                id="privacy-url"
-                placeholder="https://yourdomain.com/privacy"
-                value={privacyUrl}
-                onChange={(e) => setPrivacyUrl(e.target.value)}
-                disabled={useDefaultPrivacy}
-              />
-              {errors.privacyUrl && <p className="text-xs text-red-500">{errors.privacyUrl}</p>}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="privacy-link">Link Text</Label>
-              <Input
-                id="privacy-link"
-                placeholder="Privacy Policy"
-                value={privacyLinkText}
-                onChange={(e) => setPrivacyLinkText(e.target.value)}
-                maxLength={50}
-              />
-              {errors.privacyLinkText && <p className="text-xs text-red-500">{errors.privacyLinkText}</p>}
-            </div>
-            <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-2 text-xs text-muted-foreground flex gap-2">
-              <Info className="h-3.5 w-3.5 text-blue-600 mt-0.5" /> Required by Meta for all lead forms
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Thank you dialog with native preview */}
-      <Dialog open={thankYouOpen} onOpenChange={setThankYouOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Thank You Page (Optional)</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-6">
-            {/* Left: Form inputs */}
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="ty-title">Title</Label>
-                <Input id="ty-title" value={thankYouTitle} onChange={(e) => setThankYouTitle(e.target.value)} placeholder="Thanks for your interest!" />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ty-body">Message</Label>
-                <Input id="ty-body" value={thankYouMessage} onChange={(e) => setThankYouMessage(e.target.value)} placeholder="We'll contact you within 24 hours" />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ty-btn">Button Text</Label>
-                <Input id="ty-btn" value={thankYouButtonText} onChange={(e) => setThankYouButtonText(e.target.value)} placeholder="Visit Website" />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ty-url">Button URL</Label>
-                <Input id="ty-url" value={thankYouButtonUrl} onChange={(e) => setThankYouButtonUrl(e.target.value)} placeholder="https://yourdomain.com" />
-                {errors.thankYouButtonUrl && <p className="text-xs text-red-500">{errors.thankYouButtonUrl}</p>}
-              </div>
-            </div>
-
-            {/* Right: Native preview */}
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Preview</p>
-              <div className="rounded-xl border border-border bg-white dark:bg-[#242526] p-6 space-y-4">
-                <div className="flex flex-col items-center text-center space-y-3">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#1877F2] to-[#5890FF] flex items-center justify-center text-white text-2xl font-bold">
-                    U
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-bold text-[#050505] dark:text-[#E4E6EB]">{thankYouTitle || "Thanks for your interest!"}</h3>
-                    <p className="text-sm text-[#65676B] dark:text-[#B0B3B8]">{thankYouMessage || "We'll contact you within 24 hours"}</p>
-                  </div>
-                  <div className="w-full rounded-lg border border-[#E4E6EB] dark:border-[#3E4042] bg-[#F0F2F5] dark:bg-[#3A3B3C] p-3 text-xs text-[#65676B] dark:text-[#B0B3B8] flex items-start gap-2">
-                    <Info className="h-3.5 w-3.5 text-[#1877F2] flex-shrink-0 mt-0.5" />
-                    <span>You successfully submitted your responses.</span>
-                  </div>
-                  {thankYouButtonText && (
-                    <button className="w-full h-10 rounded-lg bg-[#1877F2] hover:bg-[#166FE5] text-white text-sm font-semibold transition-colors">
-                      {thankYouButtonText}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Settings dialog */}
+      <LeadFormSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        formName={formName}
+        onFormNameChange={setFormName}
+        locale={locale}
+        onLocaleChange={setLocale}
+        useDefaultPrivacy={useDefaultPrivacy}
+        onUseDefaultPrivacyChange={setUseDefaultPrivacy}
+        privacyUrl={privacyUrl}
+        onPrivacyUrlChange={setPrivacyUrl}
+        privacyLinkText={privacyLinkText}
+        onPrivacyLinkTextChange={setPrivacyLinkText}
+        thankYouTitle={thankYouTitle}
+        onThankYouTitleChange={setThankYouTitle}
+        thankYouMessage={thankYouMessage}
+        onThankYouMessageChange={setThankYouMessage}
+        thankYouButtonText={thankYouButtonText}
+        onThankYouButtonTextChange={setThankYouButtonText}
+        thankYouButtonUrl={thankYouButtonUrl}
+        onThankYouButtonUrlChange={setThankYouButtonUrl}
+        errors={errors}
+      />
 
       {/* Select existing modal */}
       <SelectFormDialog
