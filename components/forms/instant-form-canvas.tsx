@@ -102,7 +102,7 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
         privacyPolicy: { url: privacyUrl, link_text: privacyLinkText },
         locale,
         questions: [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
-        thankYouPage: thankYouOpen
+        thankYouPage: thankYouButtonUrl
           ? { title: thankYouTitle, body: thankYouMessage, button_text: thankYouButtonText, button_url: thankYouButtonUrl }
           : undefined,
       }),
