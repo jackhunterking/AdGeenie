@@ -5,6 +5,7 @@
  *  - Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
  *  - Graph API Reference: https://developers.facebook.com/docs/graph-api/reference
  *  - Business Management API: https://developers.facebook.com/docs/marketing-api/businessmanager
+ *  - Access tokens (long-lived user tokens): https://developers.facebook.com/docs/facebook-login/access-tokens/refreshing/
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -41,7 +42,9 @@ interface Business {
 export async function POST(req: NextRequest) {
   try {
     // Read environment variables at runtime
-    const FB_GRAPH_VERSION = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION || process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID
+    const FB_APP_SECRET = process.env.FB_APP_SECRET
 
     const { campaignId, accessToken, userID } = await req.json() as { 
       campaignId?: string
@@ -73,12 +76,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Fetch business assets using the user's access token
+    // Exchange short-lived token for long-lived token per Meta docs
+    // If app credentials are present, perform exchange; otherwise, fail fast
+    if (!FB_APP_ID || !FB_APP_SECRET) {
+      return NextResponse.json({ error: 'Server missing FB app credentials' }, { status: 500 })
+    }
+
+    const exchangeUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/oauth/access_token` +
+      `?grant_type=fb_exchange_token` +
+      `&client_id=${encodeURIComponent(FB_APP_ID)}` +
+      `&client_secret=${encodeURIComponent(FB_APP_SECRET)}` +
+      `&fb_exchange_token=${encodeURIComponent(accessToken)}`
+
+    const exchangeRes = await fetch(exchangeUrl)
+    const exchangeJson = await exchangeRes.json() as { access_token?: string; expires_in?: number; error?: { message?: string } }
+    if (!exchangeRes.ok || !exchangeJson.access_token) {
+      return NextResponse.json({ error: exchangeJson?.error?.message || 'Failed to exchange long-lived token' }, { status: 400 })
+    }
+
+    const longLivedToken = exchangeJson.access_token
+    const tokenExpiresAt = exchangeJson.expires_in ? new Date(Date.now() + exchangeJson.expires_in * 1000).toISOString() : null
+
+    // Fetch business assets using the (now) long-lived user token
     const baseURL = `https://graph.facebook.com/${FB_GRAPH_VERSION}`
     
     // 1. Fetch Ad Accounts
     const adAccountsRes = await fetch(
-      `${baseURL}/me/adaccounts?fields=id,name,account_id&access_token=${encodeURIComponent(accessToken)}`
+      `${baseURL}/me/adaccounts?fields=id,name,account_id&access_token=${encodeURIComponent(longLivedToken)}`
     )
     const adAccountsData = await adAccountsRes.json() as { data?: AdAccount[] } & GraphAPIError
 
@@ -91,7 +115,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Fetch Pages (with Instagram account info)
     const pagesRes = await fetch(
-      `${baseURL}/me/accounts?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(accessToken)}`
+      `${baseURL}/me/accounts?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(longLivedToken)}`
     )
     const pagesData = await pagesRes.json() as { data?: Page[] } & GraphAPIError
 
@@ -153,6 +177,9 @@ export async function POST(req: NextRequest) {
       .upsert({
         campaign_id: campaignId,
         user_id: user.id,
+        fb_user_id: userID,
+        long_lived_user_token: longLivedToken,
+        token_expires_at: tokenExpiresAt,
         selected_page_id: summary.page?.id || null,
         selected_page_name: summary.page?.name || null,
         selected_ig_user_id: summary.instagram?.id || null,

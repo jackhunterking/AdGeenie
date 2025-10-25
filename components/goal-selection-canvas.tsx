@@ -5,24 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useGoal } from "@/lib/context/goal-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
+import { LeadFormSetup } from "@/components/forms/lead-form-setup"
+import { CallConfiguration } from "@/components/forms/call-configuration"
+import { WebsiteConfiguration } from "@/components/forms/website-configuration"
 
 export function GoalSelectionCanvas() {
-  const { goalState, setSelectedGoal, startSetup, resetGoal } = useGoal()
+  const { goalState, setSelectedGoal, resetGoal, setFormData } = useGoal()
   const { isPublished } = useAdPreview()
   
-  const handleSetupClick = () => {
-    if (!goalState.selectedGoal) return
-    
-    // Trigger AI to handle setup
-    startSetup()
-    
-    // Dispatch event to AI chat with command
-    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-      detail: { 
-        goalType: goalState.selectedGoal 
-      } 
-    }))
-  }
+  // Removed AI-triggered setup; inline UI is used instead
 
   // If published, show locked state regardless of goal setup status
   if (isPublished) {
@@ -126,12 +117,6 @@ export function GoalSelectionCanvas() {
                 size="sm"
                 onClick={() => {
                   setSelectedGoal("leads")
-                  setTimeout(() => {
-                    startSetup()
-                    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-                      detail: { goalType: 'leads' } 
-                    }))
-                  }, 100)
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
@@ -154,12 +139,6 @@ export function GoalSelectionCanvas() {
                 size="sm"
                 onClick={() => {
                   setSelectedGoal("calls")
-                  setTimeout(() => {
-                    startSetup()
-                    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-                      detail: { goalType: 'calls' } 
-                    }))
-                  }, 100)
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
@@ -182,12 +161,6 @@ export function GoalSelectionCanvas() {
                 size="sm"
                 onClick={() => {
                   setSelectedGoal("website-visits")
-                  setTimeout(() => {
-                    startSetup()
-                    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-                      detail: { goalType: 'website-visits' } 
-                    }))
-                  }, 100)
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
@@ -205,53 +178,37 @@ export function GoalSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-bold">Goal Selected</h2>
-            <p className="text-muted-foreground">
-              Ready to set up your {goalState.selectedGoal} goal
-            </p>
-          </div>
+          {/* Selected goal hero card removed once a goal is chosen to keep the canvas clean */}
 
-          <div className="flex justify-center">
-            <div className="p-12 rounded-2xl border-2 border-blue-500 bg-blue-500/5">
-              <div className="h-32 w-32 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 mx-auto">
-                {goalState.selectedGoal === "leads" ? (
-                  <Users className="h-16 w-16 text-blue-600" />
-                ) : goalState.selectedGoal === "calls" ? (
-                  <Phone className="h-16 w-16 text-blue-600" />
-                ) : (
-                  <CheckCircle2 className="h-16 w-16 text-blue-600" />
-                )}
-              </div>
-              <h3 className="text-2xl font-semibold text-center capitalize mb-2">
-                {goalState.selectedGoal?.replace('-', ' ')}
-              </h3>
-              <p className="text-sm text-muted-foreground text-center">
-                {goalState.selectedGoal === "leads" 
-                  ? "Collect info from potential customers" 
-                  : goalState.selectedGoal === "calls"
-                  ? "Get people to call your business"
-                  : "Drive traffic to your website"}
-              </p>
+          {/* Inline Setup UI per goal */}
+          {goalState.selectedGoal === 'leads' && (
+            <LeadFormSetup
+              onFormSelected={(data) => {
+                setFormData({ id: data.id, name: data.name })
+              }}
+              onChangeGoal={resetGoal}
+            />
+          )}
+
+          {goalState.selectedGoal === 'calls' && (
+            <div className="mt-2">
+              <CallConfiguration />
             </div>
-          </div>
+          )}
 
-          <div className="flex justify-center gap-4 pt-4">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={resetGoal}
-            >
-              Change Goal
-            </Button>
-            <Button
-              size="lg"
-              onClick={handleSetupClick}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8"
-            >
-              Setup {goalState.selectedGoal}
-            </Button>
-          </div>
+          {goalState.selectedGoal === 'website-visits' && (
+            <div className="mt-2">
+              <WebsiteConfiguration />
+            </div>
+          )}
+
+          {goalState.selectedGoal !== 'leads' && (
+            <div className="flex justify-center gap-4 pt-6">
+              <Button variant="outline" size="lg" onClick={resetGoal}>
+                Change Goal
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     )

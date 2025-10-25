@@ -2,8 +2,10 @@
  * Feature: Website Visits Goal Configuration
  * Purpose: Form for configuring website destination URL
  * References:
- *  - AI SDK: https://ai-sdk.dev/elements/overview
- *  - Supabase: https://supabase.com/docs/guides/database
+ *  - AI SDK Core: https://ai-sdk.dev/docs/introduction
+ *  - AI Elements: https://ai-sdk.dev/elements/overview
+ *  - Vercel AI Gateway: https://vercel.com/docs/ai-gateway
+ *  - Supabase: https://supabase.com/docs/guides/auth/server-side/nextjs
  */
 
 "use client"

@@ -5,8 +5,8 @@ import { Flag, Filter, FileText, ArrowDown, Check, ChevronRight, AlertCircle, Ch
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CreateFormTab } from "@/components/forms/create-form-tab"
-import { SelectFormTab } from "@/components/forms/select-form-tab"
+import { LeadFormSetup } from "@/components/forms/lead-form-setup"
+import { useGoal } from "@/lib/context/goal-context"
 
 type Objective = "leads"
 type ConversionMethod = "instant-forms"
@@ -17,13 +17,17 @@ interface SelectedFormData {
 }
 
 export function GoalTab() {
+  const { goalState, setFormData, setSelectedGoal, resetGoal } = useGoal()
   const [selectedObjective, setSelectedObjective] = useState<Objective>("leads")
   const [selectedConversion, setSelectedConversion] = useState<ConversionMethod | null>(null)
-  const [selectedForm, setSelectedForm] = useState<SelectedFormData | null>(null)
   const [showFormSetup, setShowFormSetup] = useState(false)
+  
+  // Use form data from context instead of local state
+  const selectedForm = goalState.formData
 
   const handleObjectiveSelect = (objective: Objective) => {
     setSelectedObjective(objective)
+    setSelectedGoal('leads') // Update context with selected goal
   }
 
   const handleConversionSelect = (conversion: ConversionMethod) => {
@@ -32,7 +36,12 @@ export function GoalTab() {
   }
 
   const handleFormSelected = (formData: SelectedFormData) => {
-    setSelectedForm(formData)
+    // Save to GoalContext - this will auto-save to database
+    setFormData({
+      id: formData.id,
+      name: formData.name,
+      type: 'instant-form'
+    })
     setShowFormSetup(false)
   }
 
@@ -44,7 +53,7 @@ export function GoalTab() {
     // Reset everything back to initial state
     setSelectedObjective("leads")
     setSelectedConversion(null)
-    setSelectedForm(null)
+    resetGoal() // Reset goal context (clears form data)
     setShowFormSetup(false)
   }
 
@@ -58,25 +67,9 @@ export function GoalTab() {
           ← Back to Goal
         </button>
 
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-1">Instant Form</h2>
-          <p className="text-xs text-muted-foreground">Create a new form or select an existing one</p>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-4">
+          <LeadFormSetup onFormSelected={handleFormSelected} onChangeGoal={handleChangeGoal} />
         </div>
-
-        <Tabs defaultValue="select" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="create">Create New</TabsTrigger>
-            <TabsTrigger value="select">Select Existing</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="create" className="mt-4">
-            <CreateFormTab onFormCreated={handleFormSelected} />
-          </TabsContent>
-
-          <TabsContent value="select" className="mt-4">
-            <SelectFormTab onFormSelected={handleFormSelected} />
-          </TabsContent>
-        </Tabs>
       </div>
     )
   }

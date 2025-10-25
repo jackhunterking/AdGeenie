@@ -11,7 +11,7 @@ import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 export async function GET(req: NextRequest) {
   try {
     // Read environment variables at runtime
-    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION
+    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION || process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
 
     if (!FB_GRAPH_VERSION) {
       return NextResponse.json({ error: 'Server missing FB_GRAPH_VERSION' }, { status: 500 })
