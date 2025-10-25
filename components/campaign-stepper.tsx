@@ -57,31 +57,24 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
   const hasInitializedRef = useRef(false)
-  // Snapshot how many steps were completed at initial render. If zero, we are in a fresh session
-  // and should NOT auto-jump when the first completion occurs. If greater than zero, we likely
-  // restored a partially completed flow and may jump to the first incomplete step once.
-  const initialCompletedCountRef = useRef<number>(steps.filter(s => s.completed).length)
+  // During hydration many contexts may mark steps as completed at once. We treat
+  // that as a restored session and jump to the first incomplete step exactly once.
 
   // Auto-jump once only for restored sessions (not during live progression)
   useEffect(() => {
     if (hasInitializedRef.current) return
 
-    // Wait until any step reports completed (signals restore landed)
-    const hasAnyCompletion = steps.some(s => s.completed)
-    if (!hasAnyCompletion) return
+    const completedCount = steps.filter(s => s.completed).length
+    if (completedCount === 0) return // nothing restored yet
 
-    // If we started with zero completions, this is a live session. Do not auto-advance.
-    if (initialCompletedCountRef.current === 0) {
-      hasInitializedRef.current = true
-      return
+    // Heuristic: if 2 or more steps are already completed on first load,
+    // we likely restored. Jump to first incomplete (or last if all done).
+    if (completedCount >= 2) {
+      const firstIncomplete = steps.findIndex(s => !s.completed)
+      const targetIndex = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete
+      setCurrentStepIndex(targetIndex)
     }
 
-    // If some step is incomplete, jump to the first incomplete
-    // If all are complete, jump to the last step
-    const firstIncomplete = steps.findIndex(s => !s.completed)
-    const targetIndex = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete
-
-    setCurrentStepIndex(targetIndex)
     hasInitializedRef.current = true
   }, [steps])
 
@@ -102,6 +95,8 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
   // Listen for global auto-advance events (e.g., after AI targeting or Meta connect)
   useEffect(() => {
     const handler = () => {
+      // Ignore auto-advance signals during hydration/init to prevent spurious jumps
+      if (!hasInitializedRef.current) return
       if (currentStep.completed && !isLastStep) {
         handleNext()
       }

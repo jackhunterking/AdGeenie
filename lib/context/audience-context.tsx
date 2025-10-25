@@ -113,12 +113,13 @@ export function AudienceProvider({ children }: { children: ReactNode }) {
     setAudienceState(prev => ({ ...prev, isSelected: selected }))
   }
 
-  // Auto-advance when AI targeting completes
+  // Auto-advance when AI targeting completes, but avoid hydration-induced idle→completed jumps
   const prevStatus = useRef<AudienceStatus>(audienceState.status)
   useEffect(() => {
-    const justCompleted = prevStatus.current !== "completed" && audienceState.status === "completed"
+    const transitionedToCompleted = audienceState.status === "completed" && prevStatus.current !== "completed"
+    const notFromIdleHydration = prevStatus.current !== "idle"
     const isAIMode = audienceState.targeting?.mode === "ai"
-    if (justCompleted && isAIMode) {
+    if (transitionedToCompleted && notFromIdleHydration && isAIMode) {
       window.dispatchEvent(new CustomEvent("autoAdvanceStep"))
     }
     prevStatus.current = audienceState.status
