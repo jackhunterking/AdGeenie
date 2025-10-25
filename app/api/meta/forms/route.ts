@@ -42,26 +42,6 @@ interface CreateFormBody {
   thankYouPage?: ThankYouPageInput
 }
 
-async function getPageAccessToken(graphVersion: string, userToken: string, pageId: string): Promise<string | null> {
-  // Fetch the specific page's access token using the user token
-  const res = await fetch(`https://graph.facebook.com/${graphVersion}/${encodeURIComponent(pageId)}?fields=access_token`, {
-    headers: { Authorization: `Bearer ${userToken}` },
-    cache: 'no-store',
-  })
-  const json = await res.json() as { access_token?: string; error?: unknown }
-  if (json && typeof json.access_token === 'string' && json.access_token.length > 0) {
-    return json.access_token
-  }
-  // Fallback: enumerate all pages
-  const pagesRes = await fetch(`https://graph.facebook.com/${graphVersion}/me/accounts?fields=id,access_token&limit=500`, {
-    headers: { Authorization: `Bearer ${userToken}` },
-    cache: 'no-store',
-  })
-  const pagesJson = await pagesRes.json() as { data?: Array<{ id: string; access_token?: string }> }
-  const page = pagesJson.data?.find((p) => p.id === pageId)
-  return page?.access_token || null
-}
-
 export async function GET(req: NextRequest) {
   try {
     const FB_GRAPH_VERSION = getGraphVersion()
