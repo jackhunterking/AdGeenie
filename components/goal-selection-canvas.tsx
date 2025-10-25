@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useGoal } from "@/lib/context/goal-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreateFormTab } from "@/components/forms/create-form-tab"
-import { SelectFormTab } from "@/components/forms/select-form-tab"
+import { InstantFormCanvas } from "@/components/forms/instant-form-canvas"
 import { CallConfiguration } from "@/components/forms/call-configuration"
 import { WebsiteConfiguration } from "@/components/forms/website-configuration"
 
@@ -209,25 +207,9 @@ export function GoalSelectionCanvas() {
           {/* Inline Setup UI per goal */}
           {goalState.selectedGoal === 'leads' && (
             <div className="mt-2">
-              <div className="mb-3 text-center">
-                <p className="text-sm text-muted-foreground">Create a new Instant Form or select an existing one</p>
-              </div>
-              <Tabs defaultValue="select" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="create">Create New</TabsTrigger>
-                  <TabsTrigger value="select">Select Existing</TabsTrigger>
-                </TabsList>
-                <TabsContent value="create" className="mt-4">
-                  <CreateFormTab onFormCreated={(data) => {
-                    setFormData({ id: data.id, name: data.name })
-                  }} />
-                </TabsContent>
-                <TabsContent value="select" className="mt-4">
-                  <SelectFormTab onFormSelected={(data) => {
-                    setFormData({ id: data.id, name: data.name })
-                  }} />
-                </TabsContent>
-              </Tabs>
+              <InstantFormCanvas onFormSelected={(data) => {
+                setFormData({ id: data.id, name: data.name })
+              }} />
             </div>
           )}
 

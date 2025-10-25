@@ -5,8 +5,6 @@ import { Flag, Filter, FileText, ArrowDown, Check, ChevronRight, AlertCircle, Ch
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CreateFormTab } from "@/components/forms/create-form-tab"
-import { SelectFormTab } from "@/components/forms/select-form-tab"
 import { InstantFormCanvas } from "@/components/forms/instant-form-canvas"
 
 type Objective = "leads"

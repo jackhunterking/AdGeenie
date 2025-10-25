@@ -51,7 +51,7 @@ import { Actions, Action } from "@/components/ai-elements/actions";
 import { DefaultChatTransport, ChatStatus } from "ai";
 import { generateImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
-import { FormSelectionUI } from "@/components/ai-elements/form-selection-ui";
+// Removed legacy FormSelectionUI in favor of unified canvas in Goal step
 import { ImageEditProgressLoader } from "@/components/ai-elements/image-edit-progress-loader";
 import { renderEditImageResult, renderRegenerateImageResult, renderEditAdCopyResult } from "@/components/ai-elements/tool-renderers";
 import { useAdPreview } from "@/lib/context/ad-preview-context";
@@ -1676,56 +1676,23 @@ Make it conversational and easy to understand for a business owner.`,
                                 
                                 case 'input-available':
                                   // Show interactive form selection UI instead of auto-processing
+                                  // Direct users to the unified Goal step canvas instead of duplicating UI here
                                   return (
-                                    <FormSelectionUI
-                                      key={callId}
-                                      onCreateNew={(formData) => {
-                                        addToolResult({
-                                          tool: 'setupGoal',
-                                          toolCallId: callId,
-                                          output: {
-                                            success: true,
-                                            goalType: input.goalType,
-                                            conversionMethod: input.conversionMethod,
-                                            formData: {
-                                              formId: `form-${Date.now()}`,
-                                              formName: formData.name,
-                                              createNew: true,
-                                              fields: formData.fields
-                                            },
-                                            explanation: `Created new instant form: ${formData.name} with ${formData.fields.length} fields`,
-                                          },
-                                        });
-                                      }}
-                                      onSelectExisting={(formId: string, formName: string) => {
-                                        addToolResult({
-                                          tool: 'setupGoal',
-                                          toolCallId: callId,
-                                          output: {
-                                            success: true,
-                                            goalType: input.goalType,
-                                            conversionMethod: input.conversionMethod,
-                                            formData: {
-                                              formId,
-                                              formName,
-                                              createNew: false
-                                            },
-                                            explanation: `Using existing form: ${formName}`,
-                                          },
-                                        });
-                                      }}
-                                      onCancel={() => {
-                                        // Reset goal state back to idle immediately
-                                        resetGoal();
-                                        
-                                        addToolResult({
-                                          tool: 'setupGoal',
-                                          toolCallId: callId,
-                                          output: undefined,
-                                          errorText: 'Form selection cancelled by user',
-                                        } as ToolResult);
-                                      }}
-                                    />
+                                    <div key={callId} className="w-full my-4 space-y-3">
+                                      <div className="rounded-lg border panel-surface p-4">
+                                        <div className="flex items-center justify-between">
+                                          <div className="text-sm">
+                                            Use the canvas in the Goal step to create or select an Instant Form.
+                                          </div>
+                                          <button
+                                            className="text-xs px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                                            onClick={() => emitBrowserEvent('switchToTab', 'goal')}
+                                          >
+                                            Open Goal
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
                                   );
                                 
                                 case 'output-available': {
