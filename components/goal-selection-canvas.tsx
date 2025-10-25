@@ -231,123 +231,30 @@ export function GoalSelectionCanvas() {
     )
   }
 
-  // Setup completed
+  // Setup completed — for Leads, show the builder (Select Existing with check) rather than the summary card
   if (goalState.status === "completed") {
+    if (goalState.selectedGoal === 'leads') {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-8">
+          <div className="max-w-2xl w-full space-y-8">
+            <LeadFormSetup
+              onFormSelected={(data) => {
+                setFormData({ id: data.id, name: data.name })
+              }}
+              onChangeGoal={resetGoal}
+            />
+          </div>
+        </div>
+      )
+    }
+    // Non-leads goals can keep their summary for now
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-6">
           <div className="text-center space-y-2">
             <h2 className="text-3xl font-bold">Goal</h2>
-            <p className="text-muted-foreground">
-              Your goal is ready to use.
-            </p>
+            <p className="text-muted-foreground">Your goal is ready to use.</p>
           </div>
-          
-          {/* Goal Configuration Card */}
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <Flag className="h-4 w-4 text-blue-600" />
-                </div>
-                <h3 className="font-semibold text-lg">Goal Configuration</h3>
-              </div>
-              <Badge className="bg-green-600 text-white">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Ready
-              </Badge>
-            </div>
-
-            {/* Configuration Details */}
-            <div className="space-y-2">
-              {/* Objective */}
-              <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <Filter className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Goal</p>
-                    <p className="font-medium text-sm capitalize">{goalState.selectedGoal || "Leads"}</p>
-                  </div>
-                </div>
-                <Check className="h-4 w-4 text-green-600" />
-              </div>
-
-              {/* Form/Phone/Website - Based on goal type */}
-              {goalState.formData?.name && goalState.selectedGoal === 'leads' && (
-                <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground">Instant Form</p>
-                      <p className="font-medium text-sm truncate">{goalState.formData.name}</p>
-                    </div>
-                  </div>
-                  <Check className="h-4 w-4 text-green-600" />
-                </div>
-              )}
-              
-              {goalState.formData?.phoneNumber && goalState.selectedGoal === 'calls' && (
-                <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <Phone className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground">Phone Number</p>
-                      <p className="font-medium text-sm">{goalState.formData.countryCode} {goalState.formData.phoneNumber}</p>
-                    </div>
-                  </div>
-                  <Check className="h-4 w-4 text-green-600" />
-                </div>
-              )}
-              
-              {goalState.formData?.websiteUrl && goalState.selectedGoal === 'website-visits' && (
-                <div className="flex items-center justify-between p-3 rounded-lg panel-surface border border-border">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground">Website URL</p>
-                      <p className="font-medium text-sm truncate">{goalState.formData.websiteUrl}</p>
-                    </div>
-                  </div>
-                  <Check className="h-4 w-4 text-green-600" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Warning Banner */}
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div className="text-left text-sm space-y-1">
-                <p className="font-medium text-yellow-700 dark:text-yellow-400">Once published, this goal cannot be changed</p>
-                <p className="text-yellow-600 dark:text-yellow-300 text-xs">
-                  Setup complete. You can now continue to Ad Creation.
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Change Goal Button */}
-          {!isPublished && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={resetGoal}
-                className="px-8"
-              >
-                Change Goal
-              </Button>
-            </div>
-          )}
         </div>
       </div>
     )
