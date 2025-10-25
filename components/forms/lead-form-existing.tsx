@@ -116,15 +116,11 @@ export function LeadFormExisting({ onPreview, onConfirm, onRequestCreate, select
     <div className="space-y-4">
       {/* Explanatory header above list/search */}
       <div className="rounded-md border bg-muted/30 p-3">
-        <div className="flex items-start gap-2">
-          <Info className="h-4 w-4 text-blue-600 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-medium">Use an existing Instant Form</h4>
-            <p className="text-xs text-muted-foreground mt-1">
-              Select one of your existing forms below to collect lead information. Click a form to preview it,
-              then choose "Use this form".
-            </p>
-          </div>
+        <div className="flex items-center gap-2">
+          <Info className="h-5 w-5 text-blue-600 flex-shrink-0" />
+          <p className="text-sm text-foreground">
+            Select one of your existing forms below to collect lead information.
+          </p>
         </div>
       </div>
 

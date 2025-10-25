@@ -95,15 +95,11 @@ export function LeadFormCreate({
     <div className="space-y-4">
       {/* Explanatory header above accordions */}
       <div className="rounded-md border bg-muted/30 p-3">
-        <div className="flex items-start gap-2">
-          <Info className="h-4 w-4 text-blue-600 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-medium">Collect leads with Instant Forms</h4>
-            <p className="text-xs text-muted-foreground mt-1">
-              Create a Facebook Instant Form to capture contact info. Complete the sections below, then click
-              {" "}"Create and select form".
-            </p>
-          </div>
+        <div className="flex items-center gap-2">
+          <Info className="h-5 w-5 text-blue-600 flex-shrink-0" />
+          <p className="text-sm text-foreground">
+            Create a Facebook Instant Form to capture contact info and complete the sections below.
+          </p>
         </div>
       </div>
 
