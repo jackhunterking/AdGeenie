@@ -28,6 +28,15 @@ interface LeadFormCreateProps {
   fields: FieldDef[]
   onFieldsChange: (v: FieldDef[]) => void
   onConfirm: (data: { id: string; name: string }) => void
+  // Controlled Thank You fields (lifted to parent so they persist across tabs)
+  thankYouTitle: string
+  onThankYouTitleChange: (v: string) => void
+  thankYouMessage: string
+  onThankYouMessageChange: (v: string) => void
+  thankYouButtonText: string
+  onThankYouButtonTextChange: (v: string) => void
+  thankYouButtonUrl: string
+  onThankYouButtonUrlChange: (v: string) => void
 }
 
 export function LeadFormCreate({
@@ -40,14 +49,20 @@ export function LeadFormCreate({
   fields,
   onFieldsChange,
   onConfirm,
+  thankYouTitle,
+  onThankYouTitleChange,
+  thankYouMessage,
+  onThankYouMessageChange,
+  thankYouButtonText,
+  onThankYouButtonTextChange,
+  thankYouButtonUrl,
+  onThankYouButtonUrlChange,
 }: LeadFormCreateProps) {
   const { campaign } = useCampaignContext()
 
-  // Thank you state (local only for now)
-  const [thankYouTitle, setThankYouTitle] = useState<string>("Thanks for your interest!")
-  const [thankYouMessage, setThankYouMessage] = useState<string>("We'll contact you within 24 hours")
-  const [thankYouButtonText, setThankYouButtonText] = useState<string>("View website")
-  const [thankYouButtonUrl, setThankYouButtonUrl] = useState<string>("")
+  // Submit UX
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+  const [serverError, setServerError] = useState<string | null>(null)
 
   // Privacy policy defaulting
   const defaultPrivacyUrl = "https://adpilot.studio/general-privacy-policy"
@@ -73,6 +88,9 @@ export function LeadFormCreate({
     if (!campaign?.id) return
     if (Object.keys(errors).length > 0) return
 
+    setIsSubmitting(true)
+    setServerError(null)
+
     const res = await fetch("/api/meta/forms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -85,10 +103,20 @@ export function LeadFormCreate({
       }),
     })
     const json: unknown = await res.json()
-    if (!res.ok) return
+    if (!res.ok) {
+      const apiMsg = (json as { error?: string })?.error || "Failed to create form"
+      setServerError(apiMsg)
+      setIsSubmitting(false)
+      return
+    }
     const id = (json as { id?: string }).id
-    if (!id) return
+    if (!id) {
+      setServerError("Form was created but no ID returned. Please try again.")
+      setIsSubmitting(false)
+      return
+    }
     onConfirm({ id, name: formName })
+    setIsSubmitting(false)
   }
 
   return (
@@ -167,21 +195,26 @@ export function LeadFormCreate({
           <AccordionContent>
             <div className="space-y-2">
               <Label>Title</Label>
-              <Input value={thankYouTitle} onChange={(e) => setThankYouTitle(e.target.value)} />
+              <Input value={thankYouTitle} onChange={(e) => onThankYouTitleChange(e.target.value)} />
               <Label className="mt-2">Message</Label>
-              <Input value={thankYouMessage} onChange={(e) => setThankYouMessage(e.target.value)} />
+              <Input value={thankYouMessage} onChange={(e) => onThankYouMessageChange(e.target.value)} />
               <Label className="mt-2">Button Text</Label>
-              <Input value={thankYouButtonText} onChange={(e) => setThankYouButtonText(e.target.value)} placeholder="View website" />
+              <Input value={thankYouButtonText} onChange={(e) => onThankYouButtonTextChange(e.target.value)} placeholder="View website" />
               {errors.thankYouButtonText && <p className="text-xs text-amber-600">{errors.thankYouButtonText}</p>}
               <Label className="mt-2">Website Link URL</Label>
-              <Input value={thankYouButtonUrl} onChange={(e) => setThankYouButtonUrl(e.target.value)} placeholder="https://yourdomain.com" />
+              <Input value={thankYouButtonUrl} onChange={(e) => onThankYouButtonUrlChange(e.target.value)} placeholder="https://yourdomain.com" />
               {errors.thankYouButtonUrl && <p className="text-xs text-amber-600">{errors.thankYouButtonUrl}</p>}
             </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
-      <Button onClick={createForm} disabled={Object.keys(errors).length > 0} className="w-full">Create and select form</Button>
+      {serverError && (
+        <p className="text-sm text-red-600 py-1">{serverError}</p>
+      )}
+      <Button onClick={createForm} disabled={Object.keys(errors).length > 0 || isSubmitting} className="w-full">
+        {isSubmitting ? "Creating..." : "Create and select form"}
+      </Button>
     </div>
   )
 }

@@ -39,6 +39,12 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
     { id: "phone", type: "phone", label: "Phone Number", required: true },
   ])
 
+  // Thank you page state is lifted here so it persists when switching tabs
+  const [thankYouTitle, setThankYouTitle] = useState<string>("Thanks for your interest!")
+  const [thankYouMessage, setThankYouMessage] = useState<string>("We'll contact you within 24 hours")
+  const [thankYouButtonText, setThankYouButtonText] = useState<string>("View website")
+  const [thankYouButtonUrl, setThankYouButtonUrl] = useState<string>("")
+
   const mockFields = useMemo(() => fields.map(f => ({ ...f })), [fields])
 
   const tabs = [
@@ -85,6 +91,14 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
               onPrivacyLinkTextChange={setPrivacyLinkText}
               fields={fields}
               onFieldsChange={setFields}
+              thankYouTitle={thankYouTitle}
+              onThankYouTitleChange={setThankYouTitle}
+              thankYouMessage={thankYouMessage}
+              onThankYouMessageChange={setThankYouMessage}
+              thankYouButtonText={thankYouButtonText}
+              onThankYouButtonTextChange={setThankYouButtonText}
+              thankYouButtonUrl={thankYouButtonUrl}
+              onThankYouButtonUrlChange={setThankYouButtonUrl}
               onConfirm={(created) => {
                 // Auto-select newly created form: switch to Existing and highlight
                 setSelectedFormId(created.id)
