@@ -50,6 +50,7 @@ export default function RootLayout({
                   xfbml: true,
                   version: '${process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'}'
                 });
+                FB.AppEvents.logPageView();
               };
             `
           }}

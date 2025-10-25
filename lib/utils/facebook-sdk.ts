@@ -2,77 +2,72 @@
  * Facebook SDK Helper Functions
  * SDK is initialized globally via app/layout.tsx
  * References:
- *  - Business Login: https://developers.facebook.com/docs/business-apps/business-login
- *  - FB.ui Reference: https://developers.facebook.com/docs/javascript/reference/FB.ui
+ *  - Facebook Login: https://developers.facebook.com/docs/facebook-login/web
+ *  - FB.login Reference: https://developers.facebook.com/docs/javascript/reference/FB.login
+ *  - Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
  */
 
 import type { 
-  FBBusinessLoginResponse,
-  FBBusinessLoginCallbackResponse,
-  FBErrorResponse
+  FBLoginStatusResponse,
+  FBAuthResponse
 } from '@/lib/types/facebook'
 
-/**
- * Type guard to check if response is an error response
- */
-function isFBErrorResponse(response: FBBusinessLoginCallbackResponse): response is FBErrorResponse {
-  return response !== null && response !== undefined && 'error' in response
+export interface FBLoginResult {
+  accessToken: string
+  userID: string
+  expiresIn: string | number
 }
 
 /**
- * Type guard to check if response is a successful business login response
+ * Launch Facebook Login Dialog with Business Permissions
+ * Uses standard FB.login() with business-related permissions
+ * Returns accessToken and userID for backend to fetch business assets
  */
-function isFBBusinessLoginSuccess(response: FBBusinessLoginCallbackResponse): response is FBBusinessLoginResponse {
-  return (
-    response !== null && 
-    response !== undefined && 
-    'signed_request' in response && 
-    'request_id' in response
-  )
-}
-
-/**
- * Launch Facebook Business Login Dialog
- * Returns signed_request and request_id needed for backend verification
- */
-export const fbBusinessLogin = (
-  campaignId: string,
-  permissions: string[]
-): Promise<FBBusinessLoginResponse> => {
+export const fbLogin = (permissions: string[]): Promise<FBLoginResult> => {
   return new Promise((resolve, reject) => {
     if (!window.FB) {
       reject(new Error('Facebook SDK not initialized'))
       return
     }
 
-    window.FB.ui(
-      {
-        method: 'business_login',
-        display: 'popup',
-        permissions,
-        payload: { campaignId },
-      },
-      (response) => {
-        if (!response) {
-          reject(new Error('Dialog was closed by user'))
-          return
-        }
+    // Join permissions into comma-separated string
+    const scope = permissions.join(',')
 
-        if (isFBErrorResponse(response)) {
-          reject(new Error(response.error.message || 'Facebook business login failed'))
-          return
-        }
-
-        if (isFBBusinessLoginSuccess(response)) {
+    window.FB.login(
+      (response: FBLoginStatusResponse) => {
+        if (response.status === 'connected' && response.authResponse) {
+          // User successfully logged in and granted permissions
           resolve({
-            signed_request: response.signed_request,
-            request_id: response.request_id,
+            accessToken: response.authResponse.accessToken,
+            userID: response.authResponse.userID,
+            expiresIn: response.authResponse.expiresIn,
           })
-          return
+        } else if (response.status === 'not_authorized') {
+          // User is logged into Facebook but did not authorize the app
+          reject(new Error('You must grant permissions to connect your Meta account'))
+        } else {
+          // User is not logged into Facebook or cancelled the dialog
+          reject(new Error('Facebook login was cancelled or failed'))
         }
-
-        reject(new Error('Unexpected response format from Facebook'))
-      }
+      },
+      { scope, return_scopes: true }
     )
+  })
+}
+
+/**
+ * Check current Facebook login status
+ * Useful for checking if user is already connected
+ */
+export const fbGetLoginStatus = (): Promise<FBLoginStatusResponse> => {
+  return new Promise((resolve, reject) => {
+    if (!window.FB) {
+      reject(new Error('Facebook SDK not initialized'))
+      return
+    }
+
+    window.FB.getLoginStatus((response: FBLoginStatusResponse) => {
+      resolve(response)
+    })
   })
 }

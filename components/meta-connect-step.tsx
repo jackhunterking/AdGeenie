@@ -2,10 +2,11 @@
 
 /**
  * Feature: Meta Connect Step UI
- * Purpose: Use Meta business_login dialog
+ * Purpose: Use standard Facebook Login with business permissions
  * References:
- *  - Facebook JS SDK Quickstart: https://developers.facebook.com/docs/javascript/quickstart/
- *  - Business Login: https://developers.facebook.com/docs/business-apps/business-login
+ *  - Facebook Login for Web: https://developers.facebook.com/docs/facebook-login/web
+ *  - FB.login Reference: https://developers.facebook.com/docs/javascript/reference/FB.login
+ *  - Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
  */
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
@@ -13,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Facebook, Check, Loader2, Link2 } from 'lucide-react'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { fbBusinessLogin } from '@/lib/utils/facebook-sdk'
+import { fbLogin } from '@/lib/utils/facebook-sdk'
 
 interface SummaryData {
   businessId?: string
@@ -100,7 +101,10 @@ export function MetaConnectStep() {
       setDialogOpen(true)
       setStatus('launching')
 
-      const response = await fbBusinessLogin(campaign.id, [
+      // Use standard FB.login() with business permissions
+      const response = await fbLogin([
+        'public_profile',
+        'email',
         'business_management',
         'pages_show_list',
         'pages_read_engagement',
@@ -112,20 +116,21 @@ export function MetaConnectStep() {
 
       setStatus('exchanging')
 
-      const res = await fetch('/api/meta/business-login/callback', {
+      // Send access token to backend to fetch business assets
+      const res = await fetch('/api/meta/auth/callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           campaignId: campaign.id,
-          signedRequest: response.signed_request,
-          requestId: response.request_id,
+          accessToken: response.accessToken,
+          userID: response.userID,
         }),
       })
 
       const json = await res.json()
 
       if (!res.ok) {
-        throw new Error('Could not finalize Meta connection')
+        throw new Error(json.error || 'Could not finalize Meta connection')
       }
 
       const data = json?.summary as SummaryData | undefined
