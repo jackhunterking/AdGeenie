@@ -57,15 +57,14 @@ export async function GET(request: NextRequest) {
         userEmail: data.user?.email
       })
       
-      // Build final redirect URL (handle load balancer header if present)
-      const forwardedHost = request.headers.get('x-forwarded-host')
-      const isLocal = process.env.NODE_ENV === 'development'
-      let redirectUrl = isLocal
-        ? `${origin}${next}`
-        : forwardedHost
-          ? `https://${forwardedHost}${next}`
-          : `${origin}${next}`
+      // Build final redirect URL using the actual request host/protocol so users
+      // remain on the domain they initiated auth from (staging vs production).
+      const currentUrl = new URL(request.url)
+      const host = request.headers.get('host') ?? currentUrl.host
+      const proto = request.headers.get('x-forwarded-proto') ?? currentUrl.protocol.replace(':', '')
+      const originForRedirect = `${proto}://${host}`
 
+      let redirectUrl = `${originForRedirect}${next}`
       // Add auth success indicator to trigger client-side session refresh
       redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + 'auth=success'
 
