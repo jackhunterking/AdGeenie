@@ -76,7 +76,8 @@ export function LeadFormCreate({
     if (!privacyLinkText || privacyLinkText.trim().length < 3) e.privacyLinkText = "Link text must be at least 3 characters"
     if (!thankYouButtonText || thankYouButtonText.trim().length < 2) e.thankYouButtonText = "Button label is required"
     else if (thankYouButtonText.length > 60) e.thankYouButtonText = "Button label must be 60 characters or fewer"
-    if (thankYouButtonUrl && !thankYouButtonUrl.startsWith("https://")) e.thankYouButtonUrl = "Website link URL must start with https://"
+    if (!thankYouButtonUrl) e.thankYouButtonUrl = "Website link URL is required"
+    else if (!thankYouButtonUrl.startsWith("https://")) e.thankYouButtonUrl = "Website link URL must start with https://"
     return e
   }, [formName, privacyUrl, privacyLinkText, thankYouButtonText, thankYouButtonUrl])
 
@@ -103,9 +104,8 @@ export function LeadFormCreate({
           title: thankYouTitle,
           body: thankYouMessage,
           button_text: thankYouButtonText,
-          ...(thankYouButtonUrl && thankYouButtonUrl.startsWith("https://")
-            ? { button_type: "VIEW_WEBSITE", button_url: thankYouButtonUrl }
-            : { button_type: "VIEW_ON_FACEBOOK" }),
+          button_type: "VIEW_WEBSITE",
+          button_url: thankYouButtonUrl,
         },
       }),
     })

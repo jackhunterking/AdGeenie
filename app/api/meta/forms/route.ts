@@ -157,12 +157,13 @@ export async function POST(req: NextRequest) {
       const url = (thankYouPage.button_url || '').trim()
       if (url) {
         if (!url.startsWith('https://')) {
-          return NextResponse.json({ error: 'thank_you_page[button_url] must start with https://' }, { status: 400 })
+          return NextResponse.json({ error: 'thank_you_page[website_url] must start with https://' }, { status: 400 })
         }
         safeTYP.button_type = 'VIEW_WEBSITE'
-        safeTYP.button_url = url
+        safeTYP.website_url = url
       } else {
-        safeTYP.button_type = 'VIEW_ON_FACEBOOK'
+        // Enforce URL required per product decision
+        return NextResponse.json({ error: 'thank_you_page[website_url] is required' }, { status: 400 })
       }
 
       payload.thank_you_page = JSON.stringify(safeTYP)
