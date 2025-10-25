@@ -256,35 +256,6 @@ export function GoalSelectionCanvas() {
     )
   }
 
-  // Setup completed — for Leads, show the builder (Select Existing with check) rather than the summary card
-  if (goalState.status === "completed") {
-    if (goalState.selectedGoal === 'leads') {
-      return (
-        <div className="flex flex-col items-center justify-center h-full p-8">
-          <div className="max-w-2xl w-full space-y-8">
-            <LeadFormSetup
-              onFormSelected={(data) => {
-                setFormData({ id: data.id, name: data.name })
-              }}
-              onChangeGoal={resetGoal}
-            />
-          </div>
-        </div>
-      )
-    }
-    // Non-leads goals can keep their summary for now
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-8">
-        <div className="max-w-2xl w-full space-y-6">
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-bold">Goal</h2>
-            <p className="text-muted-foreground">Your goal is ready to use.</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   // Error state
   if (goalState.status === "error") {
     return (
