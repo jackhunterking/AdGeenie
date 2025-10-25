@@ -9,11 +9,11 @@
  */
 
 import { useMemo, useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { InstantFormPhoneMockup } from "@/components/forms/instant-form-phone-mockup"
 import { LeadFormCreate } from "@/components/forms/lead-form-create"
 import { LeadFormExisting } from "@/components/forms/lead-form-existing"
+import { cn } from "@/lib/utils"
 
 interface SelectedFormData {
   id: string
@@ -40,50 +40,65 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
 
   const mockFields = useMemo(() => fields.map(f => ({ ...f })), [fields])
 
+  const tabs = [
+    { id: "create", label: "Create New" },
+    { id: "existing", label: "Select Existing" },
+  ]
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* Sticky header with Change Goal */}
-      <div className="flex items-center justify-between">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "create" | "existing")}> 
-          <TabsList>
-            <TabsTrigger value="create">Create New</TabsTrigger>
-            <TabsTrigger value="existing">Select Existing</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <Button variant="outline" onClick={onChangeGoal}>Change Goal</Button>
+    <div className="flex flex-col gap-6">
+      {/* Format Tabs - matching creative/copy style */}
+      <div className="flex justify-center pb-4">
+        <div className="inline-flex rounded-lg border border-border p-1 bg-card">
+          {tabs.map((tabItem) => {
+            const isActive = tab === tabItem.id
+            return (
+              <button
+                key={tabItem.id}
+                onClick={() => setTab(tabItem.id as "create" | "existing")}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-md transition-all",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+              >
+                {tabItem.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Two-column layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left column */}
         <div className="space-y-4">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as "create" | "existing")}> 
-            <TabsContent value="create" className="m-0">
-              <LeadFormCreate
-                formName={formName}
-                onFormNameChange={setFormName}
-                privacyUrl={privacyUrl}
-                onPrivacyUrlChange={setPrivacyUrl}
-                privacyLinkText={privacyLinkText}
-                onPrivacyLinkTextChange={setPrivacyLinkText}
-                fields={fields}
-                onFieldsChange={setFields}
-                onConfirm={(created) => onFormSelected(created)}
-              />
-            </TabsContent>
-            <TabsContent value="existing" className="m-0">
-              <LeadFormExisting
-                onPreview={(preview) => {
-                  // When previewing existing, optionally mirror to right
-                  setFormName(preview.name)
-                  setPrivacyUrl(preview.privacyUrl || "")
-                  setPrivacyLinkText(preview.privacyLinkText || "Privacy Policy")
-                  setFields(preview.fields)
-                }}
-                onConfirm={(existing) => onFormSelected(existing)}
-              />
-            </TabsContent>
-          </Tabs>
+          {tab === "create" && (
+            <LeadFormCreate
+              formName={formName}
+              onFormNameChange={setFormName}
+              privacyUrl={privacyUrl}
+              onPrivacyUrlChange={setPrivacyUrl}
+              privacyLinkText={privacyLinkText}
+              onPrivacyLinkTextChange={setPrivacyLinkText}
+              fields={fields}
+              onFieldsChange={setFields}
+              onConfirm={(created) => onFormSelected(created)}
+            />
+          )}
+          {tab === "existing" && (
+            <LeadFormExisting
+              onPreview={(preview) => {
+                // When previewing existing, optionally mirror to right
+                setFormName(preview.name)
+                setPrivacyUrl(preview.privacyUrl || "")
+                setPrivacyLinkText(preview.privacyLinkText || "Privacy Policy")
+                setFields(preview.fields)
+              }}
+              onConfirm={(existing) => onFormSelected(existing)}
+            />
+          )}
         </div>
 
         {/* Right column - Live mockup */}
@@ -95,6 +110,13 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
             privacyLinkText={privacyLinkText}
           />
         </div>
+      </div>
+
+      {/* Change Goal button at bottom */}
+      <div className="flex justify-center pt-6 border-t border-border">
+        <Button variant="outline" size="lg" onClick={onChangeGoal}>
+          Change Goal
+        </Button>
       </div>
     </div>
   )
