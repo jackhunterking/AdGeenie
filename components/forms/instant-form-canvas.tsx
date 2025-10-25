@@ -223,6 +223,10 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
           setSelectDialogOpen(false)
           onFormSelected(d)
         }}
+        onRequestCreate={() => {
+          setSelectDialogOpen(false)
+          setMode("create")
+        }}
       />
     </div>
   )

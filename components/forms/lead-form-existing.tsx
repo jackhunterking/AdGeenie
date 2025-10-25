@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button"
 import { FileText, Search, Calendar, Check } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCampaignContext } from "@/lib/context/campaign-context"
-import { MetaConnectStep } from "@/components/meta-connect-step"
 
 interface LeadForm { id: string; name: string; created_time?: string }
 
@@ -28,9 +27,11 @@ interface PreviewData {
 interface LeadFormExistingProps {
   onPreview: (data: PreviewData) => void
   onConfirm: (data: { id: string; name: string }) => void
+  onRequestCreate?: () => void
+  selectedFormId?: string | null
 }
 
-export function LeadFormExisting({ onPreview, onConfirm }: LeadFormExistingProps) {
+export function LeadFormExisting({ onPreview, onConfirm, onRequestCreate, selectedFormId: selectedFormIdProp }: LeadFormExistingProps) {
   const { campaign } = useCampaignContext()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
@@ -58,6 +59,13 @@ export function LeadFormExisting({ onPreview, onConfirm }: LeadFormExistingProps
     }
     fetchForms()
   }, [campaign?.id])
+
+  // Keep internal selection in sync with parent-provided selection
+  useEffect(() => {
+    if (typeof selectedFormIdProp !== 'undefined') {
+      setSelectedFormId(selectedFormIdProp)
+    }
+  }, [selectedFormIdProp])
 
   const filteredForms = useMemo(() => forms.filter((f) => (f.name || '').toLowerCase().includes(searchQuery.toLowerCase())), [forms, searchQuery])
 
@@ -102,7 +110,7 @@ export function LeadFormExisting({ onPreview, onConfirm }: LeadFormExistingProps
     }
   }
 
-  const showConnect = !isLoading && forms.length === 0
+  const showEmpty = !isLoading && filteredForms.length === 0
 
   return (
     <div className="space-y-4">
@@ -123,17 +131,15 @@ export function LeadFormExisting({ onPreview, onConfirm }: LeadFormExistingProps
               <Skeleton className="h-3 w-1/2" />
             </div>
           ))
-        ) : filteredForms.length === 0 ? (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center space-y-3">
-              <FileText className="h-8 w-8 text-[#1877F2] mx-auto mb-2" />
-              <p className="text-sm font-medium text-foreground mb-1">No forms found</p>
-              <p className="text-xs text-muted-foreground mb-3">{searchQuery ? "Try adjusting your search" : "Create your first form to get started"}</p>
-            </div>
-            {showConnect && (
-              <div className="rounded-lg border border-border bg-card p-4">
-                <MetaConnectStep />
-              </div>
+        ) : showEmpty ? (
+          <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center space-y-3">
+            <FileText className="h-8 w-8 text-[#1877F2] mx-auto mb-2" />
+            <p className="text-sm font-medium text-foreground mb-1">No forms yet</p>
+            <p className="text-xs text-muted-foreground mb-4">{searchQuery ? "No results match your search." : "Create your first instant form to capture leads."}</p>
+            {!searchQuery && (
+              <Button onClick={onRequestCreate} className="h-9 bg-[#1877F2] hover:bg-[#166FE5] text-white">
+                Create New
+              </Button>
             )}
           </div>
         ) : (

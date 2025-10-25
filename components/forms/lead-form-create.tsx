@@ -139,7 +139,7 @@ export function LeadFormCreate({
         </AccordionItem>
       </Accordion>
 
-      <Button onClick={createForm} disabled={Object.keys(errors).length > 0} className="w-full">Confirm form</Button>
+      <Button onClick={createForm} disabled={Object.keys(errors).length > 0} className="w-full">Create and select form</Button>
     </div>
   )
 }

@@ -21,9 +21,10 @@ interface SelectFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onFormSelected: (data: { id: string; name: string }) => void
+  onRequestCreate?: () => void
 }
 
-export function SelectFormDialog({ open, onOpenChange, onFormSelected }: SelectFormDialogProps) {
+export function SelectFormDialog({ open, onOpenChange, onFormSelected, onRequestCreate }: SelectFormDialogProps) {
   const { campaign } = useCampaignContext()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
@@ -93,15 +94,12 @@ export function SelectFormDialog({ open, onOpenChange, onFormSelected }: SelectF
           ) : filteredForms.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center space-y-3">
               <FileText className="h-8 w-8 text-[#1877F2] mx-auto mb-2" />
-              <p className="text-sm font-medium text-foreground mb-1">No forms found</p>
-              <p className="text-xs text-muted-foreground mb-3">{searchQuery ? "Try adjusting your search" : "Create your first form to get started"}</p>
+              <p className="text-sm font-medium text-foreground mb-1">No forms yet</p>
+              <p className="text-xs text-muted-foreground mb-4">{searchQuery ? "No results match your search." : "Create your first instant form to capture leads."}</p>
               {!searchQuery && (
-                <button
-                  onClick={() => onOpenChange(false)}
-                  className="text-xs text-[#1877F2] hover:underline font-medium"
-                >
-                  Create a new form instead
-                </button>
+                <Button onClick={onRequestCreate} className="h-9 bg-[#1877F2] hover:bg-[#166FE5] text-white">
+                  Create New
+                </Button>
               )}
             </div>
           ) : (

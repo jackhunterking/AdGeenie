@@ -27,6 +27,7 @@ interface LeadFormSetupProps {
 
 export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupProps) {
   const [tab, setTab] = useState<"create" | "existing">("create")
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
 
   // Shared preview state for Create tab
   const [formName, setFormName] = useState<string>("Lead Form")
@@ -84,19 +85,28 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
               onPrivacyLinkTextChange={setPrivacyLinkText}
               fields={fields}
               onFieldsChange={setFields}
-              onConfirm={(created) => onFormSelected(created)}
+              onConfirm={(created) => {
+                // Auto-select newly created form: switch to Existing and highlight
+                setSelectedFormId(created.id)
+                setTab("existing")
+                onFormSelected(created)
+              }}
             />
           )}
           {tab === "existing" && (
             <LeadFormExisting
               onPreview={(preview) => {
-                // When previewing existing, optionally mirror to right
                 setFormName(preview.name)
                 setPrivacyUrl(preview.privacyUrl || "")
                 setPrivacyLinkText(preview.privacyLinkText || "Privacy Policy")
                 setFields(preview.fields)
               }}
-              onConfirm={(existing) => onFormSelected(existing)}
+              onConfirm={(existing) => {
+                setSelectedFormId(existing.id)
+                onFormSelected(existing)
+              }}
+              onRequestCreate={() => setTab("create")}
+              selectedFormId={selectedFormId}
             />
           )}
         </div>
