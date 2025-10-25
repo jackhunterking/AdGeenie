@@ -1,6 +1,7 @@
 "use client"
 
 import { Phone, Users, CheckCircle2, Loader2, Lock, Flag, Filter, FileText, Check, AlertCircle } from "lucide-react"
+import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useGoal } from "@/lib/context/goal-context"
@@ -14,6 +15,24 @@ export function GoalSelectionCanvas() {
   const { isPublished } = useAdPreview()
   
   // Removed AI-triggered setup; inline UI is used instead
+
+  // Auto-advance to next step when this step transitions to completed during this session
+  const prevStatusRef = useRef(goalState.status)
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    const curr = goalState.status
+    if (prev !== 'completed' && curr === 'completed' && goalState.selectedGoal === 'leads') {
+      // Let state settle, then signal stepper to advance
+      setTimeout(() => {
+        try {
+          window.dispatchEvent(new Event('autoAdvanceStep'))
+        } catch {
+          // ignore
+        }
+      }, 0)
+    }
+    prevStatusRef.current = curr
+  }, [goalState.status, goalState.selectedGoal])
 
   // If published, show locked state regardless of goal setup status
   if (isPublished) {
