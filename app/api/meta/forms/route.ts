@@ -140,13 +140,31 @@ export async function POST(req: NextRequest) {
       payload.questions = JSON.stringify(questions.map((q) => ({ type: q.type })))
     }
     if (locale) payload.locale = locale
-    // Thank You page: allow only documented keys. Map unsupported `button_url` to button_text only.
-    if (thankYouPage && (thankYouPage.title || thankYouPage.body || thankYouPage.button_text)) {
+    // Thank You page: require button_text (<=60). Infer type by URL presence.
+    if (thankYouPage && (thankYouPage.title || thankYouPage.body || thankYouPage.button_text || thankYouPage.button_url)) {
       const safeTYP: Record<string, string> = {}
       if (thankYouPage.title) safeTYP.title = thankYouPage.title
       if (thankYouPage.body) safeTYP.body = thankYouPage.body
-      if (thankYouPage.button_text) safeTYP.button_text = thankYouPage.button_text
-      // Note: button_url is not an accepted parameter for form creation per API; use ad creative link instead
+      const label = (thankYouPage.button_text || '').trim()
+      if (!label) {
+        return NextResponse.json({ error: 'thank_you_page[button_text] is required' }, { status: 400 })
+      }
+      if (label.length > 60) {
+        return NextResponse.json({ error: 'thank_you_page[button_text] must be 60 characters or fewer' }, { status: 400 })
+      }
+      safeTYP.button_text = label
+
+      const url = (thankYouPage.button_url || '').trim()
+      if (url) {
+        if (!url.startsWith('https://')) {
+          return NextResponse.json({ error: 'thank_you_page[button_url] must start with https://' }, { status: 400 })
+        }
+        safeTYP.button_type = 'VIEW_WEBSITE'
+        safeTYP.button_url = url
+      } else {
+        safeTYP.button_type = 'VIEW_ON_FACEBOOK'
+      }
+
       payload.thank_you_page = JSON.stringify(safeTYP)
     }
 

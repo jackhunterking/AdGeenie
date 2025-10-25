@@ -74,9 +74,9 @@ export function LeadFormCreate({
     if (!privacyUrl) e.privacyUrl = "Privacy policy URL is required"
     else if (!privacyUrl.startsWith("https://")) e.privacyUrl = "Privacy policy URL must start with https://"
     if (!privacyLinkText || privacyLinkText.trim().length < 3) e.privacyLinkText = "Link text must be at least 3 characters"
-    if (!thankYouButtonText || thankYouButtonText.trim().length < 2) e.thankYouButtonText = "Button text is required"
-    if (!thankYouButtonUrl) e.thankYouButtonUrl = "Website link URL is required"
-    else if (!thankYouButtonUrl.startsWith("https://")) e.thankYouButtonUrl = "Website link URL must start with https://"
+    if (!thankYouButtonText || thankYouButtonText.trim().length < 2) e.thankYouButtonText = "Button label is required"
+    else if (thankYouButtonText.length > 60) e.thankYouButtonText = "Button label must be 60 characters or fewer"
+    if (thankYouButtonUrl && !thankYouButtonUrl.startsWith("https://")) e.thankYouButtonUrl = "Website link URL must start with https://"
     return e
   }, [formName, privacyUrl, privacyLinkText, thankYouButtonText, thankYouButtonUrl])
 
@@ -99,7 +99,14 @@ export function LeadFormCreate({
         name: formName,
         privacyPolicy: { url: privacyUrl, link_text: privacyLinkText },
         questions: [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
-        thankYouPage: { title: thankYouTitle, body: thankYouMessage, button_text: thankYouButtonText, button_url: thankYouButtonUrl },
+        thankYouPage: {
+          title: thankYouTitle,
+          body: thankYouMessage,
+          button_text: thankYouButtonText,
+          ...(thankYouButtonUrl && thankYouButtonUrl.startsWith("https://")
+            ? { button_type: "VIEW_WEBSITE", button_url: thankYouButtonUrl }
+            : { button_type: "VIEW_ON_FACEBOOK" }),
+        },
       }),
     })
     const json: unknown = await res.json()
