@@ -180,34 +180,29 @@ export function GoalSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-bold">Goal Selected</h2>
-            <p className="text-muted-foreground">
-              Ready to set up your {goalState.selectedGoal} goal
-            </p>
-          </div>
-
-          <div className="flex justify-center">
-            <div className="p-12 rounded-2xl border-2 border-blue-500 bg-blue-500/5">
-              <div className="h-32 w-32 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 mx-auto">
+          <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
+            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
+              <div className="h-20 w-20 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
                 {goalState.selectedGoal === "leads" ? (
-                  <Users className="h-16 w-16 text-blue-600" />
+                  <Users className="h-10 w-10 text-blue-600" />
                 ) : goalState.selectedGoal === "calls" ? (
-                  <Phone className="h-16 w-16 text-blue-600" />
+                  <Phone className="h-10 w-10 text-blue-600" />
                 ) : (
-                  <CheckCircle2 className="h-16 w-16 text-blue-600" />
+                  <CheckCircle2 className="h-10 w-10 text-blue-600" />
                 )}
               </div>
-              <h3 className="text-2xl font-semibold text-center capitalize mb-2">
-                {goalState.selectedGoal?.replace('-', ' ')}
-              </h3>
-              <p className="text-sm text-muted-foreground text-center">
-                {goalState.selectedGoal === "leads" 
-                  ? "Collect info from potential customers" 
-                  : goalState.selectedGoal === "calls"
-                  ? "Get people to call your business"
-                  : "Drive traffic to your website"}
-              </p>
+              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
+                <h3 className="text-xl font-semibold capitalize">
+                  {goalState.selectedGoal?.replace('-', ' ')}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {goalState.selectedGoal === "leads" 
+                    ? "Collect info from potential customers" 
+                    : goalState.selectedGoal === "calls"
+                    ? "Get people to call your business"
+                    : "Drive traffic to your website"}
+                </p>
+              </div>
             </div>
           </div>
 
