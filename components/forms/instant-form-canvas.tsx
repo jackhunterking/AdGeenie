@@ -122,14 +122,14 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
   const mockFields = fields.map((f) => ({ id: f.id, type: f.type, label: f.label, required: f.required }))
 
   return (
-    <div className="space-y-4">
-      {/* Segmented control */}
-      <div className="flex justify-center">
-        <div className="inline-flex rounded-lg border border-border p-1 bg-card">
+    <div className="space-y-6 py-4">
+      {/* Segmented control - match ad creative style */}
+      <div className="flex justify-center pb-2">
+        <div className="inline-flex rounded-lg p-1 bg-card">
           <Button
             variant={mode === "create" ? "default" : "ghost"}
             size="sm"
-            className="px-4"
+            className={mode === "create" ? "px-4 bg-[#1877F2] hover:bg-[#166FE5]" : "px-4"}
             onClick={() => setMode("create")}
           >
             Create New
@@ -137,7 +137,7 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
           <Button
             variant={mode === "select" ? "default" : "ghost"}
             size="sm"
-            className="px-4"
+            className={mode === "select" ? "px-4 bg-[#1877F2] hover:bg-[#166FE5]" : "px-4"}
             onClick={() => {
               setMode("select")
               setSelectDialogOpen(true)
@@ -149,20 +149,21 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
       </div>
 
       {/* Canvas */}
-      <div className="flex flex-col items-center gap-4">
-        {/* Title row with gear for thank-you */}
+      <div className="flex flex-col items-center gap-6">
+        {/* Title row with gear - positioned above phone */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditingTitle(true)}
-            className="text-sm font-semibold text-foreground hover:underline"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors"
             aria-label="Edit form title"
           >
             {formName}
           </button>
           <button
             onClick={() => setThankYouOpen(true)}
-            className="inline-flex items-center justify-center rounded-md border border-border p-1 hover:bg-muted"
+            className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             aria-label="Thank you settings"
+            title="Thank You Page (Optional)"
           >
             <Cog className="h-4 w-4" />
           </button>
@@ -181,11 +182,23 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
           onPrivacyClick={() => setPrivacyOpen(true)}
         />
 
-        {/* Primary action */}
+        {/* Primary action with validation feedback */}
         {mode === "create" && (
-          <Button onClick={handleCreateForm} disabled={Object.keys(errors).length > 0} className="w-[320px]">
-            Create Form
-          </Button>
+          <div className="w-[320px] space-y-2">
+            {Object.keys(errors).length > 0 && (
+              <p className="text-xs text-center text-amber-600 dark:text-amber-500">⚠ Complete required fields</p>
+            )}
+            {Object.keys(errors).length === 0 && (
+              <p className="text-xs text-center text-green-600 dark:text-green-500">✓ Ready to create</p>
+            )}
+            <Button 
+              onClick={handleCreateForm} 
+              disabled={Object.keys(errors).length > 0} 
+              className="w-full h-11 bg-[#1877F2] hover:bg-[#166FE5] text-white font-semibold"
+            >
+              Create Form
+            </Button>
+          </div>
         )}
       </div>
 
@@ -286,29 +299,57 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Thank you dialog */}
+      {/* Thank you dialog with native preview */}
       <Dialog open={thankYouOpen} onOpenChange={setThankYouOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Thank You Page</DialogTitle>
+            <DialogTitle>Thank You Page (Optional)</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="ty-title">Title</Label>
-              <Input id="ty-title" value={thankYouTitle} onChange={(e) => setThankYouTitle(e.target.value)} />
+          <div className="grid grid-cols-2 gap-6">
+            {/* Left: Form inputs */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="ty-title">Title</Label>
+                <Input id="ty-title" value={thankYouTitle} onChange={(e) => setThankYouTitle(e.target.value)} placeholder="Thanks for your interest!" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ty-body">Message</Label>
+                <Input id="ty-body" value={thankYouMessage} onChange={(e) => setThankYouMessage(e.target.value)} placeholder="We'll contact you within 24 hours" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ty-btn">Button Text</Label>
+                <Input id="ty-btn" value={thankYouButtonText} onChange={(e) => setThankYouButtonText(e.target.value)} placeholder="Visit Website" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ty-url">Button URL</Label>
+                <Input id="ty-url" value={thankYouButtonUrl} onChange={(e) => setThankYouButtonUrl(e.target.value)} placeholder="https://yourdomain.com" />
+                {errors.thankYouButtonUrl && <p className="text-xs text-red-500">{errors.thankYouButtonUrl}</p>}
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="ty-body">Message</Label>
-              <Input id="ty-body" value={thankYouMessage} onChange={(e) => setThankYouMessage(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="ty-btn">Button Text</Label>
-              <Input id="ty-btn" value={thankYouButtonText} onChange={(e) => setThankYouButtonText(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="ty-url">Button URL</Label>
-              <Input id="ty-url" value={thankYouButtonUrl} onChange={(e) => setThankYouButtonUrl(e.target.value)} />
-              {errors.thankYouButtonUrl && <p className="text-xs text-red-500">{errors.thankYouButtonUrl}</p>}
+
+            {/* Right: Native preview */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Preview</p>
+              <div className="rounded-xl border border-border bg-white dark:bg-[#242526] p-6 space-y-4">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#1877F2] to-[#5890FF] flex items-center justify-center text-white text-2xl font-bold">
+                    U
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold text-[#050505] dark:text-[#E4E6EB]">{thankYouTitle || "Thanks for your interest!"}</h3>
+                    <p className="text-sm text-[#65676B] dark:text-[#B0B3B8]">{thankYouMessage || "We'll contact you within 24 hours"}</p>
+                  </div>
+                  <div className="w-full rounded-lg border border-[#E4E6EB] dark:border-[#3E4042] bg-[#F0F2F5] dark:bg-[#3A3B3C] p-3 text-xs text-[#65676B] dark:text-[#B0B3B8] flex items-start gap-2">
+                    <Info className="h-3.5 w-3.5 text-[#1877F2] flex-shrink-0 mt-0.5" />
+                    <span>You successfully submitted your responses.</span>
+                  </div>
+                  {thankYouButtonText && (
+                    <button className="w-full h-10 rounded-lg bg-[#1877F2] hover:bg-[#166FE5] text-white text-sm font-semibold transition-colors">
+                      {thankYouButtonText}
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </DialogContent>

@@ -206,11 +206,9 @@ export function GoalSelectionCanvas() {
 
           {/* Inline Setup UI per goal */}
           {goalState.selectedGoal === 'leads' && (
-            <div className="mt-2">
-              <InstantFormCanvas onFormSelected={(data) => {
-                setFormData({ id: data.id, name: data.name })
-              }} />
-            </div>
+            <InstantFormCanvas onFormSelected={(data) => {
+              setFormData({ id: data.id, name: data.name })
+            }} />
           )}
 
           {goalState.selectedGoal === 'calls' && (

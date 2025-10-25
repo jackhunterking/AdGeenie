@@ -43,83 +43,97 @@ export function InstantFormPhoneMockup({
   onPrivacyClick,
 }: InstantFormPhoneMockupProps) {
   return (
-    <div className="mx-auto w-[320px]">
-      {/* Device frame */}
-      <div className="rounded-[32px] border border-border bg-background shadow-xl overflow-hidden">
-        {/* Status bar */}
-        <div className="h-6 bg-background/80" />
-
-        {/* Map header */}
-        <div className="relative h-32 bg-muted">
-          <div className="absolute inset-0 bg-gradient-to-b from-blue-500/40 to-blue-700/40" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <MapPin className="h-6 w-6 text-white" />
+    <div className="mx-auto w-[340px]">
+      {/* Device frame - iPhone style */}
+      <div className="rounded-[40px] border-[8px] border-[#1c1c1e] bg-[#1c1c1e] shadow-2xl overflow-hidden">
+        {/* Status bar with notch */}
+        <div className="relative h-8 bg-white dark:bg-[#000000]">
+          {/* Notch */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[120px] h-[28px] bg-[#1c1c1e] rounded-b-[18px]" />
+          {/* Status icons */}
+          <div className="absolute inset-0 flex items-center justify-between px-6 text-[11px]">
+            <span className="text-black dark:text-white font-semibold">9:41</span>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-2.5 border border-black dark:border-white rounded-sm" />
+            </div>
           </div>
         </div>
 
-        {/* Body */}
-        <div className="p-3 space-y-3">
-          <div className="text-sm font-semibold flex items-center gap-1">
+        {/* Header with Meta gradient */}
+        <div className="relative h-28 bg-gradient-to-b from-[#4267B2] to-[#5890FF]">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <MapPin className="h-8 w-8 text-white drop-shadow-md" />
+          </div>
+        </div>
+
+        {/* Form Body - Meta native style */}
+        <div className="bg-white dark:bg-[#242526] p-4 space-y-4">
+          <div className="text-base font-semibold text-[#050505] dark:text-[#E4E6EB] flex items-center gap-1.5 group">
             <button
               type="button"
-              className={cn("text-left", editable && "hover:underline")}
+              className={cn("text-left", editable && "hover:text-[#1877F2] transition-colors")}
               onClick={editable ? onTitleClick : undefined}
             >
               {formName}
             </button>
             {editable && (
-              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              <Pencil className="h-3.5 w-3.5 text-[#65676B] opacity-0 group-hover:opacity-100 transition-opacity" />
             )}
           </div>
 
           {showThankYou ? (
-            <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-1">
+            <div className="rounded-xl border border-[#E4E6EB] dark:border-[#3E4042] bg-[#F0F2F5] dark:bg-[#3A3B3C] p-4 space-y-2">
               <div className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-green-600" />
-                <p className="text-sm font-medium">{thankYouTitle}</p>
+                <Check className="h-5 w-5 text-[#31A24C]" />
+                <p className="text-base font-semibold text-[#050505] dark:text-[#E4E6EB]">{thankYouTitle}</p>
               </div>
-              <p className="text-xs text-muted-foreground">{thankYouMessage}</p>
+              <p className="text-sm text-[#65676B] dark:text-[#B0B3B8]">{thankYouMessage}</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {fields.map((f) => (
-                <div key={f.id} className="space-y-1">
-                  <label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    {f.type === "full_name" && <User className="h-3 w-3" />}
-                    {f.type === "email" && <Mail className="h-3 w-3" />}
-                    {f.type === "phone" && <Phone className="h-3 w-3" />}
+                <div key={f.id} className="space-y-1.5 group">
+                  <label className="text-[13px] font-medium text-[#65676B] dark:text-[#B0B3B8] flex items-center gap-1.5">
+                    {f.type === "full_name" && <User className="h-3.5 w-3.5" />}
+                    {f.type === "email" && <Mail className="h-3.5 w-3.5" />}
+                    {f.type === "phone" && <Phone className="h-3.5 w-3.5" />}
                     <button
                       type="button"
-                      className={cn("text-left", editable && "hover:underline")}
+                      className={cn("text-left", editable && "hover:text-[#1877F2] transition-colors")}
                       onClick={editable ? () => onFieldClick && onFieldClick(f.id) : undefined}
                     >
                       {f.label}
                     </button>
-                    {f.required && <span className="text-red-500">*</span>}
+                    {f.required && <span className="text-[#FA383E]">*</span>}
+                    {editable && (
+                      <Pencil className="h-3 w-3 text-[#65676B] opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
+                    )}
                   </label>
                   <input
                     className={cn(
-                      "w-full h-8 rounded-md border border-border bg-background px-2 text-[12px]",
-                      "placeholder:text-muted-foreground/70"
+                      "w-full h-11 rounded-lg border border-[#CCD0D5] dark:border-[#3E4042]",
+                      "bg-[#F0F2F5] dark:bg-[#3A3B3C] px-3 text-[15px] text-[#050505] dark:text-[#E4E6EB]",
+                      "placeholder:text-[#8E8E93] focus:outline-none focus:ring-2 focus:ring-[#1877F2] focus:border-transparent",
+                      "transition-all"
                     )}
-                    placeholder={f.label}
+                    placeholder="Enter your answer."
                     readOnly
                   />
                 </div>
               ))}
 
-              <button className="mt-2 w-full h-9 rounded-md bg-blue-600 text-white text-[12px] font-semibold">
+              <button className="mt-4 w-full h-11 rounded-lg bg-[#1877F2] hover:bg-[#166FE5] text-white text-[15px] font-semibold shadow-sm transition-colors">
                 Submit
               </button>
             </div>
           )}
 
-          <div className="pt-2">
+          <div className="pt-2 border-t border-[#CCD0D5] dark:border-[#3E4042]">
             {editable ? (
               <button
                 type="button"
                 onClick={onPrivacyClick}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1.5 text-[10px] text-[#65676B] dark:text-[#B0B3B8] hover:text-[#1877F2] transition-colors"
               >
                 <Shield className="h-3 w-3" /> Privacy Policy
               </button>
@@ -128,12 +142,17 @@ export function InstantFormPhoneMockup({
                 href={privacyUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1.5 text-[10px] text-[#65676B] dark:text-[#B0B3B8] hover:text-[#1877F2] hover:underline transition-colors"
               >
                 <Shield className="h-3 w-3" /> Privacy Policy
               </a>
             )}
           </div>
+        </div>
+
+        {/* Home indicator - iPhone style */}
+        <div className="h-6 bg-white dark:bg-[#242526] flex items-center justify-center">
+          <div className="w-32 h-1 bg-[#1c1c1e] dark:bg-[#3E4042] rounded-full" />
         </div>
       </div>
     </div>

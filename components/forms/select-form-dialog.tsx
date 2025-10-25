@@ -65,14 +65,14 @@ export function SelectFormDialog({ open, onOpenChange, onFormSelected }: SelectF
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-md backdrop-blur-sm">
         <DialogHeader>
           <DialogTitle>Select Existing Form</DialogTitle>
         </DialogHeader>
 
         {/* Search */}
         <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-600" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1877F2]" />
           <Input placeholder="Search forms..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
 
@@ -91,30 +91,41 @@ export function SelectFormDialog({ open, onOpenChange, onFormSelected }: SelectF
               </div>
             ))
           ) : filteredForms.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
-              <FileText className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+            <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center space-y-3">
+              <FileText className="h-8 w-8 text-[#1877F2] mx-auto mb-2" />
               <p className="text-sm font-medium text-foreground mb-1">No forms found</p>
               <p className="text-xs text-muted-foreground mb-3">{searchQuery ? "Try adjusting your search" : "Create your first form to get started"}</p>
+              {!searchQuery && (
+                <button
+                  onClick={() => onOpenChange(false)}
+                  className="text-xs text-[#1877F2] hover:underline font-medium"
+                >
+                  Create a new form instead
+                </button>
+              )}
             </div>
           ) : (
             filteredForms.map((form) => (
               <button
                 key={form.id}
                 onClick={() => setSelectedFormId(form.id)}
-                className={`w-full rounded-lg border p-4 text-left transition-all hover:bg-muted/50 ${selectedFormId === form.id ? "border-blue-500 bg-blue-500/5" : "border-border bg-card"}`}
+                className={`w-full rounded-lg border p-4 text-left transition-all hover:bg-muted/50 ${selectedFormId === form.id ? "border-[#1877F2] bg-[#1877F2]/5" : "border-border bg-card"}`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                    <FileText className="h-5 w-5 text-blue-600" />
+                  <div className="h-10 w-10 rounded-lg bg-[#1877F2]/10 flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-5 w-5 text-[#1877F2]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <h3 className="text-sm font-medium text-foreground">{form.name}</h3>
-                      {selectedFormId === form.id && <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />}
+                      {selectedFormId === form.id && <Check className="h-4 w-4 text-[#1877F2] flex-shrink-0" />}
                     </div>
-                    <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
                       <Calendar className="h-3 w-3" />
                       <span>Created {formatDate(form.created_time)}</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#1877F2]/10 text-[#1877F2] text-[10px] font-medium">
+                        3 fields
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -131,7 +142,7 @@ export function SelectFormDialog({ open, onOpenChange, onFormSelected }: SelectF
               if (form) onFormSelected({ id: form.id, name: form.name })
             }}
             disabled={!selectedFormId}
-            className="w-full"
+            className="w-full bg-[#1877F2] hover:bg-[#166FE5]"
           >
             Use This Form
           </Button>
