@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useGoal } from "@/lib/context/goal-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
-import { InstantFormCanvas } from "@/components/forms/instant-form-canvas"
+import { LeadFormSetup } from "@/components/forms/lead-form-setup"
 import { CallConfiguration } from "@/components/forms/call-configuration"
 import { WebsiteConfiguration } from "@/components/forms/website-configuration"
 
@@ -182,9 +182,12 @@ export function GoalSelectionCanvas() {
 
           {/* Inline Setup UI per goal */}
           {goalState.selectedGoal === 'leads' && (
-            <InstantFormCanvas onFormSelected={(data) => {
-              setFormData({ id: data.id, name: data.name })
-            }} />
+            <LeadFormSetup
+              onFormSelected={(data) => {
+                setFormData({ id: data.id, name: data.name })
+              }}
+              onChangeGoal={resetGoal}
+            />
           )}
 
           {goalState.selectedGoal === 'calls' && (
@@ -199,11 +202,13 @@ export function GoalSelectionCanvas() {
             </div>
           )}
 
-          <div className="flex justify-center gap-4 pt-6">
-            <Button variant="outline" size="lg" onClick={resetGoal}>
-              Change Goal
-            </Button>
-          </div>
+          {goalState.selectedGoal !== 'leads' && (
+            <div className="flex justify-center gap-4 pt-6">
+              <Button variant="outline" size="lg" onClick={resetGoal}>
+                Change Goal
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     )
