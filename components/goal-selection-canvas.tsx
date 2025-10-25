@@ -178,31 +178,7 @@ export function GoalSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
-            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
-              <div className="h-20 w-20 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
-                {goalState.selectedGoal === "leads" ? (
-                  <Users className="h-10 w-10 text-blue-600" />
-                ) : goalState.selectedGoal === "calls" ? (
-                  <Phone className="h-10 w-10 text-blue-600" />
-                ) : (
-                  <CheckCircle2 className="h-10 w-10 text-blue-600" />
-                )}
-              </div>
-              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold capitalize">
-                  {goalState.selectedGoal?.replace('-', ' ')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {goalState.selectedGoal === "leads" 
-                    ? "Collect info from potential customers" 
-                    : goalState.selectedGoal === "calls"
-                    ? "Get people to call your business"
-                    : "Drive traffic to your website"}
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Selected goal hero card removed once a goal is chosen to keep the canvas clean */}
 
           {/* Inline Setup UI per goal */}
           {goalState.selectedGoal === 'leads' && (
