@@ -215,15 +215,7 @@ export function GoalSelectionCanvas() {
         <div className="max-w-2xl w-full space-y-8">
           {/* Selected goal hero card removed once a goal is chosen to keep the canvas clean */}
 
-          {/* Inline Setup UI per goal */}
-          {goalState.selectedGoal === 'leads' && (
-            <LeadFormSetup
-              onFormSelected={(data) => {
-                setFormData({ id: data.id, name: data.name })
-              }}
-              onChangeGoal={resetGoal}
-            />
-          )}
+          {/* Inline Setup UI per goal (Leads handled above always) */}
 
           {goalState.selectedGoal === 'calls' && (
             <div className="mt-2">
