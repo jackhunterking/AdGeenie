@@ -12,22 +12,10 @@ import { CallConfiguration } from "@/components/forms/call-configuration"
 import { WebsiteConfiguration } from "@/components/forms/website-configuration"
 
 export function GoalSelectionCanvas() {
-  const { goalState, setSelectedGoal, startSetup, resetGoal, setFormData } = useGoal()
+  const { goalState, setSelectedGoal, resetGoal, setFormData } = useGoal()
   const { isPublished } = useAdPreview()
   
-  const handleSetupClick = () => {
-    if (!goalState.selectedGoal) return
-    
-    // Trigger AI to handle setup
-    startSetup()
-    
-    // Dispatch event to AI chat with command
-    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-      detail: { 
-        goalType: goalState.selectedGoal 
-      } 
-    }))
-  }
+  // Removed AI-triggered setup; inline UI is used instead
 
   // If published, show locked state regardless of goal setup status
   if (isPublished) {
@@ -131,12 +119,6 @@ export function GoalSelectionCanvas() {
                 size="sm"
                 onClick={() => {
                   setSelectedGoal("leads")
-                  setTimeout(() => {
-                    startSetup()
-                    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-                      detail: { goalType: 'leads' } 
-                    }))
-                  }, 100)
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
@@ -159,12 +141,6 @@ export function GoalSelectionCanvas() {
                 size="sm"
                 onClick={() => {
                   setSelectedGoal("calls")
-                  setTimeout(() => {
-                    startSetup()
-                    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-                      detail: { goalType: 'calls' } 
-                    }))
-                  }, 100)
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
@@ -187,12 +163,6 @@ export function GoalSelectionCanvas() {
                 size="sm"
                 onClick={() => {
                   setSelectedGoal("website-visits")
-                  setTimeout(() => {
-                    startSetup()
-                    window.dispatchEvent(new CustomEvent('triggerGoalSetup', { 
-                      detail: { goalType: 'website-visits' } 
-                    }))
-                  }, 100)
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
@@ -282,11 +252,6 @@ export function GoalSelectionCanvas() {
             <Button variant="outline" size="lg" onClick={resetGoal}>
               Change Goal
             </Button>
-            {goalState.selectedGoal === 'leads' && (
-              <Button size="lg" onClick={handleSetupClick} className="bg-blue-600 hover:bg-blue-700 text-white px-8">
-                Setup {goalState.selectedGoal}
-              </Button>
-            )}
           </div>
         </div>
       </div>
