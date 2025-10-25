@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import { getGraphVersion, getPageAccessToken } from '@/lib/meta/graph'
 
 interface LeadgenFormSummary {
   id: string
@@ -63,7 +64,7 @@ async function getPageAccessToken(graphVersion: string, userToken: string, pageI
 
 export async function GET(req: NextRequest) {
   try {
-    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION || process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    const FB_GRAPH_VERSION = getGraphVersion()
     if (!FB_GRAPH_VERSION) {
       return NextResponse.json({ error: 'Server missing FB_GRAPH_VERSION' }, { status: 500 })
     }
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION || process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    const FB_GRAPH_VERSION = getGraphVersion()
     if (!FB_GRAPH_VERSION) {
       return NextResponse.json({ error: 'Server missing FB_GRAPH_VERSION' }, { status: 500 })
     }
@@ -159,8 +160,14 @@ export async function POST(req: NextRequest) {
       payload.questions = JSON.stringify(questions.map((q) => ({ type: q.type })))
     }
     if (locale) payload.locale = locale
-    if (thankYouPage && (thankYouPage.title || thankYouPage.body || thankYouPage.button_text || thankYouPage.button_url)) {
-      payload.thank_you_page = JSON.stringify(thankYouPage)
+    // Thank You page: allow only documented keys. Map unsupported `button_url` to button_text only.
+    if (thankYouPage && (thankYouPage.title || thankYouPage.body || thankYouPage.button_text)) {
+      const safeTYP: Record<string, string> = {}
+      if (thankYouPage.title) safeTYP.title = thankYouPage.title
+      if (thankYouPage.body) safeTYP.body = thankYouPage.body
+      if (thankYouPage.button_text) safeTYP.button_text = thankYouPage.button_text
+      // Note: button_url is not an accepted parameter for form creation per API; use ad creative link instead
+      payload.thank_you_page = JSON.stringify(safeTYP)
     }
 
     const formRes = await fetch(
