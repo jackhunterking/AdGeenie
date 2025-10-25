@@ -58,7 +58,7 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
   // Thank you configuration
   const [thankYouTitle, setThankYouTitle] = useState<string>("Thanks for your interest!")
   const [thankYouMessage, setThankYouMessage] = useState<string>("We'll contact you within 24 hours")
-  const [thankYouButtonText, setThankYouButtonText] = useState<string>("Visit Website")
+  const [thankYouButtonText, setThankYouButtonText] = useState<string>("View website")
   const [thankYouButtonUrl, setThankYouButtonUrl] = useState<string>("")
 
   // UI overlays
@@ -72,9 +72,8 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
     if (!privacyUrl) e.privacyUrl = "Privacy policy URL is required"
     else if (!privacyUrl.startsWith("https://")) e.privacyUrl = "Privacy policy URL must start with https://"
     if (!privacyLinkText || privacyLinkText.trim().length < 3) e.privacyLinkText = "Link text must be at least 3 characters"
-    if (thankYouButtonUrl && !thankYouButtonUrl.startsWith("https://")) {
-      e.thankYouButtonUrl = "Button URL must start with https://"
-    }
+    if (!thankYouButtonUrl) e.thankYouButtonUrl = "Button URL is required"
+    else if (!thankYouButtonUrl.startsWith("https://")) e.thankYouButtonUrl = "Button URL must start with https://"
     return e
   }, [formName, privacyLinkText, privacyUrl, thankYouButtonUrl])
 
@@ -102,9 +101,7 @@ export function InstantFormCanvas({ onFormSelected }: InstantFormCanvasProps) {
         privacyPolicy: { url: privacyUrl, link_text: privacyLinkText },
         locale,
         questions: [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
-        thankYouPage: thankYouButtonUrl
-          ? { title: thankYouTitle, body: thankYouMessage, button_text: thankYouButtonText, button_url: thankYouButtonUrl }
-          : undefined,
+        thankYouPage: { title: thankYouTitle, body: thankYouMessage, button_text: thankYouButtonText, button_url: thankYouButtonUrl },
       }),
     })
     const json: unknown = await res.json()

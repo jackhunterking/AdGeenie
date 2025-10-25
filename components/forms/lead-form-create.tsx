@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { useCampaignContext } from "@/lib/context/campaign-context"
+import { Info } from "lucide-react"
 
 interface FieldDef { id: string; type: "full_name" | "email" | "phone"; label: string; required: boolean }
 
@@ -45,6 +46,12 @@ export function LeadFormCreate({
   // Thank you state (local only for now)
   const [thankYouTitle, setThankYouTitle] = useState<string>("Thanks for your interest!")
   const [thankYouMessage, setThankYouMessage] = useState<string>("We'll contact you within 24 hours")
+  const [thankYouButtonText, setThankYouButtonText] = useState<string>("View website")
+  const [thankYouButtonUrl, setThankYouButtonUrl] = useState<string>("")
+
+  // Privacy policy defaulting
+  const defaultPrivacyUrl = "https://adpilot.studio/general-privacy-policy"
+  const [useDefaultPrivacy, setUseDefaultPrivacy] = useState<boolean>(true)
 
   const errors = useMemo(() => {
     const e: Record<string, string> = {}
@@ -52,8 +59,11 @@ export function LeadFormCreate({
     if (!privacyUrl) e.privacyUrl = "Privacy policy URL is required"
     else if (!privacyUrl.startsWith("https://")) e.privacyUrl = "Privacy policy URL must start with https://"
     if (!privacyLinkText || privacyLinkText.trim().length < 3) e.privacyLinkText = "Link text must be at least 3 characters"
+    if (!thankYouButtonText || thankYouButtonText.trim().length < 2) e.thankYouButtonText = "Button text is required"
+    if (!thankYouButtonUrl) e.thankYouButtonUrl = "Website link URL is required"
+    else if (!thankYouButtonUrl.startsWith("https://")) e.thankYouButtonUrl = "Website link URL must start with https://"
     return e
-  }, [formName, privacyUrl, privacyLinkText])
+  }, [formName, privacyUrl, privacyLinkText, thankYouButtonText, thankYouButtonUrl])
 
   const toggleRequired = (id: string) => {
     onFieldsChange(fields.map(f => f.id === id ? { ...f, required: !f.required } : f))
@@ -71,7 +81,7 @@ export function LeadFormCreate({
         name: formName,
         privacyPolicy: { url: privacyUrl, link_text: privacyLinkText },
         questions: [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
-        thankYouPage: { title: thankYouTitle, body: thankYouMessage },
+        thankYouPage: { title: thankYouTitle, body: thankYouMessage, button_text: thankYouButtonText, button_url: thankYouButtonUrl },
       }),
     })
     const json: unknown = await res.json()
@@ -95,20 +105,6 @@ export function LeadFormCreate({
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="privacy">
-          <AccordionTrigger>Privacy policy</AccordionTrigger>
-          <AccordionContent>
-            <div className="space-y-2">
-              <Label>Privacy link text</Label>
-              <Input value={privacyLinkText} onChange={(e) => onPrivacyLinkTextChange(e.target.value)} placeholder="Privacy Policy" />
-              {errors.privacyLinkText && <p className="text-xs text-amber-600">{errors.privacyLinkText}</p>}
-              <Label className="mt-3">Privacy URL</Label>
-              <Input value={privacyUrl} onChange={(e) => onPrivacyUrlChange(e.target.value)} placeholder="https://..." />
-              {errors.privacyUrl && <p className="text-xs text-amber-600">{errors.privacyUrl}</p>}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
         <AccordionItem value="fields">
           <AccordionTrigger>Fields</AccordionTrigger>
           <AccordionContent>
@@ -117,11 +113,41 @@ export function LeadFormCreate({
                 <div key={f.id} className="flex items-center justify-between rounded-md border p-3">
                   <div>
                     <p className="text-sm font-medium">{f.label}</p>
-                    <p className="text-xs text-muted-foreground">Required: {f.required ? "Yes" : "No"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {f.type === "full_name" || f.type === "email" ? "Required by Meta" : "Required"}
+                    </p>
                   </div>
-                  <Switch checked={f.required} onCheckedChange={() => toggleRequired(f.id)} disabled={f.type !== "phone"} />
+                  <Switch checked={f.required} onCheckedChange={() => toggleRequired(f.id)} disabled />
                 </div>
               ))}
+              <div className="flex items-start gap-2 p-3 rounded-md border bg-muted/30">
+                <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                <p className="text-xs text-muted-foreground">Customization coming soon</p>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="privacy">
+          <AccordionTrigger>Privacy policy</AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Use default privacy policy</Label>
+                <Switch
+                  checked={useDefaultPrivacy}
+                  onCheckedChange={(v) => {
+                    setUseDefaultPrivacy(v)
+                    if (v) onPrivacyUrlChange(defaultPrivacyUrl)
+                  }}
+                />
+              </div>
+              <Label>Privacy link text</Label>
+              <Input value={privacyLinkText} onChange={(e) => onPrivacyLinkTextChange(e.target.value)} placeholder="Privacy Policy" />
+              {errors.privacyLinkText && <p className="text-xs text-amber-600">{errors.privacyLinkText}</p>}
+              <Label className="mt-3">Privacy URL</Label>
+              <Input value={privacyUrl} onChange={(e) => onPrivacyUrlChange(e.target.value)} placeholder="https://..." disabled={useDefaultPrivacy} />
+              {errors.privacyUrl && <p className="text-xs text-amber-600">{errors.privacyUrl}</p>}
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -134,6 +160,12 @@ export function LeadFormCreate({
               <Input value={thankYouTitle} onChange={(e) => setThankYouTitle(e.target.value)} />
               <Label className="mt-2">Message</Label>
               <Input value={thankYouMessage} onChange={(e) => setThankYouMessage(e.target.value)} />
+              <Label className="mt-2">Button Text</Label>
+              <Input value={thankYouButtonText} onChange={(e) => setThankYouButtonText(e.target.value)} placeholder="View website" />
+              {errors.thankYouButtonText && <p className="text-xs text-amber-600">{errors.thankYouButtonText}</p>}
+              <Label className="mt-2">Website Link URL</Label>
+              <Input value={thankYouButtonUrl} onChange={(e) => setThankYouButtonUrl(e.target.value)} placeholder="https://yourdomain.com" />
+              {errors.thankYouButtonUrl && <p className="text-xs text-amber-600">{errors.thankYouButtonUrl}</p>}
             </div>
           </AccordionContent>
         </AccordionItem>
