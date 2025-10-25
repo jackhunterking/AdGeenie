@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LeadFormSetup } from "@/components/forms/lead-form-setup"
+import { useGoal } from "@/lib/context/goal-context"
 
 type Objective = "leads"
 type ConversionMethod = "instant-forms"
@@ -16,13 +17,17 @@ interface SelectedFormData {
 }
 
 export function GoalTab() {
+  const { goalState, setFormData, setSelectedGoal, resetGoal } = useGoal()
   const [selectedObjective, setSelectedObjective] = useState<Objective>("leads")
   const [selectedConversion, setSelectedConversion] = useState<ConversionMethod | null>(null)
-  const [selectedForm, setSelectedForm] = useState<SelectedFormData | null>(null)
   const [showFormSetup, setShowFormSetup] = useState(false)
+  
+  // Use form data from context instead of local state
+  const selectedForm = goalState.formData
 
   const handleObjectiveSelect = (objective: Objective) => {
     setSelectedObjective(objective)
+    setSelectedGoal('leads') // Update context with selected goal
   }
 
   const handleConversionSelect = (conversion: ConversionMethod) => {
@@ -31,7 +36,12 @@ export function GoalTab() {
   }
 
   const handleFormSelected = (formData: SelectedFormData) => {
-    setSelectedForm(formData)
+    // Save to GoalContext - this will auto-save to database
+    setFormData({
+      id: formData.id,
+      name: formData.name,
+      type: 'instant-form'
+    })
     setShowFormSetup(false)
   }
 
@@ -43,7 +53,7 @@ export function GoalTab() {
     // Reset everything back to initial state
     setSelectedObjective("leads")
     setSelectedConversion(null)
-    setSelectedForm(null)
+    resetGoal() // Reset goal context (clears form data)
     setShowFormSetup(false)
   }
 
