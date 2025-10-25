@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { FileText, Search, Calendar, Check } from "lucide-react"
+import { FileText, Search, Calendar, Check, Info } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 
@@ -114,6 +114,20 @@ export function LeadFormExisting({ onPreview, onConfirm, onRequestCreate, select
 
   return (
     <div className="space-y-4">
+      {/* Explanatory header above list/search */}
+      <div className="rounded-md border bg-muted/30 p-3">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-medium">Use an existing Instant Form</h4>
+            <p className="text-xs text-muted-foreground mt-1">
+              Select one of your existing forms below to collect lead information. Click a form to preview it,
+              then choose "Use this form".
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1877F2]" />
         <Input placeholder="Search forms..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
