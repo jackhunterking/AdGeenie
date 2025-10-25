@@ -5,7 +5,7 @@ import { Flag, Filter, FileText, ArrowDown, Check, ChevronRight, AlertCircle, Ch
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { InstantFormCanvas } from "@/components/forms/instant-form-canvas"
+import { LeadFormSetup } from "@/components/forms/lead-form-setup"
 
 type Objective = "leads"
 type ConversionMethod = "instant-forms"
@@ -58,7 +58,7 @@ export function GoalTab() {
         </button>
 
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-4">
-          <InstantFormCanvas onFormSelected={handleFormSelected} />
+          <LeadFormSetup onFormSelected={handleFormSelected} onChangeGoal={handleChangeGoal} />
         </div>
       </div>
     )
