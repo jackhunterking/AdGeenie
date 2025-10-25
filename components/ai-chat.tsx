@@ -728,6 +728,38 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     processCalls();
   }, [pendingLocationCalls, processingLocations, addLocations, updateLocationStatus, addToolResult]);
 
+  // Safety net: scan for any generic tool-call parts that we didn't enqueue yet
+  // Prevents missed processing if render branch was skipped mid-stream
+  useEffect(() => {
+    const newlyDiscovered: Array<{ toolCallId: string; input: LocationToolInput }> = [];
+    for (const msg of messages) {
+      const parts = (msg as unknown as { parts?: Array<{ type?: string; toolName?: string; toolCallId?: string; input?: unknown }> }).parts || [];
+      for (const p of parts) {
+        if (p && p.type === 'tool-call' && (p.toolName === 'locationTargeting')) {
+          const callId = p.toolCallId || `${msg.id}-auto`;
+          const alreadyPending = pendingLocationCalls.some(c => c.toolCallId === callId) || processingLocations.has(callId);
+          if (alreadyPending) continue;
+
+          const rawInput = (p as unknown as { input?: unknown }).input;
+          if (rawInput && typeof rawInput === 'object' && Array.isArray((rawInput as Record<string, unknown>).locations)) {
+            const input: LocationToolInput = {
+              locations: (rawInput as Record<string, unknown>).locations as unknown as LocationToolInput['locations'],
+              explanation: typeof (rawInput as Record<string, unknown>).explanation === 'string' ? (rawInput as Record<string, unknown>).explanation as string : undefined,
+            };
+            newlyDiscovered.push({ toolCallId: callId, input });
+          }
+        }
+      }
+    }
+    if (newlyDiscovered.length > 0) {
+      setPendingLocationCalls(prev => {
+        const existingIds = new Set(prev.map(p => p.toolCallId));
+        const deduped = newlyDiscovered.filter(n => !existingIds.has(n.toolCallId));
+        return deduped.length ? [...prev, ...deduped] : prev;
+      });
+    }
+  }, [messages, pendingLocationCalls, processingLocations]);
+
   // Listen for goal setup trigger from canvas
   useEffect(() => {
     const handleGoalSetup = (event: CustomEvent<{ goalType: string }>) => {
@@ -1039,9 +1071,18 @@ Make it conversational and easy to understand for a business owner.`,
                             .map((part, i, allParts) => {
                             switch (part.type) {
                             case "text": {
-                                // Suppress assistant text when tool parts are present in same message
-                                const hasToolParts = allParts?.some((p: { type?: string }) => typeof p?.type === 'string' && (p.type as string).startsWith('tool-'));
-                                if (message.role === 'assistant' && hasToolParts) {
+                                // Suppress assistant text only when there is a rendered tool OUTPUT
+                                // Allow text alongside bare tool-call parts (AI SDK v5 generic tool-call)
+                                const hasRenderedToolOutput = allParts?.some((p: { type?: string; state?: string }) => {
+                                  if (!p || typeof p.type !== 'string') return false;
+                                  // Old specific types like tool-xxx with output states
+                                  const isSpecificToolOutput = (p.type as string).startsWith('tool-') &&
+                                    (p as { state?: string }).state === 'output-available';
+                                  // Generic v5 part type
+                                  const isGenericToolResult = p.type === 'tool-result';
+                                  return isSpecificToolOutput || isGenericToolResult;
+                                });
+                                if (message.role === 'assistant' && hasRenderedToolOutput) {
                                   return null;
                                 }
                                 return (
@@ -1064,6 +1105,109 @@ Make it conversational and easy to understand for a business owner.`,
                                   <ReasoningContent>{part.text}</ReasoningContent>
                                 </Reasoning>
                               );
+                            case "tool-call": {
+                              // AI SDK v5 generic tool invocation part
+                              const callId = (part as unknown as { toolCallId?: string }).toolCallId || `${message.id}-${i}`;
+                              const toolName = (part as unknown as { toolName?: string; name?: string }).toolName || (part as unknown as { name?: string }).name || '';
+                              const rawInput = (part as unknown as { input?: unknown; args?: unknown; arguments?: unknown }).input ??
+                                               (part as unknown as { args?: unknown }).args ??
+                                               (part as unknown as { arguments?: unknown }).arguments;
+
+                              // Handle locationTargeting client-side execution
+                              if (toolName === 'locationTargeting') {
+                                // Try to coerce rawInput into LocationToolInput
+                                const input = (() => {
+                                  if (rawInput && typeof rawInput === 'object') {
+                                    const obj = rawInput as Record<string, unknown>;
+                                    const maybeLocations = (obj.locations ?? (Array.isArray(obj.location) ? obj.location : undefined)) as unknown;
+                                    if (Array.isArray(maybeLocations)) {
+                                      return {
+                                        locations: maybeLocations as unknown as LocationToolInput['locations'],
+                                        explanation: typeof obj.explanation === 'string' ? obj.explanation : undefined,
+                                      } satisfies LocationToolInput;
+                                    }
+                                  }
+                                  return null;
+                                })();
+
+                                const alreadyPending = pendingLocationCalls.some(c => c.toolCallId === callId) || processingLocations.has(callId);
+                                if (!alreadyPending && input) {
+                                  setTimeout(() => {
+                                    setPendingLocationCalls(prev => [...prev, { toolCallId: callId, input }]);
+                                  }, 0);
+                                }
+
+                                return (
+                                  <div key={callId} className="flex items-center gap-3 p-4 border rounded-lg bg-card">
+                                    <Loader size={16} />
+                                    <span className="text-sm text-muted-foreground">Geocoding locations...</span>
+                                  </div>
+                                );
+                              }
+
+                              // Unknown tool-call → render nothing (other specific cases handled below)
+                              return null;
+                            }
+                            case "tool-result": {
+                              // AI SDK v5 generic tool result part
+                              const callId = (part as unknown as { toolCallId?: string }).toolCallId || `${message.id}-${i}`;
+                              const toolName = (part as unknown as { toolName?: string; name?: string }).toolName || (part as unknown as { name?: string }).name || '';
+
+                              if (toolName === 'locationTargeting') {
+                                const output = (part as unknown as { output?: unknown }).output as { locations?: LocationOutput[]; explanation?: string } | undefined;
+                                if (!output || !Array.isArray(output.locations)) return null;
+
+                                const getLocationTypeLabel = (loc: LocationOutput) => {
+                                  switch (loc.type) {
+                                    case "radius": return loc.radius ? `${loc.radius} mile radius` : "Radius";
+                                    case "city": return "City";
+                                    case "region": return "Province/Region";
+                                    case "country": return "Country";
+                                    default: return loc.type;
+                                  }
+                                };
+
+                                return (
+                                  <div key={callId} className="w-full my-4 space-y-2">
+                                    {output.locations.map((loc, idx: number) => {
+                                      const isExcluded = loc.mode === "exclude";
+                                      return (
+                                        <div
+                                          key={`${callId}-${idx}`}
+                                          className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
+                                            isExcluded 
+                                              ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" 
+                                              : "panel-surface hover:border-purple-500/50"
+                                          }`}
+                                          onClick={() => emitBrowserEvent('switchToTab', 'location')}
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                              isExcluded ? "bg-red-500/10 text-red-600" : "bg-purple-500/10 text-purple-600"
+                                            }`}>
+                                              <MapPin className="h-4 w-4" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center gap-1.5">
+                                                <p className="font-medium text-xs truncate">{loc.name}</p>
+                                                {isExcluded && (
+                                                  <span className="text-[10px] text-red-600 font-medium flex-shrink-0">Excluded</span>
+                                                )}
+                                              </div>
+                                              <p className="text-xs text-muted-foreground">{getLocationTypeLabel(loc)}</p>
+                                            </div>
+                                          </div>
+                                          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0 ml-2" />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+
+                              // Unknown tool result → let specific handlers (below) or default handle it
+                              return null;
+                            }
                             case "tool-generateImage": {
                               const callId = part.toolCallId;
                               const isGenerating = generatingImages.has(callId);
