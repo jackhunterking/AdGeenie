@@ -9,14 +9,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
-export async function GET(req: NextRequest, { params }: { params: Record<string, string> }) {
+export async function GET(req: NextRequest, context: { params: { [key: string]: string | string[] } }) {
   try {
     const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION
     if (!FB_GRAPH_VERSION) {
       return NextResponse.json({ error: 'Server missing FB_GRAPH_VERSION' }, { status: 500 })
     }
 
-    const id = params.id
+    const idParam = context.params["id"]
+    const id = Array.isArray(idParam) ? idParam[0] : idParam
     const { searchParams } = new URL(req.url)
     const campaignId = searchParams.get('campaignId')
     if (!campaignId) {
