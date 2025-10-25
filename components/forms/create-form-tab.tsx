@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { ChevronDown, ChevronRight, Info, User, Mail, Phone } from "lucide-react"
+import { ChevronDown, ChevronRight, Info, User, Mail, Phone, Smartphone } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useCampaignContext } from "@/lib/context/campaign-context"
+import { Switch } from "@/components/ui/switch"
+import { InstantFormPhoneMockup } from "./instant-form-phone-mockup"
 
 interface CreateFormTabProps {
   onFormCreated?: (formData: { id: string; name: string }) => void
@@ -18,7 +20,9 @@ interface CreateFormTabProps {
 export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
   const { campaign } = useCampaignContext()
   const [formName, setFormName] = useState("")
-  const [privacyUrl, setPrivacyUrl] = useState("")
+  const [useDefaultPrivacy, setUseDefaultPrivacy] = useState(true)
+  const defaultPrivacyUrl = "https://adpilot.studio/general-privacy-policy"
+  const [privacyUrl, setPrivacyUrl] = useState(defaultPrivacyUrl)
   const [privacyLinkText, setPrivacyLinkText] = useState("Privacy Policy")
   const [thankYouOpen, setThankYouOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -105,10 +109,12 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
     }
   }
 
-  const handlePreview = () => {
-    // TODO: Show preview modal
-    console.log("[v0] Preview form")
-  }
+  // live mockup props derived from state
+  const mockupFields = [
+    { id: "full", type: "full_name" as const, label: "Full Name", required: true },
+    { id: "email", type: "email" as const, label: "Email Address", required: true },
+    { id: "phone", type: "phone" as const, label: "Phone Number", required: true },
+  ]
 
   return (
     <div className="space-y-4">
@@ -117,8 +123,11 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
           {error}
         </div>
       )}
-      {/* Form Name */}
-      <div className="space-y-2">
+      {/* Two-column: config left, live mockup right */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
+          {/* Form Name */}
+          <div className="space-y-2">
         <Label htmlFor="form-name" className="text-sm font-medium text-foreground">
           Form Name <span className="text-red-500">*</span>
         </Label>
@@ -132,10 +141,10 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
         />
         {errors.formName && <p className="text-xs text-red-500">{errors.formName}</p>}
         <p className="text-xs text-muted-foreground">{formName.length}/100 characters</p>
-      </div>
+          </div>
 
-      {/* Privacy Policy Section */}
-      <div className="rounded-lg border border-blue-500/20 p-4 space-y-3 bg-transparent">
+          {/* Privacy Policy Section */}
+          <div className="rounded-lg border border-blue-500/20 p-4 space-y-3 bg-transparent">
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
@@ -147,6 +156,16 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
         </div>
 
         <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-foreground">Use default privacy policy</Label>
+            <div className="flex items-center gap-2">
+              <Switch checked={useDefaultPrivacy} onCheckedChange={(v) => {
+                setUseDefaultPrivacy(v)
+                if (v) setPrivacyUrl(defaultPrivacyUrl)
+              }} />
+            </div>
+          </div>
+
           <Label htmlFor="privacy-url" className="text-xs text-foreground">
             Privacy Policy URL
           </Label>
@@ -155,6 +174,7 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
             placeholder="https://yourdomain.com/privacy"
             value={privacyUrl}
             onChange={(e) => setPrivacyUrl(e.target.value)}
+            disabled={useDefaultPrivacy}
             className={errors.privacyUrl ? "border-red-500" : ""}
           />
           {errors.privacyUrl && <p className="text-xs text-red-500">{errors.privacyUrl}</p>}
@@ -174,10 +194,10 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
           />
           {errors.privacyLinkText && <p className="text-xs text-red-500">{errors.privacyLinkText}</p>}
         </div>
-      </div>
+          </div>
 
-      {/* Form Fields Preview */}
-      <div className="rounded-lg border border-blue-500/20 p-4 space-y-3 bg-transparent">
+          {/* Form Fields Preview */}
+          <div className="rounded-lg border border-blue-500/20 p-4 space-y-3 bg-transparent">
         <Label className="text-sm font-medium text-foreground">Form Fields</Label>
         <p className="text-xs text-muted-foreground">This form will collect:</p>
         <div className="space-y-2">
@@ -204,10 +224,10 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-xs text-muted-foreground">Custom fields coming soon</AlertDescription>
         </Alert>
-      </div>
+          </div>
 
-      {/* Thank You Page Section */}
-      <Collapsible open={thankYouOpen} onOpenChange={setThankYouOpen}>
+          {/* Thank You Page Section */}
+          <Collapsible open={thankYouOpen} onOpenChange={setThankYouOpen}>
         <CollapsibleTrigger className="w-full">
           <div className="rounded-lg border border-border bg-card p-4 hover:bg-muted/50 transition-colors">
             <div className="flex items-center justify-between">
@@ -276,10 +296,10 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
             </div>
           </div>
         </CollapsibleContent>
-      </Collapsible>
+          </Collapsible>
 
-      {/* Advanced Settings */}
-      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          {/* Advanced Settings */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <CollapsibleTrigger className="w-full">
           
         </CollapsibleTrigger>
@@ -305,21 +325,34 @@ export function CreateFormTab({ onFormCreated }: CreateFormTabProps) {
             </div>
           </div>
         </CollapsibleContent>
-      </Collapsible>
+          </Collapsible>
+        </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 pt-2">
-        <Button
-          variant="outline"
-          onClick={handlePreview}
-          className="flex-1 border-blue-500/20 text-blue-600 hover:bg-blue-500/10 bg-transparent"
-        >
-          Preview Form
-        </Button>
+        {/* Right column: live phone mockup */}
+        <div className="hidden md:block">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Smartphone className="h-4 w-4 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">Live mobile preview</p>
+            </div>
+            <InstantFormPhoneMockup
+              formName={formName || "Lead Form"}
+              fields={mockupFields}
+              privacyUrl={privacyUrl}
+              thankYouTitle={thankYouTitle}
+              thankYouMessage={thankYouMessage}
+              showThankYou={false}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Action Button */}
+      <div className="flex pt-2">
         <Button
           onClick={handleCreateForm}
           disabled={isCreating || !formName || !privacyUrl}
-          className="flex-1 bg-blue-600 hover:bg-blue-700"
+          className="w-full bg-blue-600 hover:bg-blue-700"
         >
           {isCreating ? "Creating..." : "Create Form"}
         </Button>

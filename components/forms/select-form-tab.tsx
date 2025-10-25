@@ -113,9 +113,10 @@ export function SelectFormTab({ onFormSelected }: SelectFormTabProps) {
           <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
             <FileText className="h-8 w-8 text-blue-600 mx-auto mb-2" />
             <p className="text-sm font-medium text-foreground mb-1">No forms found</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mb-3">
               {searchQuery ? "Try adjusting your search" : "Create your first form to get started"}
             </p>
+            <a href="#create" className="text-xs text-blue-600 hover:underline">Create a new form instead</a>
           </div>
         ) : (
           // Forms cards

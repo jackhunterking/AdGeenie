@@ -58,25 +58,29 @@ export function GoalTab() {
           ← Back to Goal
         </button>
 
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-1">Instant Form</h2>
-          <p className="text-xs text-muted-foreground">Create a new form or select an existing one</p>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-foreground">Instant Forms on Facebook & Instagram</h2>
+            <p className="text-xs text-muted-foreground">People can submit without leaving Facebook or Instagram. Faster, fewer drop‑offs. You receive their details instantly.</p>
+          </div>
+
+          <Tabs defaultValue="select" className="w-full">
+            <TabsList className="w-full">
+              <TabsTrigger value="create">Create New</TabsTrigger>
+              <TabsTrigger value="select">Select Existing</TabsTrigger>
+            </TabsList>
+
+            <p className="text-xs text-muted-foreground mt-1">Minimum fields collected: Full name, Email, Phone.</p>
+
+            <TabsContent value="create" className="mt-3">
+              <CreateFormTab onFormCreated={handleFormSelected} />
+            </TabsContent>
+
+            <TabsContent value="select" className="mt-3">
+              <SelectFormTab onFormSelected={handleFormSelected} />
+            </TabsContent>
+          </Tabs>
         </div>
-
-        <Tabs defaultValue="select" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="create">Create New</TabsTrigger>
-            <TabsTrigger value="select">Select Existing</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="create" className="mt-4">
-            <CreateFormTab onFormCreated={handleFormSelected} />
-          </TabsContent>
-
-          <TabsContent value="select" className="mt-4">
-            <SelectFormTab onFormSelected={handleFormSelected} />
-          </TabsContent>
-        </Tabs>
       </div>
     )
   }
