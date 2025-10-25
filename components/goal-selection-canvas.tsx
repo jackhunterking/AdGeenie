@@ -229,13 +229,11 @@ export function GoalSelectionCanvas() {
             </div>
           )}
 
-          {goalState.selectedGoal !== 'leads' && (
-            <div className="flex justify-center gap-4 pt-6">
-              <Button variant="outline" size="lg" onClick={resetGoal}>
-                Change Goal
-              </Button>
-            </div>
-          )}
+          <div className="flex justify-center gap-4 pt-6">
+            <Button variant="outline" size="lg" onClick={resetGoal}>
+              Change Goal
+            </Button>
+          </div>
         </div>
       </div>
     )
