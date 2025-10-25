@@ -99,6 +99,17 @@ export function CampaignStepper({ steps }: CampaignStepperProps) {
     }
   }
 
+  // Listen for global auto-advance events (e.g., after AI targeting or Meta connect)
+  useEffect(() => {
+    const handler = () => {
+      if (currentStep.completed && !isLastStep) {
+        handleNext()
+      }
+    }
+    window.addEventListener('autoAdvanceStep', handler)
+    return () => window.removeEventListener('autoAdvanceStep', handler)
+  }, [currentStep.completed, isLastStep])
+
   const handleBack = () => {
     if (!isFirstStep) {
       setDirection('backward')

@@ -19,6 +19,8 @@ import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { cn } from "@/lib/utils"
 import { newEditSession } from "@/lib/utils/edit-session"
 import { MetaConnectStep } from "./meta-connect-step"
+import { useCampaignContext } from "@/lib/context/campaign-context"
+import type { Database } from "@/lib/supabase/database.types"
 
 const mockAdAccounts = [
   { id: "act_123456789", name: "Main Business Account", currency: "USD" },
@@ -31,6 +33,7 @@ export function PreviewPanel() {
   // Removed regenerate feature: no regenerating state
   const { adContent, setAdContent, isPublished, setIsPublished, selectedImageIndex, setSelectedCreativeVariation, setSelectedImageIndex } = useAdPreview()
   const { budgetState, setDailyBudget, setSelectedAdAccount, setIsConnected, isComplete } = useBudget()
+  const { campaign } = useCampaignContext()
   const { locationState } = useLocation()
   const { audienceState } = useAudience()
   const { goalState } = useGoal()
@@ -688,7 +691,11 @@ export function PreviewPanel() {
       number: 5,
       title: "Connect Facebook & Instagram",
       description: "Authenticate and select Page, IG (optional) and Ad Account",
-      completed: (budgetState as unknown as { meta_connect_data?: { status?: string } })?.meta_connect_data?.status === 'connected',
+      completed: ((): boolean => {
+        const states = campaign?.campaign_states as Database['public']['Tables']['campaign_states']['Row'] | null | undefined
+        const serverConnected = Boolean((states as unknown as { meta_connect_data?: { status?: string } } | null | undefined)?.meta_connect_data && (states as unknown as { meta_connect_data?: { status?: string } }).meta_connect_data?.status === 'connected')
+        return serverConnected || budgetState.isConnected === true
+      })(),
       content: <MetaConnectStep />,
       icon: Link2,
     },
