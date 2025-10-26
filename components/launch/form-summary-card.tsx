@@ -7,7 +7,7 @@
 
 import { useGoal } from "@/lib/context/goal-context"
 import { Button } from "@/components/ui/button"
-import { FileText, Check, Flag } from "lucide-react"
+import { FileText, Check, Flag, Phone, Link } from "lucide-react"
 
 export function FormSummaryCard() {
   const { goalState } = useGoal()
@@ -22,9 +22,17 @@ export function FormSummaryCard() {
           </div>
           <h3 className="font-semibold">Goal</h3>
         </div>
-        <Button variant="outline" size="sm" className="h-7 px-3" onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'goal' } }))}>Edit</Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-3"
+          onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'goal' } }))}
+        >
+          {goalState.selectedGoal ? 'Edit' : 'Set a goal'}
+        </Button>
       </div>
-      {form?.id ? (
+      {/* Leads summary */}
+      {goalState.selectedGoal === 'leads' && form?.id ? (
         <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
           <div className="flex items-center gap-2">
             <div className="icon-tile-muted"><FileText className="h-4 w-4 text-brand-blue" /></div>
@@ -37,13 +45,39 @@ export function FormSummaryCard() {
             <Check className="h-4 w-4" /> Selected
           </div>
         </div>
+      ) : goalState.selectedGoal === 'calls' && form?.phoneNumber ? (
+        <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
+          <div className="flex items-center gap-2">
+            <div className="icon-tile-muted"><Phone className="h-4 w-4 text-brand-blue" /></div>
+            <div>
+              <p className="text-sm font-medium">Calls</p>
+              <p className="text-xs text-muted-foreground">{form.phoneNumber}</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-1 text-status-green">
+            <Check className="h-4 w-4" /> Configured
+          </div>
+        </div>
+      ) : goalState.selectedGoal === 'website-visits' && form?.websiteUrl ? (
+        <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
+          <div className="flex items-center gap-2">
+            <div className="icon-tile-muted"><Link className="h-4 w-4 text-brand-blue" /></div>
+            <div>
+              <p className="text-sm font-medium">{form.displayLink || 'Website'}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[220px]">{form.websiteUrl}</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-1 text-status-green">
+            <Check className="h-4 w-4" /> Configured
+          </div>
+        </div>
       ) : (
         <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
           <div className="flex items-center gap-2">
             <div className="icon-tile-muted"><FileText className="h-4 w-4 text-brand-blue" /></div>
             <div>
-              <p className="text-sm font-medium">No form selected</p>
-              <p className="text-xs text-muted-foreground">Type: instant-form</p>
+              <p className="text-sm font-medium">No goal selected</p>
+              <p className="text-xs text-muted-foreground">Click “Set a goal” to configure.</p>
             </div>
           </div>
           <div className="status-muted">Not selected</div>

@@ -22,22 +22,14 @@ interface GoalFormData {
   name?: string
   type?: string
   fields?: string[]
-  
-  // Calls
+
+  // Calls (minimal per Meta Call Ads requirements)
   phoneNumber?: string
   countryCode?: string
-  callTracking?: boolean
-  businessHours?: Record<DayOfWeek, BusinessHoursDay>
-  
-  // Website Visits
+
+  // Website Visits (minimal: destination + optional display link)
   websiteUrl?: string
-  utm?: {
-    source: string
-    medium: string
-    campaign: string
-    term?: string
-    content?: string
-  }
+  displayLink?: string
 }
 
 interface GoalState {

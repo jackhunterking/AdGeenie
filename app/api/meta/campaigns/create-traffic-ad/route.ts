@@ -80,8 +80,9 @@ export async function POST(req: NextRequest) {
 
     // 3) Creative (link ad)
     const adContent = (stateRow?.ad_preview_data as { adContent?: { headline?: string; body?: string; cta?: string } } | null)?.adContent || {}
-    const goal = (stateRow?.goal_data as { websiteUrl?: string } | null)
+    const goal = (stateRow?.goal_data as { websiteUrl?: string; displayLink?: string } | null)
     const websiteUrl = goal?.websiteUrl
+    const displayLink = goal?.displayLink
     if (!websiteUrl) return NextResponse.json({ error: 'Website URL missing' }, { status: 400 })
 
     let creativeId = (stateRow?.meta_connect_data as { delivery_data?: { trafficCreativeId?: string } } | null)?.delivery_data?.trafficCreativeId
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest) {
             link: websiteUrl,
             message: adContent.body || 'Learn more',
             name: adContent.headline || 'Visit our site',
+            ...(displayLink ? { display_link: displayLink } : {}),
             call_to_action: { type: (adContent.cta || 'LEARN_MORE').toUpperCase().replace(/\s/g, '_') },
           },
         },

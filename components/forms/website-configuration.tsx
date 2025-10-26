@@ -15,36 +15,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useGoal } from "@/lib/context/goal-context"
-import { CheckCircle2, Check, AlertCircle, Link, Tags } from "lucide-react"
+import { CheckCircle2, Check, AlertCircle, Link } from "lucide-react"
 
 export function WebsiteConfiguration() {
   const { setFormData, goalState } = useGoal()
   const [websiteUrl, setWebsiteUrl] = useState(goalState.formData?.websiteUrl || "")
+  const [displayLink, setDisplayLink] = useState(goalState.formData?.displayLink || "")
   const [error, setError] = useState("")
-  const [enableUtm, setEnableUtm] = useState(Boolean(goalState.formData?.utm))
-  const [utm, setUtm] = useState({
-    source: goalState.formData?.utm?.source || "facebook",
-    medium: goalState.formData?.utm?.medium || "cpc",
-    campaign: goalState.formData?.utm?.campaign || "adpilot",
-    term: goalState.formData?.utm?.term || "",
-    content: goalState.formData?.utm?.content || "",
-  })
 
   const finalUrl = useMemo(() => {
     try {
       const url = new URL(websiteUrl)
-      if (enableUtm) {
-        url.searchParams.set('utm_source', utm.source)
-        url.searchParams.set('utm_medium', utm.medium)
-        url.searchParams.set('utm_campaign', utm.campaign)
-        if (utm.term) url.searchParams.set('utm_term', utm.term)
-        if (utm.content) url.searchParams.set('utm_content', utm.content)
-      }
       return url.toString()
     } catch {
       return websiteUrl
     }
-  }, [websiteUrl, enableUtm, utm.campaign, utm.content, utm.medium, utm.source, utm.term])
+  }, [websiteUrl])
 
   const validateUrl = (url: string) => {
     try {
@@ -69,7 +55,7 @@ export function WebsiteConfiguration() {
     setError("")
     setFormData({
       websiteUrl: finalUrl,
-      utm: enableUtm ? utm : undefined,
+      displayLink: displayLink || undefined,
     })
   }
 
@@ -79,10 +65,8 @@ export function WebsiteConfiguration() {
         <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 className="h-8 w-8 text-blue-600" />
         </div>
-        <h3 className="text-2xl font-bold">Website Configuration</h3>
-        <p className="text-muted-foreground">
-          Enter the destination URL for your ad
-        </p>
+        <h3 className="text-2xl font-bold">Website Visits</h3>
+        <p className="text-muted-foreground">Provide the landing page URL and optional display link (shown under your ad).</p>
       </div>
 
       <div className="space-y-4">
@@ -98,51 +82,19 @@ export function WebsiteConfiguration() {
               setError("")
             }}
           />
-          <p className="text-xs text-muted-foreground">
-            Enter the full URL where you want to drive traffic
-          </p>
+          <p className="text-xs text-muted-foreground">Full destination URL where clicks will land.</p>
         </div>
 
-        {/* UTM Builder */}
-        <div className="space-y-3 p-4 rounded-lg border">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <Tags className="h-4 w-4 text-blue-600" />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                id="utmToggle"
-                type="checkbox"
-                checked={enableUtm}
-                onChange={(e) => setEnableUtm(e.target.checked)}
-              />
-              <Label htmlFor="utmToggle" className="text-sm cursor-pointer">Append UTM parameters</Label>
-            </div>
-          </div>
-          {enableUtm && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label htmlFor="utm_source" className="text-xs">utm_source</Label>
-                <Input id="utm_source" value={utm.source} onChange={(e) => setUtm(prev => ({...prev, source: e.target.value}))} />
-              </div>
-              <div>
-                <Label htmlFor="utm_medium" className="text-xs">utm_medium</Label>
-                <Input id="utm_medium" value={utm.medium} onChange={(e) => setUtm(prev => ({...prev, medium: e.target.value}))} />
-              </div>
-              <div>
-                <Label htmlFor="utm_campaign" className="text-xs">utm_campaign</Label>
-                <Input id="utm_campaign" value={utm.campaign} onChange={(e) => setUtm(prev => ({...prev, campaign: e.target.value}))} />
-              </div>
-              <div>
-                <Label htmlFor="utm_term" className="text-xs">utm_term (optional)</Label>
-                <Input id="utm_term" value={utm.term} onChange={(e) => setUtm(prev => ({...prev, term: e.target.value}))} />
-              </div>
-              <div className="col-span-2">
-                <Label htmlFor="utm_content" className="text-xs">utm_content (optional)</Label>
-                <Input id="utm_content" value={utm.content} onChange={(e) => setUtm(prev => ({...prev, content: e.target.value}))} />
-              </div>
-            </div>
-          )}
+        <div className="space-y-2">
+          <Label htmlFor="displayLink">Display Link (optional)</Label>
+          <Input
+            id="displayLink"
+            type="text"
+            placeholder="example.com"
+            value={displayLink}
+            onChange={(e) => setDisplayLink(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">Shown under your ad, e.g. example.com</p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Link className="h-3.5 w-3.5" />
             <span className="truncate">Final URL: <span className="font-mono">{finalUrl}</span></span>

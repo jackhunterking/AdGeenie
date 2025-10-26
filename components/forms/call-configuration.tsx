@@ -22,21 +22,7 @@ export function CallConfiguration() {
   const { setFormData, goalState } = useGoal()
   const [phoneNumber, setPhoneNumber] = useState(goalState.formData?.phoneNumber || "")
   const [countryCode, setCountryCode] = useState(goalState.formData?.countryCode || "+1")
-  const [callTracking, setCallTracking] = useState(goalState.formData?.callTracking || false)
   const [error, setError] = useState("")
-
-  const [businessHours, setBusinessHours] = useState(() => {
-    const existing = goalState.formData?.businessHours
-    return existing ?? {
-      mon: { enabled: true, start: "09:00", end: "17:00" },
-      tue: { enabled: true, start: "09:00", end: "17:00" },
-      wed: { enabled: true, start: "09:00", end: "17:00" },
-      thu: { enabled: true, start: "09:00", end: "17:00" },
-      fri: { enabled: true, start: "09:00", end: "17:00" },
-      sat: { enabled: false, start: "10:00", end: "14:00" },
-      sun: { enabled: false, start: "10:00", end: "14:00" },
-    }
-  })
 
   const e164 = useMemo(() => new RegExp(/^\+?[1-9]\d{1,14}$/), [])
 
@@ -55,22 +41,10 @@ export function CallConfiguration() {
       return
     }
 
-    // Validate business hours windows
-    const validHours = Object.values(businessHours).every((d) => {
-      if (!d.enabled) return true
-      return d.start < d.end
-    })
-    if (!validHours) {
-      setError("Business hours must have start time before end time")
-      return
-    }
-
     setError("")
     setFormData({
       phoneNumber: fullPhone,
       countryCode,
-      callTracking,
-      businessHours,
     })
   }
 
@@ -82,7 +56,7 @@ export function CallConfiguration() {
         </div>
         <h3 className="text-2xl font-bold">Call Configuration</h3>
         <p className="text-muted-foreground">
-          Set up your phone number for call tracking
+          Set up a phone number for click-to-call ads.
         </p>
       </div>
 
@@ -121,64 +95,7 @@ export function CallConfiguration() {
           )}
         </div>
 
-        <div className="flex items-center space-x-2 p-4 rounded-lg border">
-          <input
-            type="checkbox"
-            id="callTracking"
-            checked={callTracking}
-            onChange={(e) => setCallTracking(e.target.checked)}
-            className="h-4 w-4"
-          />
-          <Label htmlFor="callTracking" className="text-sm cursor-pointer">
-            Enable call tracking (recommended)
-          </Label>
-        </div>
-
-        {/* Business Hours */}
-        <div className="space-y-3 p-4 rounded-lg border">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Business Hours (optional)</p>
-              <p className="text-xs text-muted-foreground">We’ll favor call delivery during these windows.</p>
-            </div>
-          </div>
-          {([
-            ['mon','Mon'],['tue','Tue'],['wed','Wed'],['thu','Thu'],['fri','Fri'],['sat','Sat'],['sun','Sun']
-          ] as const).map(([key, label]) => {
-            const day = businessHours[key]
-            return (
-              <div key={key} className="grid grid-cols-12 items-center gap-2">
-                <div className="col-span-2 text-xs">{label}</div>
-                <div className="col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={day.enabled}
-                    onChange={(e) => setBusinessHours(prev => ({...prev, [key]: { ...prev[key], enabled: e.target.checked }}))}
-                  />
-                </div>
-                <div className="col-span-4">
-                  <Input
-                    type="time"
-                    value={day.start}
-                    onChange={(e) => setBusinessHours(prev => ({...prev, [key]: { ...prev[key], start: e.target.value }}))}
-                    disabled={!day.enabled}
-                  />
-                </div>
-                <div className="col-span-4">
-                  <Input
-                    type="time"
-                    value={day.end}
-                    onChange={(e) => setBusinessHours(prev => ({...prev, [key]: { ...prev[key], end: e.target.value }}))}
-                    disabled={!day.enabled}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        {/* Minimal requirements only: country code and phone number */}
 
         {error && (
           <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30">

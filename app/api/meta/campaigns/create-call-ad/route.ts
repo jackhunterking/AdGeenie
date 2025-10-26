@@ -43,13 +43,13 @@ export async function POST(req: NextRequest) {
     const startTime = (stateRow?.budget_data as { startTime?: string | null } | null)?.startTime || undefined
     const endTime = (stateRow?.budget_data as { endTime?: string | null } | null)?.endTime || undefined
 
-    // 1) Campaign (Calls)
+  // 1) Campaign (Leads objective per ODAX)
     let campaignRefId = (stateRow?.meta_connect_data as { delivery_data?: { callsCampaignId?: string } } | null)?.delivery_data?.callsCampaignId
     if (!campaignRefId) {
       const payload = {
         buying_type: 'AUCTION',
         name: 'Calls Campaign',
-        objective: 'OUTCOME_CALLS',
+        objective: 'OUTCOME_LEADS',
         status: 'PAUSED',
         access_token: userToken,
       }
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       await patchDelivery(campaignId, { callsCampaignId: campaignRefId })
     }
 
-    // 2) Ad Set (CALL destination)
+  // 2) Ad Set (CALL destination)
     let adSetId = (stateRow?.meta_connect_data as { delivery_data?: { callsAdSetId?: string } } | null)?.delivery_data?.callsAdSetId
     if (!adSetId) {
       const adSetPayload: Record<string, unknown> = {
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         name: 'Calls Ad Set',
         destination_type: 'CALL',
         promoted_object: { page_id: pageId },
-        optimization_goal: 'CALLS',
+        optimization_goal: 'LEAD_GENERATION',
         status: 'PAUSED',
         access_token: userToken,
       }
