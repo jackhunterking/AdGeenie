@@ -10,6 +10,12 @@ interface AdCopyVariation {
   primaryText: string
   description: string
   headline: string
+  overlay?: {
+    headline?: string
+    offer?: string
+    body?: string
+    density?: 'none' | 'light' | 'medium' | 'heavy' | 'text-only'
+  }
 }
 
 interface AdCopyState {

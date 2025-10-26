@@ -49,6 +49,7 @@ Rules:
 - Never put emojis in the headline or description unless explicitly requested.
 - Align tone and CTA with the campaign goal if given (leads, calls, website-visits).
 - Keep copy concise and platform-native.
+- HARD LIMITS: primaryText ≤ 125 chars, headline ≤ 40 chars, description ≤ 30 chars. You MUST respect these limits and shorten text if needed.
 - For each variation, set usesEmojis=true if emojis were used, otherwise false.
 `
 
@@ -79,12 +80,26 @@ If current copy is provided, improve it while changing the persuasion angle. Als
         },
       ]
 
-      const { object: variation } = await generateObject({
+      const { object: rawVariation } = await generateObject({
         model: getModel('openai/gpt-4o'),
         system: SYSTEM_INSTRUCTIONS,
         schema: SingleCopySchema,
         messages: [{ role: 'user', content: singleContent }],
       })
+
+      const clamp = (s: string, max: number) => (s.length > max ? s.slice(0, max).trim() : s)
+      const variation = {
+        ...rawVariation,
+        primaryText: clamp(rawVariation.primaryText, 125),
+        headline: clamp(rawVariation.headline, 40),
+        description: clamp(rawVariation.description, 30),
+        overlay: rawVariation.overlay ? {
+          ...rawVariation.overlay,
+          headline: rawVariation.overlay.headline ? clamp(rawVariation.overlay.headline, 40) : undefined,
+          offer: rawVariation.overlay.offer ? clamp(rawVariation.overlay.offer, 40) : undefined,
+          body: rawVariation.overlay.body ? clamp(rawVariation.overlay.body, 80) : undefined,
+        } : undefined,
+      }
 
       return NextResponse.json({ variation })
     }
@@ -95,11 +110,18 @@ If current copy is provided, improve it while changing the persuasion angle. Als
       {
         type: 'text' as const,
         text: `Create six different ad copy variations for this campaign.${goalType ? ` Goal: ${goalType}.` : ''} ${businessContext ? ` Context: ${businessContext}` : ''}
-Use these image URLs as context only (do not attempt to analyze the images directly, just infer likely themes): ${imageUrls.join(', ')}`,
+Use these image URLs as context only (do not attempt to analyze the images directly, just infer likely themes): ${imageUrls.join(', ')}
+
+Additionally, for each variation return optional overlay-ready fields (when applicable):
+- overlay.headline (≤40 chars)
+- overlay.offer (≤40 chars)
+- overlay.body (≤80 chars)
+- overlay.density (one of none|light|medium|heavy|text-only)
+Trim texts to limits. Avoid brand names. Align CTAs to goal.`,
       },
     ]
 
-  const { object } = await generateObject({
+  const { object: raw } = await generateObject({
       model: getModel('openai/gpt-4o'),
       system: SYSTEM_INSTRUCTIONS,
       schema: CopySchema,
@@ -107,6 +129,22 @@ Use these image URLs as context only (do not attempt to analyze the images direc
         { role: 'user', content: userContent },
       ],
     })
+
+    const clamp = (s: string, max: number) => (s.length > max ? s.slice(0, max).trim() : s)
+    const object = {
+      variations: raw.variations.map((v) => ({
+        ...v,
+        primaryText: clamp(v.primaryText, 125),
+        headline: clamp(v.headline, 40),
+        description: clamp(v.description, 30),
+        overlay: v.overlay ? {
+          ...v.overlay,
+          headline: v.overlay.headline ? clamp(v.overlay.headline, 40) : undefined,
+          offer: v.overlay.offer ? clamp(v.overlay.offer, 40) : undefined,
+          body: v.overlay.body ? clamp(v.overlay.body, 80) : undefined,
+        } : undefined,
+      }))
+    }
 
     return NextResponse.json(object)
   } catch (err) {

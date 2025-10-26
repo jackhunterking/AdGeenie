@@ -497,8 +497,15 @@ export function PreviewPanel() {
 
         {adContent?.imageVariations?.[index] ? (
           <div className="absolute inset-0">
-            <img src={adContent.imageVariations[index]} alt={adContent.headline} className="w-full h-full object-cover" />
+            {/* Background fill (blur/gradient) */}
+            <img src={adContent.imageVariations[index]} alt="bg" className="w-full h-full object-cover blur-lg scale-110 opacity-70" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+            {/* Foreground exact square (parity with square) */}
+            <div className="absolute inset-0 flex items-center justify-center p-3">
+              <div className="aspect-square w-[82%] max-w-[82%] rounded-md overflow-hidden shadow-md">
+                <img src={adContent.imageVariations[index]} alt={adContent.headline} className="w-full h-full object-contain bg-black/20" />
+              </div>
+            </div>
           </div>
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${variation.gradient}`} />
@@ -517,21 +524,51 @@ export function PreviewPanel() {
         {(() => {
           const variations = getActiveVariations()
           const copy = adCopyState.selectedCopyIndex != null ? variations[adCopyState.selectedCopyIndex] : undefined
+          const hints: string[] = []
+          if (copy) {
+            const ptLen = copy.primaryText?.length || 0
+            const hlLen = copy.headline?.length || 0
+            const dsLen = copy.description?.length || 0
+            if (ptLen > 110) hints.push('Primary text near 125-char limit')
+            if (hlLen > 35) hints.push('Headline near 40-char limit')
+            if (dsLen > 26) hints.push('Description near 30-char limit')
+            if (copy.overlay?.density && copy.overlay.density !== 'text-only') {
+              hints.push('Check text contrast against background')
+            }
+          }
           return (
             <div className="absolute bottom-6 left-0 right-0 px-3 z-10 space-y-2">
               {copy ? (
                 <>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
-                    <p className="text-white text-xs line-clamp-2 font-medium">{copy.primaryText}</p>
-                  </div>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
-                    <p className="text-white font-bold text-xs line-clamp-1">{copy.headline}</p>
-                  </div>
+                  {copy.overlay?.density === 'text-only' ? (
+                    <div className="bg-black/60 rounded-md p-3">
+                      <p className="text-white font-bold text-sm text-center">
+                        {copy.overlay?.headline || copy.overlay?.offer || copy.headline}
+                      </p>
+                      {copy.overlay?.body ? (
+                        <p className="text-white/90 text-xs mt-1 text-center">{copy.overlay.body}</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                        <p className="text-white text-xs line-clamp-2 font-medium">{copy.primaryText}</p>
+                      </div>
+                      <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                        <p className="text-white font-bold text-xs line-clamp-1">{copy.headline}</p>
+                      </div>
+                    </>
+                  )}
                 </>
               ) : null}
               <div className="bg-white/20 backdrop-blur-sm rounded-full py-2 px-4 text-center">
                 <p className="text-white font-semibold text-xs truncate">{adContent?.cta || 'Learn More'}</p>
               </div>
+              {hints.length > 0 && (
+                <div className="text-[10px] text-white/80 text-center">
+                  {hints.join(' • ')}
+                </div>
+              )}
             </div>
           )
         })()}
