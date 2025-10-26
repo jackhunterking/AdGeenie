@@ -8,6 +8,8 @@
  */
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { MapPin } from "lucide-react"
 import { useLocation } from "@/lib/context/location-context"
 
 export function LocationSummaryCard() {
@@ -18,15 +20,19 @@ export function LocationSummaryCard() {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold">Target Locations</h3>
         <div className="flex items-center gap-2">
-          {included.length > 0 && <Badge className="bg-purple-600 text-white">{included.length}</Badge>}
-          <button
+          <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+            <MapPin className="h-4 w-4 text-purple-600" />
+          </div>
+          <h3 className="font-semibold">Target Locations</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
             onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'location' } }))}
-            className="text-xs text-blue-500 hover:underline"
+            variant="outline" size="sm" className="h-7 px-3"
           >
             Edit
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -38,7 +44,6 @@ export function LocationSummaryCard() {
               <h4 className="text-sm font-medium">Included</h4>
               <Badge className="bg-purple-600 text-white text-xs">{included.length}</Badge>
             </div>
-            <p className="text-xs text-muted-foreground">Ads will show here</p>
           </div>
           <div className="space-y-2">
             {included.length === 0 ? (

@@ -5,9 +5,9 @@
  * Purpose: Compact audience summary for final launch view
  */
 
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { useAudience } from "@/lib/context/audience-context"
-import { AITargetingSummaryCard } from "./ai-targeting-summary-card"
+import { Check, Target } from "lucide-react"
 
 export function AudienceSummaryCard() {
   const { audienceState } = useAudience()
@@ -16,15 +16,44 @@ export function AudienceSummaryCard() {
 
   if (isAI) {
     return (
-      <AITargetingSummaryCard onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'audience' } }))} />
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <Target className="h-4 w-4 text-blue-600" />
+            </div>
+            <h3 className="font-semibold">Audience</h3>
+          </div>
+          <Button variant="outline" size="sm" className="h-7 px-3" onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'audience' } }))}>Edit</Button>
+        </div>
+        <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center">
+              <Target className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">AI Targeting</p>
+              <p className="text-xs text-muted-foreground">AI Advantage+ will optimize who sees your ad</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+            <Check className="h-4 w-4" /> Enabled
+          </div>
+        </div>
+      </div>
     )
   }
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold">Audience</h3>
-        <Badge variant="outline">Custom</Badge>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+            <Target className="h-4 w-4 text-blue-600" />
+          </div>
+          <h3 className="font-semibold">Audience</h3>
+        </div>
+        <Button variant="outline" size="sm" className="h-7 px-3" onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'audience' } }))}>Edit</Button>
       </div>
       <div className="text-sm text-muted-foreground">
         {(() => {
@@ -50,14 +79,7 @@ export function AudienceSummaryCard() {
           return parts.length > 0 ? parts.join(' | ') : 'Custom audience selected'
         })()}
       </div>
-      <div className="mt-3 flex justify-end">
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'audience' } }))}
-          className="text-xs text-blue-500 hover:underline"
-        >
-          Edit
-        </button>
-      </div>
+      <div className="mt-3 flex justify-end" />
     </div>
   )
 }
