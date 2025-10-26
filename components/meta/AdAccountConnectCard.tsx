@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 import { useBudget } from '@/lib/context/budget-context'
-import { Building2, CreditCard, Loader2, ShieldCheck } from 'lucide-react'
+import { Building2, CreditCard, Loader2, ShieldCheck, Check } from 'lucide-react'
 
 interface Props { businessId: string; pageId: string }
 interface AdAccount { id: string; name?: string; currency?: string }
