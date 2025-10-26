@@ -262,18 +262,7 @@ export function GoalSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-6">
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Flag className="h-4 w-4 text-blue-600" />
-              </div>
-              <h3 className="font-semibold">Goal</h3>
-            </div>
-            <FormSummaryCard />
-            <div className="pt-4 flex justify-end">
-              <Button variant="outline" onClick={resetGoal}>Change goal</Button>
-            </div>
-          </div>
+          <FormSummaryCard />
         </div>
       </div>
     )

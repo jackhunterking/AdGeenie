@@ -695,17 +695,50 @@ export function PreviewPanel() {
 
         {/* Removed old inline budget block in favor of BudgetSchedule */}
 
-        {/* Publish CTA */}
-        {isComplete() && (
-          <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4">
-            <h3 className="font-semibold mb-1">Ready to Publish!</h3>
-            <p className="text-sm text-muted-foreground mb-3">All steps completed. Review your campaign and publish when ready.</p>
-            <Button onClick={handlePublish} disabled={!allStepsComplete} size="lg" className="w-full gap-2 bg-[#4B73FF] hover:bg-[#3d5fd9] disabled:opacity-50">
-              <Play className="h-4 w-4" />
-              {isPublished ? 'Unpublish Campaign' : 'Publish Campaign'}
-            </Button>
-          </div>
-        )}
+        {/* Publish CTA - Always visible with step counter */}
+        <div className={cn(
+          "rounded-lg border p-4",
+          allStepsComplete 
+            ? "border-green-500/30 bg-green-500/5" 
+            : "border-border bg-card"
+        )}>
+          {allStepsComplete ? (
+            <>
+              <h3 className="font-semibold mb-1">Ready to Publish!</h3>
+              <p className="text-sm text-muted-foreground mb-3">All steps completed. Review your campaign and publish when ready.</p>
+            </>
+          ) : (
+            <>
+              <h3 className="font-semibold mb-1">Complete All Steps</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                {(() => {
+                  const completedCount = [
+                    selectedImageIndex !== null,
+                    adCopyState.status === "completed",
+                    locationState.status === "completed",
+                    audienceState.status === "completed",
+                    (() => {
+                      const states = campaign?.campaign_states as Database['public']['Tables']['campaign_states']['Row'] | null | undefined
+                      const serverConnected = Boolean((states as unknown as { meta_connect_data?: { status?: string } } | null | undefined)?.meta_connect_data && (states as unknown as { meta_connect_data?: { status?: string } }).meta_connect_data?.status === 'connected')
+                      return serverConnected || budgetState.isConnected === true
+                    })(),
+                    goalState.status === "completed"
+                  ].filter(Boolean).length
+                  return `${completedCount} of 6 steps completed`
+                })()}
+              </p>
+            </>
+          )}
+          <Button 
+            onClick={handlePublish} 
+            disabled={!allStepsComplete} 
+            size="lg" 
+            className="w-full gap-2 bg-[#4B73FF] hover:bg-[#3d5fd9] disabled:opacity-50"
+          >
+            <Play className="h-4 w-4" />
+            {isPublished ? 'Unpublish Campaign' : 'Publish Campaign'}
+          </Button>
+        </div>
       </div>
     </div>
   )

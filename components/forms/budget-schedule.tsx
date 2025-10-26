@@ -11,11 +11,33 @@
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import { useBudget } from "@/lib/context/budget-context"
-import { DollarSign } from "lucide-react"
+import { DollarSign, Plus, Minus } from "lucide-react"
 
 export function BudgetSchedule() {
   const { budgetState, setDailyBudget } = useBudget()
+  
+  const minBudget = 5
+  const maxBudget = 100
+  const increment = 5
+
+  const handleIncrement = () => {
+    const newBudget = Math.min(budgetState.dailyBudget + increment, maxBudget)
+    setDailyBudget(newBudget)
+  }
+
+  const handleDecrement = () => {
+    const newBudget = Math.max(budgetState.dailyBudget - increment, minBudget)
+    setDailyBudget(newBudget)
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/[^0-9]/g, "")
+    const numValue = Number.parseInt(value) || minBudget
+    const clampedValue = Math.max(minBudget, Math.min(maxBudget, numValue))
+    setDailyBudget(clampedValue)
+  }
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-4">
@@ -29,17 +51,35 @@ export function BudgetSchedule() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <Label className="text-xs">Daily Budget (USD)</Label>
+      <div className="space-y-3">
+        <Label className="text-xs">Daily Budget (USD)</Label>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={handleDecrement}
+            disabled={budgetState.dailyBudget <= minBudget}
+            className="h-9 w-9 flex-shrink-0"
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
           <Input
             inputMode="numeric"
             value={String(budgetState.dailyBudget)}
-            onChange={(e) => {
-              const v = Number.parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0
-              setDailyBudget(v)
-            }}
+            onChange={handleInputChange}
+            className="text-center"
           />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={handleIncrement}
+            disabled={budgetState.dailyBudget >= maxBudget}
+            className="h-9 w-9 flex-shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </div>

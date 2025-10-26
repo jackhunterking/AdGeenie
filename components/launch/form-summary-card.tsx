@@ -28,7 +28,7 @@ export function FormSummaryCard() {
           className="h-7 px-3"
           onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'goal' } }))}
         >
-          {goalState.selectedGoal ? 'Edit' : 'Set a goal'}
+          {goalState.selectedGoal ? 'Change goal' : 'Set a goal'}
         </Button>
       </div>
       {/* Leads summary */}
