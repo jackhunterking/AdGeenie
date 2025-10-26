@@ -686,6 +686,7 @@ export function PreviewPanel() {
         <MetaConnectionCard
           showAdAccount={true}
           onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
+          actionLabel="Connect with Meta"
         />
         <LocationSummaryCard />
         <AudienceSummaryCard />

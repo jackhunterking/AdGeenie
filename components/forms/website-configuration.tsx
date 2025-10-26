@@ -36,9 +36,18 @@ export function WebsiteConfiguration() {
     }
   }, [websiteUrl])
 
+  // Strict validation: must be a well-formed URL with a hostname that
+  // includes a dot and a TLD with length >= 2. This prevents inputs like
+  // "renoassi" from being considered valid until a real domain is provided.
   const validateUrl = (url: string) => {
     try {
-      new URL(url)
+      const parsed = new URL(url)
+      const host = parsed.hostname
+      if (!host || /\s/.test(host)) return false
+      const parts = host.split(".")
+      if (parts.length < 2) return false
+      const tld = parts[parts.length - 1]
+      if (!/^[a-z0-9-]{2,}$/i.test(tld)) return false
       return true
     } catch {
       return false
@@ -122,7 +131,7 @@ export function WebsiteConfiguration() {
 
       <Button
         onClick={handleSave}
-        disabled={!websiteUrl}
+        disabled={!validateUrl(finalUrl)}
         className="w-full bg-blue-600 hover:bg-blue-700"
       >
         <Check className="h-4 w-4 mr-2" />

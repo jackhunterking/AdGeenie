@@ -9,8 +9,13 @@ import { useGoal } from "@/lib/context/goal-context"
 import { Button } from "@/components/ui/button"
 import { FileText, Check, Flag, Phone, Globe } from "lucide-react"
 
-export function FormSummaryCard() {
-  const { goalState } = useGoal()
+interface FormSummaryCardProps {
+  mode?: 'summary' | 'inline'
+  onChange?: () => void
+}
+
+export function FormSummaryCard({ mode = 'summary', onChange }: FormSummaryCardProps) {
+  const { goalState, resetGoal } = useGoal()
   const form = goalState.formData
 
   return (
@@ -26,7 +31,14 @@ export function FormSummaryCard() {
           variant="outline"
           size="sm"
           className="h-7 px-3"
-          onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'goal' } }))}
+          onClick={() => {
+            if (mode === 'inline') {
+              if (onChange) onChange()
+              else resetGoal()
+            } else {
+              window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'goal' } }))
+            }
+          }}
         >
           {goalState.selectedGoal ? 'Change goal' : 'Set a goal'}
         </Button>

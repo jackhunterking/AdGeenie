@@ -1,6 +1,6 @@
 "use client"
 
-import { MapPin, Loader2, Lock, Plus, X, Sparkles } from "lucide-react"
+import { MapPin, Loader2, Lock, Plus, X, Sparkles, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useLocation } from "@/lib/context/location-context"
@@ -370,7 +370,7 @@ export function LocationSelectionCanvas() {
               <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <h3 className="text-base font-semibold">Included</h3>
-                  <Badge className="bg-purple-600 text-white">{includedLocations.length}</Badge>
+                  <Badge className="badge-muted">{includedLocations.length}</Badge>
                 </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
                   {includedLocations.map((location) => (
@@ -386,10 +386,10 @@ export function LocationSelectionCanvas() {
 
             {/* Excluded Locations */}
             {excludedLocations.length > 0 && (
-              <div className="bg-card border border-red-500/30 rounded-lg p-4 shadow-sm">
+              <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <h3 className="text-base font-semibold">Excluded</h3>
-                  <Badge variant="destructive">{excludedLocations.length}</Badge>
+                  <Badge className="badge-muted">{excludedLocations.length}</Badge>
                 </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
                   {excludedLocations.map((location) => (
@@ -486,10 +486,17 @@ function LocationCard({
     <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <div className="icon-tile-muted">
-          <MapPin className={`h-4 w-4 ${isExcluded ? 'text-red-600' : 'text-status-green'}`} />
+          {isExcluded ? (
+            <X className="h-4 w-4 text-red-600" />
+          ) : (
+            <Check className="h-4 w-4 text-status-green" />
+          )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{location.name}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="text-sm font-medium truncate">{location.name}</p>
+            {isExcluded && <span className="status-muted flex-shrink-0">Excluded</span>}
+          </div>
           <p className="text-xs text-muted-foreground">{getLocationTypeLabel()}</p>
         </div>
       </div>

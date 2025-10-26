@@ -262,7 +262,7 @@ export function GoalSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-6">
-          <FormSummaryCard />
+          <FormSummaryCard mode="inline" />
         </div>
       </div>
     )
