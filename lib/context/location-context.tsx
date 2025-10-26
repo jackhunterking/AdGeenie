@@ -56,6 +56,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   })
   const [isInitialized, setIsInitialized] = useState(false)
   const [hydrationAttempted, setHydrationAttempted] = useState(false)
+  // Prevent fallback hydration from restoring locations after the user explicitly cleared/edited
+  const [hasUserEdited, setHasUserEdited] = useState(false)
+  const [fallbackAttempted, setFallbackAttempted] = useState(false)
 
   // Memoize state to prevent unnecessary recreations
   const memoizedLocationState = useMemo(() => locationState, [locationState])
@@ -87,7 +90,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   // Phase 3: fallback hydrate from server state API if nothing loaded yet
   useEffect(() => {
     if (!campaign?.id || !hydrationAttempted) return
+    // If the user has interacted (removed/cleared/added) we should NOT rehydrate from server
+    if (hasUserEdited) return
     if ((locationState.locations?.length ?? 0) > 0) return
+    // Only attempt this once per mount/session
+    if (fallbackAttempted) return
 
     let aborted = false
     ;(async () => {
@@ -112,8 +119,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       }
     })()
 
+    setFallbackAttempted(true)
     return () => { aborted = true }
-  }, [campaign?.id, hydrationAttempted, locationState.locations?.length])
+  }, [campaign?.id, hydrationAttempted, locationState.locations?.length, hasUserEdited, fallbackAttempted])
 
   // Save function
   const saveFn = useCallback(async (state: LocationState) => {
@@ -126,6 +134,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   const addLocations = (newLocations: Location[], shouldMerge: boolean = true) => {
     setLocationState(prev => {
+      setHasUserEdited(true)
       let finalLocations: Location[];
       
       if (shouldMerge) {
@@ -153,6 +162,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   const removeLocation = (id: string) => {
     setLocationState(prev => {
+      setHasUserEdited(true)
       const updatedLocations = prev.locations.filter(loc => loc.id !== id)
       return {
         ...prev,
@@ -178,6 +188,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }
 
   const clearLocations = () => {
+    setHasUserEdited(true)
     setLocationState({
       locations: [],
       status: "idle",

@@ -322,7 +322,7 @@ export function LocationSelectionCanvas() {
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('triggerLocationSetup'))
                 }}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-8 mt-auto"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 mt-auto"
               >
                 Set Location
               </Button>
@@ -338,7 +338,7 @@ export function LocationSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-xl w-full space-y-6 text-center">
-          <Loader2 className="h-16 w-16 animate-spin text-purple-600 mx-auto" />
+          <Loader2 className="h-16 w-16 animate-spin text-blue-600 mx-auto" />
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Setting up locations...</h2>
             <p className="text-muted-foreground">
@@ -450,7 +450,7 @@ export function LocationSelectionCanvas() {
           <Button
             size="lg"
             onClick={resetLocations}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             Try Again
           </Button>

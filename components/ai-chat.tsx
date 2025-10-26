@@ -1177,15 +1177,17 @@ Make it conversational and easy to understand for a business owner.`,
                                           className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
                                             isExcluded 
                                               ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" 
-                                              : "panel-surface hover:border-purple-500/50"
+                                              : "panel-surface hover:border-blue-500/40"
                                           }`}
                                           onClick={() => emitBrowserEvent('switchToTab', 'location')}
                                         >
                                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                              isExcluded ? "bg-red-500/10 text-red-600" : "bg-purple-500/10 text-purple-600"
-                                            }`}>
-                                              <MapPin className="h-4 w-4" />
+                                            <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0">
+                                              {isExcluded ? (
+                                                <XCircle className="h-4 w-4 text-red-600" />
+                                              ) : (
+                                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                              )}
                                             </div>
                                             <div className="min-w-0 flex-1">
                                               <div className="flex items-center gap-1.5">

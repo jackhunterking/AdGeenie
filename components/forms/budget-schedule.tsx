@@ -33,9 +33,11 @@ export function BudgetSchedule() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Accept only digits, clamp to integer range, prevent empty => min
     const value = e.target.value.replace(/[^0-9]/g, "")
-    const numValue = Number.parseInt(value) || minBudget
-    const clampedValue = Math.max(minBudget, Math.min(maxBudget, numValue))
+    const parsed = Number.parseInt(value, 10)
+    const numValue = Number.isFinite(parsed) ? parsed : minBudget
+    const clampedValue = Math.max(minBudget, Math.min(maxBudget, Math.trunc(numValue)))
     setDailyBudget(clampedValue)
   }
 
