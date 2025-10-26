@@ -7,7 +7,7 @@
 
 import { Button } from "@/components/ui/button"
 import { useAudience } from "@/lib/context/audience-context"
-import { Check, Target } from "lucide-react"
+import { Check, Target, Sparkles } from "lucide-react"
 
 export function AudienceSummaryCard() {
   const { audienceState } = useAudience()
@@ -20,7 +20,7 @@ export function AudienceSummaryCard() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="icon-tile-muted">
-              <Target className="h-4 w-4" />
+              <Sparkles className="h-4 w-4 text-brand-blue" />
             </div>
             <h3 className="font-semibold">Audience</h3>
           </div>
@@ -28,13 +28,13 @@ export function AudienceSummaryCard() {
         </div>
         <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
           <div className="flex items-center gap-2">
-            <div className="icon-tile-muted"><Target className="h-4 w-4" /></div>
+            <div className="icon-tile-muted"><Sparkles className="h-4 w-4 text-brand-blue" /></div>
             <div>
               <p className="text-sm font-medium">AI Targeting</p>
               <p className="text-xs text-muted-foreground">AI Advantage+ will optimize who sees your ad</p>
             </div>
           </div>
-          <div className="status-muted inline-flex items-center gap-1">
+          <div className="inline-flex items-center gap-1 text-status-green">
             <Check className="h-4 w-4" /> Enabled
           </div>
         </div>
@@ -47,7 +47,7 @@ export function AudienceSummaryCard() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="icon-tile-muted">
-            <Target className="h-4 w-4" />
+            <Sparkles className="h-4 w-4 text-brand-blue" />
           </div>
           <h3 className="font-semibold">Audience</h3>
         </div>

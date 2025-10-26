@@ -7,7 +7,7 @@
 
 import { useGoal } from "@/lib/context/goal-context"
 import { Button } from "@/components/ui/button"
-import { FileText, Check } from "lucide-react"
+import { FileText, Check, Flag } from "lucide-react"
 
 export function FormSummaryCard() {
   const { goalState } = useGoal()
@@ -18,7 +18,7 @@ export function FormSummaryCard() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="icon-tile-muted">
-            <FileText className="h-4 w-4" />
+            <Flag className="h-4 w-4" />
           </div>
           <h3 className="font-semibold">Goal</h3>
         </div>
@@ -27,20 +27,20 @@ export function FormSummaryCard() {
       {form?.id ? (
         <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
           <div className="flex items-center gap-2">
-            <div className="icon-tile-muted"><FileText className="h-4 w-4" /></div>
+            <div className="icon-tile-muted"><FileText className="h-4 w-4 text-brand-blue" /></div>
             <div>
               <p className="text-sm font-medium">{form.name ?? "Lead Form"}</p>
               <p className="text-xs text-muted-foreground">Type: {form.type ?? "instant-form"}</p>
             </div>
           </div>
-          <div className="status-muted inline-flex items-center gap-1">
+          <div className="inline-flex items-center gap-1 text-status-green">
             <Check className="h-4 w-4" /> Enabled
           </div>
         </div>
       ) : (
         <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
           <div className="flex items-center gap-2">
-            <div className="icon-tile-muted"><FileText className="h-4 w-4" /></div>
+            <div className="icon-tile-muted"><FileText className="h-4 w-4 text-brand-blue" /></div>
             <div>
               <p className="text-sm font-medium">No form selected</p>
               <p className="text-xs text-muted-foreground">Type: instant-form</p>

@@ -177,6 +177,14 @@
   .badge-muted {
     @apply rounded-md bg-muted text-muted-foreground border border-border/50 text-xs px-1.5 py-0.5;
   }
+
+  /* Brand accent utilities */
+  .text-brand-blue {
+    color: #4B73FF;
+  }
+  .text-status-green {
+    color: #16A34A;
+  }
 }
 
 /* Leaflet Map Styles */

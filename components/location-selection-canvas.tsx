@@ -179,7 +179,7 @@ export function LocationSelectionCanvas() {
 
     // Add markers and shapes for each location
     validLocations.forEach((location) => {
-      const color = location.mode === "include" ? "#2563EB" : "#DC2626"
+      const color = location.mode === "include" ? "#16A34A" : "#DC2626"
 
       // Add marker
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -72,7 +72,7 @@ export function AudienceSelectionCanvas() {
             {/* AI Advantage+ Card - Matching Goal/Location Design Pattern */}
             <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:bg-accent/20 transition-all duration-300">
               <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
-                <Target className="h-10 w-10" />
+                <Sparkles className="h-10 w-10 text-brand-blue" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
                 <h3 className="text-xl font-semibold">AI Targeting</h3>
@@ -119,7 +119,7 @@ export function AudienceSelectionCanvas() {
           <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
             <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:bg-accent/20 transition-all duration-300">
               <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
-                <Target className="h-10 w-10" />
+                <Sparkles className="h-10 w-10 text-brand-blue" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
                 <h3 className="text-xl font-semibold">AI Targeting</h3>
@@ -128,11 +128,11 @@ export function AudienceSelectionCanvas() {
               <Button
                 size="lg"
                 disabled
-                className="px-8 mt-auto cursor-default bg-muted text-muted-foreground border border-border/50 hover:bg-muted"
+                className="px-8 mt-auto cursor-default bg-muted text-status-green border border-border/50 hover:bg-muted"
               >
                 <span className="inline-flex items-center gap-2">
                   <Check className="h-4 w-4" />
-                  <span className="status-muted">AI Targeting Enabled</span>
+                  <span>AI Targeting Enabled</span>
                 </span>
               </Button>
             </div>

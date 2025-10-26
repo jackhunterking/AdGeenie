@@ -9,7 +9,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MapPin } from "lucide-react"
+import { MapPin, Check, X as Cross } from "lucide-react"
 import { useLocation } from "@/lib/context/location-context"
 
 export function LocationSummaryCard() {
@@ -55,7 +55,7 @@ export function LocationSummaryCard() {
                   className="flex items-center justify-between p-3 rounded-lg border panel-surface"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="icon-tile-muted"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 21s-6.5-4.33-6.5-10A6.5 6.5 0 1 1 18.5 11c0 5.67-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2"/></svg></div>
+                    <div className="icon-tile-muted"><Check className="h-4 w-4 text-status-green" /></div>
                     <div>
                       <p className="text-sm font-medium">{loc.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -85,7 +85,7 @@ export function LocationSummaryCard() {
                   className="flex items-center justify-between p-3 rounded-lg border panel-surface"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="icon-tile-muted"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 21s-6.5-4.33-6.5-10A6.5 6.5 0 1 1 18.5 11c0 5.67-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2"/></svg></div>
+                    <div className="icon-tile-muted"><Cross className="h-4 w-4 text-red-600" /></div>
                     <div>
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-medium">{loc.name}</p>
