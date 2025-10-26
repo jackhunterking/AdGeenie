@@ -22,9 +22,10 @@ interface MetaSummary {
 interface MetaConnectionCardProps {
   showAdAccount?: boolean
   onEdit?: () => void
+  actionLabel?: string
 }
 
-export function MetaConnectionCard({ showAdAccount = false, onEdit }: MetaConnectionCardProps) {
+export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel }: MetaConnectionCardProps) {
   const { campaign } = useCampaignContext()
   const [summary, setSummary] = useState<MetaSummary | null>(null)
   const [loading, setLoading] = useState(false)
@@ -72,7 +73,7 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit }: MetaConnec
         </div>
         <div className="flex items-center gap-3">
           {onEdit && (
-            <Button variant="outline" size="sm" onClick={onEdit} className="h-7 px-3">Edit</Button>
+            <Button variant="outline" size="sm" onClick={onEdit} className="h-7 px-3">{actionLabel || 'Edit'}</Button>
           )}
         </div>
       </div>

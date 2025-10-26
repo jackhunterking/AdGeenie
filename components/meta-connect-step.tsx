@@ -175,7 +175,7 @@ export function MetaConnectStep() {
     <div className="flex flex-col items-center justify-center h-full p-8">
       <div className="max-w-2xl w-full space-y-8">
         {isConnected && summary ? (
-          <MetaConnectionCard showAdAccount />
+          <MetaConnectionCard showAdAccount onEdit={handleDisconnect} actionLabel="Disconnect" />
         ) : (
           <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:bg-accent/20 transition-all duration-300">
             <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
