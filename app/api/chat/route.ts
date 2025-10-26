@@ -32,6 +32,7 @@ import { messageStore } from '@/lib/services/message-store';
 import { conversationManager } from '@/lib/services/conversation-manager';
 import { autoSummarizeIfNeeded } from '@/lib/ai/summarization';
 import { createServerClient } from '@/lib/supabase/server';
+import { createCreativePlan } from '@/lib/ai/system/creative-guardrails';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -158,6 +159,96 @@ export async function POST(req: Request) {
     messageGoal,
     effectiveGoal,
   });
+
+  // Load latest CreativePlan for this campaign (if any) to provide plan-driven guardrails
+  let planContext = '';
+  let offerAskContext = '';
+  let planId: string | null = null;
+  if (conversation?.campaign_id) {
+    const { data: planRow } = await supabase
+      .from('creative_plans')
+      .select('id, created_at')
+      .eq('campaign_id', conversation.campaign_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (planRow?.id) {
+      planId = planRow.id as string;
+      planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Reflow overlays within 10–12% safe zones. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
+    } else if (effectiveGoal) {
+      // Auto-orchestrate plan when missing
+      // Try to read offer from campaign_states.ad_copy_data.offerText
+      let offerText: string | null = null;
+      try {
+        const { data: cs } = await supabase
+          .from('campaign_states')
+          .select('ad_copy_data')
+          .eq('campaign_id', conversation.campaign_id)
+          .maybeSingle();
+        const adCopyData = (cs?.ad_copy_data as unknown as { offerText?: string } | null) || null;
+        offerText = adCopyData?.offerText || null;
+      } catch (e) {
+        console.warn('[API] Could not read campaign_states.ad_copy_data:', e);
+      }
+
+      // Quick extraction from latest user message if needed
+      if (!offerText && message?.role === 'user' && typeof (message as { content?: unknown }).content === 'string') {
+        const text = (message as unknown as { content: string }).content;
+        if (/free|%\s*off|discount|quote|consult|download|trial/i.test(text)) {
+          offerText = text;
+        }
+      }
+      if (!offerText) {
+        // Stricter ask-one-offer-question branch; plan will be created after user answers
+        offerAskContext = `\n[OFFER REQUIRED]\nAsk ONE concise question to capture the user's concrete offer/value (e.g., "Free quote", "% off", "Consultation", "Download").\nRules:\n- Ask ONLY this one question, no extra text.\n- Do NOT call any tools.\n- After the user answers, proceed to create the Creative Plan automatically.`;
+      } else {
+        // Create plan now that we have an offer
+        try {
+          const plan = await createCreativePlan({
+            goal: (['calls','leads','website-visits'].includes(String(effectiveGoal)) ? String(effectiveGoal) : 'unknown') as 'calls'|'leads'|'website-visits'|'unknown',
+            inferredCategory: undefined,
+            offerText,
+          });
+
+          const { data: inserted, error } = await supabase
+            .from('creative_plans')
+            .insert({
+              campaign_id: conversation.campaign_id,
+              plan,
+              status: 'generated',
+              created_by: user.id,
+            })
+            .select('id')
+            .single();
+          if (!error && inserted?.id) {
+            planId = inserted.id as string;
+            planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Reflow overlays within 10–12% safe zones. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
+          }
+
+          // Persist offerText to memory
+          try {
+            const { data: cs2 } = await supabase
+              .from('campaign_states')
+              .select('ad_copy_data')
+              .eq('campaign_id', conversation.campaign_id)
+              .maybeSingle();
+            const existing = (cs2?.ad_copy_data as unknown) as import('@/lib/supabase/database.types').Json | null;
+            const base: Record<string, import('@/lib/supabase/database.types').Json> =
+              existing && typeof existing === 'object' && !Array.isArray(existing) ? (existing as Record<string, import('@/lib/supabase/database.types').Json>) : {};
+            const merged = { ...base, offerText: offerText as import('@/lib/supabase/database.types').Json } as import('@/lib/supabase/database.types').Json;
+            await supabase
+              .from('campaign_states')
+              .update({ ad_copy_data: merged, updated_at: new Date().toISOString() })
+              .eq('campaign_id', conversation.campaign_id);
+          } catch (e) {
+            console.warn('[API] Failed to upsert offerText in ad_copy_data:', e);
+          }
+        } catch (e) {
+          console.error('[API] Failed to auto-create CreativePlan:', e);
+        }
+      }
+    }
+  }
 
   // Load and validate messages from database (AI SDK docs pattern)
   let validatedMessages: UIMessage[];
@@ -411,6 +502,8 @@ User: "make background darker"
 
 ---
 ` : ''}
+${planContext}
+${offerAskContext}
 # CAMPAIGN GOAL: ${effectiveGoal?.toUpperCase() || 'NOT SET'}
 
 ${effectiveGoal ? getGoalContextDescription(effectiveGoal) : 'No specific goal has been set for this campaign yet. Consider asking the user about their campaign objectives if relevant.'}
@@ -676,11 +769,12 @@ When a tool is cancelled by the user (tool result contains "cancelled: true"):
 - Move on to help with the next task
 
 ## Image Generation (Critical Flow)
-**Format:** Always 1080×1080 square, works universally across Feed/Stories/Reels
-**Style:** HYPER-REALISTIC photography ONLY - must look like professional DSLR photos
-**Safe Zones:** 10-12% margins on ALL sides (prevents UI overlap)
-**Default:** Text-free, no logos/watermarks unless requested
-**Variations:** Always generates 6 unique AI-powered creative variations, each with distinct style:
+Follow the CreativePlan (formats, overlays, and constraints) when available. Defaults below apply only if no plan exists.
+**Format:** 1080×1080 square by default; also produce 1080×1920 vertical by extending the same square base image with blur/gradient/solid fill; reflow overlays.
+**Style:** Professional, platform-native visuals. Avoid AI-looking artifacts. Use people/no-people and text density based on plan.
+**Safe Zones:** 10–12% margins on all sides to avoid UI overlap.
+**Defaults when no plan:** Provide diverse styles and include at least one text-only typographic option and one no-people image when offers exist. Respect copy limits (primary ≤125, headline ≤40, description ≤30).
+**Variations:** Generate 6 unique variations with distinct styles/angles.
 
 1. **Classic & Professional** - Hero shot with balanced lighting, editorial magazine style
 2. **Lifestyle & Authentic** - Natural, candid moment with warm golden hour feel
@@ -689,7 +783,7 @@ When a tool is cancelled by the user (tool result contains "cancelled: true"):
 5. **Detail & Intimate** - Close-up macro shot showcasing textures and quality
 6. **Dynamic & Energetic** - Action photography capturing movement and energy
 
-All variations are HYPER-REALISTIC - no illustrations, digital art, or AI-looking imagery. Every image must be indistinguishable from professional camera photography.
+Avoid illustrated/digital-art aesthetics unless explicitly requested. Prioritize professional photography look and authenticity.
 
 **CRITICAL - Goal-Aware Image Generation:**
 ${effectiveGoal ? `When generating images for this ${effectiveGoal} campaign, ALWAYS incorporate goal-specific visual elements:` : 'When a goal is set, ensure images align with that goal.'}

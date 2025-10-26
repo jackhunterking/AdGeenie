@@ -14,7 +14,7 @@ import {
   PromptInputModelSelectItem,
   PromptInputModelSelectValue,
 } from '@/components/ai-elements/prompt-input'
-import { Flag } from 'lucide-react'
+import { Phone, Users, Globe, Flag } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCampaignContext } from '@/lib/context/campaign-context'
@@ -96,6 +96,26 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const animatedPlaceholder = useTypewriterPlaceholder()
 
+  // Map goal to the same icons used in the Ad Campaign Builder
+  const GoalIcon = ({ goal, className }: { goal: string; className?: string }) => {
+    switch (goal) {
+      case 'leads':
+        return <Users className={className} />
+      case 'calls':
+        return <Phone className={className} />
+      case 'website-visits':
+        return <Globe className={className} />
+      default:
+        return <Users className={className} />
+    }
+  }
+
+  const goalLabelMap: Record<string, string> = {
+    leads: 'Leads',
+    calls: 'Calls',
+    'website-visits': 'Website Visits',
+  }
+
   const handleSubmit = async (message: { text?: string }) => {
     const promptText = message.text?.trim()
     if (!promptText || !selectedGoal) return
@@ -123,9 +143,9 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
           setErrorMsg('We could not start your session. Please try again in a moment.')
         }
       } else {
-        // User is logged in - create campaign using context with goal
+        // User is logged in - create campaign; let server auto-name from prompt
         const campaign = await createCampaign(
-          `Campaign: ${promptText.substring(0, 50)}...`,
+          '',
           promptText,
           selectedGoal
         )
@@ -195,22 +215,36 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
                 disabled={isSubmitting}
               />
             </PromptInputBody>
-            <PromptInputToolbar>
+              <PromptInputToolbar>
               <PromptInputModelSelect value={selectedGoal} onValueChange={setSelectedGoal}>
                 <PromptInputModelSelectTrigger className="w-auto gap-2">
-                  <Flag className="size-4" />
+                  {/* Left: gray flag for the label */}
+                  <Flag className="size-4 text-muted-foreground" />
                   <span className="text-muted-foreground text-sm">Goal:</span>
-                  <PromptInputModelSelectValue />
+                  {/* Right: colored goal icon before the selected value */}
+                  <GoalIcon goal={selectedGoal} className="size-4 text-blue-600" />
+                  <span className="font-medium text-foreground">
+                    {goalLabelMap[selectedGoal]}
+                  </span>
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
                   <PromptInputModelSelectItem value="leads">
-                    Leads
+                    <div className="flex items-center gap-2">
+                      <Users className="size-4 text-blue-600" />
+                      Leads
+                    </div>
                   </PromptInputModelSelectItem>
                   <PromptInputModelSelectItem value="calls">
-                    Calls
+                    <div className="flex items-center gap-2">
+                      <Phone className="size-4 text-blue-600" />
+                      Calls
+                    </div>
                   </PromptInputModelSelectItem>
                   <PromptInputModelSelectItem value="website-visits">
-                    Website Visits
+                    <div className="flex items-center gap-2">
+                      <Globe className="size-4 text-blue-600" />
+                      Website Visits
+                    </div>
                   </PromptInputModelSelectItem>
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>

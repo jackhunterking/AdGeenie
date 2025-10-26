@@ -18,6 +18,8 @@ export type Conversation = Database['public']['Tables']['conversations']['Row'];
 interface CreateConversationOptions {
   title?: string;
   metadata?: Record<string, unknown>;
+  planId?: string | null;
+  goal?: string | null;
 }
 
 interface ListConversationsOptions {
@@ -41,7 +43,7 @@ export const conversationManager = {
     options: CreateConversationOptions = {}
   ): Promise<Conversation> {
     try {
-      const { title, metadata = {} } = options;
+      const { title, metadata = {}, planId = null, goal = null } = options;
 
       const { data, error } = await supabaseServer
         .from('conversations')
@@ -49,7 +51,7 @@ export const conversationManager = {
           user_id: userId,
           campaign_id: campaignId,
           title: title || null,
-          metadata: JSON.parse(JSON.stringify(metadata)),
+          metadata: JSON.parse(JSON.stringify({ ...metadata, planId, goal })),
           message_count: 0,
         })
         .select()

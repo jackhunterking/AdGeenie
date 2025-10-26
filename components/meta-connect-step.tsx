@@ -168,6 +168,9 @@ export function MetaConnectStep() {
   const handleDisconnect = async () => {
     if (!campaign?.id) return
     setSummary(null)
+    // Clear local UI connection state so stepper and cards immediately reflect disconnect
+    setSelectedAdAccount('')
+    setIsConnected(false)
     await saveCampaignState('meta_connect_data', { status: 'disconnected' })
   }
 

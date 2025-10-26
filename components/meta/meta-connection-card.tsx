@@ -73,7 +73,7 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
         </div>
         <div className="flex items-center gap-3">
           {onEdit && (
-            <Button variant="outline" size="sm" onClick={onEdit} className="h-7 px-3">{actionLabel || 'Edit'}</Button>
+            <Button variant="outline" size="sm" onClick={onEdit} className="h-7 px-3">{actionLabel || (isConnected ? 'Edit' : 'Connect with Meta')}</Button>
           )}
         </div>
       </div>

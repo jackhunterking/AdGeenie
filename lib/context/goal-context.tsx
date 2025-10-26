@@ -8,20 +8,28 @@ import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 type GoalType = "leads" | "calls" | "website-visits" | null
 type GoalStatus = "idle" | "selecting" | "setup-in-progress" | "completed" | "error"
 
+interface BusinessHoursDay {
+  enabled: boolean
+  start: string // HH:MM (24h)
+  end: string   // HH:MM (24h)
+}
+
+type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
 interface GoalFormData {
   // Leads
   id?: string
   name?: string
   type?: string
   fields?: string[]
-  
-  // Calls
+
+  // Calls (minimal per Meta Call Ads requirements)
   phoneNumber?: string
   countryCode?: string
-  callTracking?: boolean
-  
-  // Website Visits
+
+  // Website Visits (minimal: destination + optional display link)
   websiteUrl?: string
+  displayLink?: string
 }
 
 interface GoalState {

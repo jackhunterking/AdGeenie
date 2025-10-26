@@ -169,6 +169,83 @@ export type Database = {
           },
         ]
       }
+      creative_plans: {
+        Row: {
+          id: string
+          campaign_id: string | null
+          plan: Json
+          status: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          campaign_id?: string | null
+          plan: Json
+          status?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          campaign_id?: string | null
+          plan?: Json
+          status?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_plans_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creative_lint_reports: {
+        Row: {
+          id: string
+          plan_id: string | null
+          variation_index: number
+          report: Json
+          passed: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          plan_id?: string | null
+          variation_index: number
+          report: Json
+          passed: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          plan_id?: string | null
+          variation_index?: number
+          report?: Json
+          passed?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_lint_reports_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "creative_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           campaign_id: string | null

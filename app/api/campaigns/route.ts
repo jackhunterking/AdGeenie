@@ -8,7 +8,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import type { Tables } from '@/lib/supabase/database.types'
 import { conversationManager } from '@/lib/services/conversation-manager'
+import { generateNameCandidates, pickUniqueFromCandidates } from '@/lib/utils/campaign-naming'
 
 // GET /api/campaigns - List user's campaigns
 export async function GET() {
@@ -67,9 +69,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name = 'Untitled Campaign', tempPromptId, prompt, goalType } = body
+    const { name, tempPromptId, prompt, goalType } = body as { name?: string; tempPromptId?: string; prompt?: string; goalType?: string }
 
-    const campaignName = name
+    // Normalize provided name; treat empty/whitespace as missing to trigger auto-naming
+    const requestedName = typeof name === 'string' && name.trim().length > 0 ? name.trim() : null
     let initialPrompt = prompt
     let initialGoal = goalType
 
@@ -101,25 +104,59 @@ export async function POST(request: NextRequest) {
     // Create campaign metadata with initial prompt if provided
     const metadata = initialPrompt ? { initialPrompt } : null
 
-    // Create campaign
-    const { data: campaign, error: campaignError } = await supabaseServer
-      .from('campaigns')
-      .insert({
-        user_id: user.id,
-        name: campaignName,
-        status: 'draft',
-        current_step: 1,
-        total_steps: 6,
-        metadata,
-        initial_goal: initialGoal || null,
-      })
-      .select()
-      .single()
+    // Determine campaign name
+    let finalName = requestedName ?? null
+    if (!finalName) {
+      const source = initialPrompt ?? prompt ?? ''
+      const candidates = generateNameCandidates(source)
+      // Load existing names for user (case-insensitive)
+      const { data: existing, error: existingError } = await supabaseServer
+        .from('campaigns')
+        .select('name')
+        .eq('user_id', user.id)
+      if (existingError) {
+        console.error('Error loading existing campaign names:', existingError)
+      }
+      const existingSet = new Set<string>((existing || []).map(r => r.name.toLowerCase()))
+      finalName = pickUniqueFromCandidates(candidates, existingSet)
+    }
 
-    if (campaignError) {
+    // Create campaign (retry on collision once with next candidate set)
+    const tryInsert = async (proposedName: string) => {
+      return await supabaseServer
+        .from('campaigns')
+        .insert({
+          user_id: user.id,
+          name: proposedName,
+          status: 'draft',
+          current_step: 1,
+          total_steps: 6,
+          metadata,
+          initial_goal: initialGoal || null,
+        })
+        .select()
+        .single()
+    }
+
+    let insertResult = await tryInsert(finalName!)
+    if (insertResult.error) {
+      // On unique constraint violation, pick next candidate and retry once
+      console.warn('Initial campaign insert failed, retrying with another name:', insertResult.error)
+      if (!requestedName) {
+        const candidates = generateNameCandidates(initialPrompt ?? prompt ?? '')
+        const exclude = new Set<string>([(finalName || '').toLowerCase()])
+        const next = pickUniqueFromCandidates(candidates, exclude)
+        insertResult = await tryInsert(next)
+      }
+    }
+    const campaign: Tables<'campaigns'> | null = insertResult.data as Tables<'campaigns'> | null
+    const campaignError = insertResult.error
+
+    if (campaignError || !campaign) {
+      const message = campaignError?.message ?? 'Failed to create campaign'
       console.error('Error creating campaign:', campaignError)
       return NextResponse.json(
-        { error: campaignError.message },
+        { error: message },
         { status: 500 }
       )
     }
@@ -157,9 +194,9 @@ export async function POST(request: NextRequest) {
         user.id,
         campaign.id,
         {
-          title: `Chat: ${campaignName}`,
+          title: `Chat: ${campaign?.name ?? finalName}`,
           metadata: {
-            campaign_name: campaignName,
+            campaign_name: campaign?.name ?? finalName,
             initial_prompt: initialPrompt,
             current_goal: initialGoal || null, // Store goal at conversation level
           },

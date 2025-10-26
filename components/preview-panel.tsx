@@ -23,6 +23,7 @@ import { MetaConnectionCard } from "@/components/meta/meta-connection-card"
 import { LocationSummaryCard } from "@/components/launch/location-summary-card"
 import { AudienceSummaryCard } from "@/components/launch/audience-summary-card"
 import { FormSummaryCard } from "@/components/launch/form-summary-card"
+import { BudgetSchedule } from "@/components/forms/budget-schedule"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -148,15 +149,60 @@ export function PreviewPanel() {
     if (!campaign?.id) return
     if (!allStepsComplete) return
     try {
-      const res = await fetch('/api/meta/ads/launch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId: campaign.id, publish: true }),
-      })
-      if (res.ok) {
-        setIsPublished(true)
-      } else {
-        // Optionally surface error state via toast (omitted here)
+      // Branch by goal: leads (existing orchestrator) vs calls/website
+      const goal = goalState.selectedGoal
+      if (goal === 'leads') {
+        const res = await fetch('/api/meta/ads/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id, publish: true }),
+        })
+        if (res.ok) setIsPublished(true)
+        return
+      }
+
+      if (goal === 'website-visits') {
+        // Create Traffic assets (paused)
+        const createRes = await fetch('/api/meta/campaigns/create-traffic-ad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id }),
+        })
+        const created: unknown = await createRes.json()
+        if (!createRes.ok || !created || typeof created !== 'object' || created === null || typeof (created as { id?: unknown }).id !== 'string') {
+          return
+        }
+        const adId = (created as { id: string }).id
+        // Publish ad
+        const pubRes = await fetch('/api/meta/ads/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id, targetType: 'ad', targetId: adId })
+        })
+        if (pubRes.ok) setIsPublished(true)
+        return
+      }
+
+      if (goal === 'calls') {
+        // Create Calls assets (paused)
+        const createRes = await fetch('/api/meta/campaigns/create-call-ad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id }),
+        })
+        const created: unknown = await createRes.json()
+        if (!createRes.ok || !created || typeof created !== 'object' || created === null || typeof (created as { id?: unknown }).id !== 'string') {
+          return
+        }
+        const adId = (created as { id: string }).id
+        // Publish ad
+        const pubRes = await fetch('/api/meta/ads/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id, targetType: 'ad', targetId: adId })
+        })
+        if (pubRes.ok) setIsPublished(true)
+        return
       }
     } catch {
       // ignore
@@ -451,8 +497,15 @@ export function PreviewPanel() {
 
         {adContent?.imageVariations?.[index] ? (
           <div className="absolute inset-0">
-            <img src={adContent.imageVariations[index]} alt={adContent.headline} className="w-full h-full object-cover" />
+            {/* Background fill (blur/gradient) */}
+            <img src={adContent.imageVariations[index]} alt="bg" className="w-full h-full object-cover blur-lg scale-110 opacity-70" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+            {/* Foreground exact square (parity with square) */}
+            <div className="absolute inset-0 flex items-center justify-center p-3">
+              <div className="aspect-square w-[82%] max-w-[82%] rounded-md overflow-hidden shadow-md">
+                <img src={adContent.imageVariations[index]} alt={adContent.headline} className="w-full h-full object-contain bg-black/20" />
+              </div>
+            </div>
           </div>
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${variation.gradient}`} />
@@ -471,21 +524,51 @@ export function PreviewPanel() {
         {(() => {
           const variations = getActiveVariations()
           const copy = adCopyState.selectedCopyIndex != null ? variations[adCopyState.selectedCopyIndex] : undefined
+          const hints: string[] = []
+          if (copy) {
+            const ptLen = copy.primaryText?.length || 0
+            const hlLen = copy.headline?.length || 0
+            const dsLen = copy.description?.length || 0
+            if (ptLen > 110) hints.push('Primary text near 125-char limit')
+            if (hlLen > 35) hints.push('Headline near 40-char limit')
+            if (dsLen > 26) hints.push('Description near 30-char limit')
+            if (copy.overlay?.density && copy.overlay.density !== 'text-only') {
+              hints.push('Check text contrast against background')
+            }
+          }
           return (
             <div className="absolute bottom-6 left-0 right-0 px-3 z-10 space-y-2">
               {copy ? (
                 <>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
-                    <p className="text-white text-xs line-clamp-2 font-medium">{copy.primaryText}</p>
-                  </div>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
-                    <p className="text-white font-bold text-xs line-clamp-1">{copy.headline}</p>
-                  </div>
+                  {copy.overlay?.density === 'text-only' ? (
+                    <div className="bg-black/60 rounded-md p-3">
+                      <p className="text-white font-bold text-sm text-center">
+                        {copy.overlay?.headline || copy.overlay?.offer || copy.headline}
+                      </p>
+                      {copy.overlay?.body ? (
+                        <p className="text-white/90 text-xs mt-1 text-center">{copy.overlay.body}</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                        <p className="text-white text-xs line-clamp-2 font-medium">{copy.primaryText}</p>
+                      </div>
+                      <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                        <p className="text-white font-bold text-xs line-clamp-1">{copy.headline}</p>
+                      </div>
+                    </>
+                  )}
                 </>
               ) : null}
               <div className="bg-white/20 backdrop-blur-sm rounded-full py-2 px-4 text-center">
                 <p className="text-white font-semibold text-xs truncate">{adContent?.cta || 'Learn More'}</p>
               </div>
+              {hints.length > 0 && (
+                <div className="text-[10px] text-white/80 text-center">
+                  {hints.join(' • ')}
+                </div>
+              )}
             </div>
           )
         })()}
@@ -640,52 +723,60 @@ export function PreviewPanel() {
         <MetaConnectionCard
           showAdAccount={true}
           onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
+          actionLabel="Edit"
         />
         <LocationSummaryCard />
         <AudienceSummaryCard />
         <FormSummaryCard />
 
-        {/* Budget Selection */}
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-4 mb-3">
-            <div className="flex items-center gap-3">
-              <div className="icon-tile-muted">
-                <DollarSign className="h-4 w-4" />
-              </div>
-              <h3 className="text-sm font-medium">Daily Budget</h3>
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <Button variant="ghost" size="icon" onClick={handleDecrementBudget} disabled={budgetState.dailyBudget <= minBudget} className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30">
-              <Minus className="h-4 w-4" />
-            </Button>
-            {isEditingBudget ? (
-              <div className="flex items-baseline gap-0">
-                <span className="text-3xl font-bold text-green-600">$</span>
-                <Input type="text" value={budgetInputValue} onChange={handleBudgetInputChange} onBlur={handleBudgetInputBlur} onKeyDown={handleBudgetInputKeyDown} autoFocus className="w-[90px] text-3xl font-bold text-green-600 text-center bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-[40px]" />
-              </div>
-            ) : (
-              <button onClick={handleBudgetClick} className="text-3xl font-bold text-green-600 hover:opacity-80 cursor-pointer min-w-[90px] text-center">
-                ${budgetState.dailyBudget}
-              </button>
-            )}
-            <Button variant="ghost" size="icon" onClick={handleIncrementBudget} disabled={budgetState.dailyBudget >= maxBudget} className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <BudgetSchedule />
 
-        {/* Publish CTA */}
-        {isComplete() && (
-          <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4">
-            <h3 className="font-semibold mb-1">Ready to Publish!</h3>
-            <p className="text-sm text-muted-foreground mb-3">All steps completed. Review your campaign and publish when ready.</p>
-            <Button onClick={handlePublish} disabled={!allStepsComplete} size="lg" className="w-full gap-2 bg-[#4B73FF] hover:bg-[#3d5fd9] disabled:opacity-50">
-              <Play className="h-4 w-4" />
-              {isPublished ? 'Unpublish Campaign' : 'Publish Campaign'}
-            </Button>
-          </div>
-        )}
+        {/* Removed old inline budget block in favor of BudgetSchedule */}
+
+        {/* Publish CTA - Always visible with step counter */}
+        <div className={cn(
+          "rounded-lg border p-4",
+          allStepsComplete 
+            ? "border-green-500/30 bg-green-500/5" 
+            : "border-border bg-card"
+        )}>
+          {allStepsComplete ? (
+            <>
+              <h3 className="font-semibold mb-1">Ready to Publish!</h3>
+              <p className="text-sm text-muted-foreground mb-3">All steps completed. Review your campaign and publish when ready.</p>
+            </>
+          ) : (
+            <>
+              <h3 className="font-semibold mb-1">Complete All Steps</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                {(() => {
+                  const completedCount = [
+                    selectedImageIndex !== null,
+                    adCopyState.status === "completed",
+                    locationState.status === "completed",
+                    audienceState.status === "completed",
+                    (() => {
+                      const states = campaign?.campaign_states as Database['public']['Tables']['campaign_states']['Row'] | null | undefined
+                      const serverConnected = Boolean((states as unknown as { meta_connect_data?: { status?: string } } | null | undefined)?.meta_connect_data && (states as unknown as { meta_connect_data?: { status?: string } }).meta_connect_data?.status === 'connected')
+                      return serverConnected || budgetState.isConnected === true
+                    })(),
+                    goalState.status === "completed"
+                  ].filter(Boolean).length
+                  return `${completedCount} of 6 steps completed`
+                })()}
+              </p>
+            </>
+          )}
+          <Button 
+            onClick={handlePublish} 
+            disabled={!allStepsComplete} 
+            size="lg" 
+            className="w-full gap-2 bg-[#4B73FF] hover:bg-[#3d5fd9] disabled:opacity-50"
+          >
+            <Play className="h-4 w-4" />
+            {isPublished ? 'Unpublish Campaign' : 'Publish Campaign'}
+          </Button>
+        </div>
       </div>
     </div>
   )

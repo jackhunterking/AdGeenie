@@ -10,6 +10,7 @@ import { useGeneration } from "@/lib/context/generation-context"
 import { newEditSession } from "@/lib/utils/edit-session"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { useGoal } from "@/lib/context/goal-context"
+import { CTASelect } from "@/components/forms/cta-select"
 
 export function AdCopySelectionCanvas() {
   const { adCopyState, setSelectedCopyIndex, getActiveVariations, setCustomCopyVariations } = useAdCopy()
@@ -505,6 +506,11 @@ export function AdCopySelectionCanvas() {
       <div className="grid grid-cols-3 gap-4 max-w-6xl mx-auto">
         {activeFormat === "feed" && activeVariations.map((_, index) => renderFeedAdCopyCard(index))}
         {activeFormat === "story" && activeVariations.map((_, index) => renderStoryAdCopyCard(index))}
+      </div>
+
+      {/* CTA Selector */}
+      <div className="rounded-lg border border-border bg-card p-4 max-w-6xl mx-auto w-full">
+        <CTASelect />
       </div>
 
       

@@ -1,6 +1,6 @@
 "use client"
 
-import { MapPin, Loader2, Lock, Plus, X, Sparkles } from "lucide-react"
+import { MapPin, Loader2, Lock, Plus, X, Sparkles, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useLocation } from "@/lib/context/location-context"
@@ -322,7 +322,7 @@ export function LocationSelectionCanvas() {
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('triggerLocationSetup'))
                 }}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-8 mt-auto"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 mt-auto"
               >
                 Set Location
               </Button>
@@ -338,7 +338,7 @@ export function LocationSelectionCanvas() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-xl w-full space-y-6 text-center">
-          <Loader2 className="h-16 w-16 animate-spin text-purple-600 mx-auto" />
+          <Loader2 className="h-16 w-16 animate-spin text-blue-600 mx-auto" />
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Setting up locations...</h2>
             <p className="text-muted-foreground">
@@ -370,7 +370,7 @@ export function LocationSelectionCanvas() {
               <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <h3 className="text-base font-semibold">Included</h3>
-                  <Badge className="bg-purple-600 text-white">{includedLocations.length}</Badge>
+                  <Badge className="badge-muted">{includedLocations.length}</Badge>
                 </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
                   {includedLocations.map((location) => (
@@ -386,10 +386,10 @@ export function LocationSelectionCanvas() {
 
             {/* Excluded Locations */}
             {excludedLocations.length > 0 && (
-              <div className="bg-card border border-red-500/30 rounded-lg p-4 shadow-sm">
+              <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <h3 className="text-base font-semibold">Excluded</h3>
-                  <Badge variant="destructive">{excludedLocations.length}</Badge>
+                  <Badge className="badge-muted">{excludedLocations.length}</Badge>
                 </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
                   {excludedLocations.map((location) => (
@@ -450,7 +450,7 @@ export function LocationSelectionCanvas() {
           <Button
             size="lg"
             onClick={resetLocations}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             Try Again
           </Button>
@@ -483,12 +483,21 @@ function LocationCard({
   }
 
   return (
-    <div className={`flex items-center justify-between p-2 rounded-lg border text-xs panel-surface`}>
+    <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <MapPin className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground`} />
+        <div className="icon-tile-muted">
+          {isExcluded ? (
+            <X className="h-4 w-4 text-red-600" />
+          ) : (
+            <Check className="h-4 w-4 text-status-green" />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{location.name}</p>
-          <p className="text-muted-foreground text-[10px]">{getLocationTypeLabel()}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="text-sm font-medium truncate">{location.name}</p>
+            {isExcluded && <span className="status-muted flex-shrink-0">Excluded</span>}
+          </div>
+          <p className="text-xs text-muted-foreground">{getLocationTypeLabel()}</p>
         </div>
       </div>
       <Button

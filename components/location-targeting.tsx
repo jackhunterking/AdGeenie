@@ -139,7 +139,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
 
      // Add markers and shapes for each location
     locations.forEach((location) => {
-      const color = location.mode === "include" ? "#9333EA" : "#DC2626"
+      const color = location.mode === "include" ? "#16A34A" : "#DC2626"
 
       // Add marker
       if (!mapRef.current) return;
@@ -261,8 +261,8 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center gap-2 mb-4">
-          <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-            <Target className="h-4 w-4 text-purple-600" />
+          <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+            <Target className="h-4 w-4 text-blue-600" />
           </div>
           <h3 className="text-base font-semibold">Target Location</h3>
         </div>
@@ -274,7 +274,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
             <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center pointer-events-none z-10">
               <div className="text-center p-6">
                 <div className="relative inline-block mb-3">
-                  <Target className="h-10 w-10 text-purple-600" />
+                  <Target className="h-10 w-10 text-blue-600" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-12 h-[2px] bg-red-600 rotate-45 rounded-full" />
               </div>
@@ -297,7 +297,7 @@ export function LocationTargeting({ externalLocations }: LocationTargetingProps)
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold">Included Locations</h3>
-              <Badge className="bg-purple-600 text-white text-xs">{includedLocations.length}</Badge>
+              <Badge className="badge-muted text-xs">{includedLocations.length}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">Ads will show here</p>
           </div>
@@ -368,12 +368,12 @@ function LocationCard({
       className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
         isExcluded 
           ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" 
-          : "panel-surface hover:border-purple-500/50"
+          : "panel-surface hover:border-blue-500/40"
       }`}
     >
       <div className="flex items-center gap-2">
         <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-          isExcluded ? "bg-red-500/10 text-red-600" : "bg-purple-500/10 text-purple-600"
+        isExcluded ? "bg-red-500/10 text-red-600" : "bg-green-500/10 text-green-600"
         }`}>
           {getLocationIcon()}
         </div>

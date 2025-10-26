@@ -34,7 +34,7 @@ import {
 import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { useChat, type UIMessage } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X, Flag } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X } from "lucide-react";
 import {
   Source,
   Sources,
@@ -980,25 +980,6 @@ Make it conversational and easy to understand for a business owner.`,
 
   return (
     <div className="relative flex size-full flex-col overflow-hidden">
-      {/* Goal Indicator Badge */}
-      {goalType && (
-        <div className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-b border-border/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Flag className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-              <span className="text-xs font-medium text-muted-foreground">
-                Campaign Goal:
-              </span>
-              <span className="text-xs font-semibold text-foreground capitalize">
-                {goalType}
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              All suggestions will align with this goal
-            </span>
-          </div>
-        </div>
-      )}
       
       <Conversation>
         <ConversationContent>
@@ -1177,15 +1158,17 @@ Make it conversational and easy to understand for a business owner.`,
                                           className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
                                             isExcluded 
                                               ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" 
-                                              : "panel-surface hover:border-purple-500/50"
+                                              : "panel-surface hover:border-blue-500/40"
                                           }`}
                                           onClick={() => emitBrowserEvent('switchToTab', 'location')}
                                         >
                                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                              isExcluded ? "bg-red-500/10 text-red-600" : "bg-purple-500/10 text-purple-600"
-                                            }`}>
-                                              <MapPin className="h-4 w-4" />
+                                            <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0">
+                                              {isExcluded ? (
+                                                <XCircle className="h-4 w-4 text-red-600" />
+                                              ) : (
+                                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                              )}
                                             </div>
                                             <div className="min-w-0 flex-1">
                                               <div className="flex items-center gap-1.5">
