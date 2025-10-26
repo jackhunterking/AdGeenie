@@ -88,6 +88,13 @@ export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
     hasInitializedRef.current = true
   }, [steps, campaignId])
 
+  // Clamp currentStepIndex whenever steps array size or ordering changes
+  useEffect(() => {
+    if (currentStepIndex > steps.length - 1) {
+      setCurrentStepIndex(Math.max(0, steps.length - 1))
+    }
+  }, [steps.length, currentStepIndex])
+
   // Persist last seen step id in sessionStorage for instant restore on refresh
   useEffect(() => {
     try {
@@ -128,6 +135,16 @@ export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
   }, [steps, currentStepIndex])
 
   const currentStep = steps[currentStepIndex]
+  // If steps are not ready yet (e.g., during goal switch), render a lightweight placeholder
+  if (!currentStep) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <div className="px-6 pt-4 pb-4 border-b border-border bg-card flex-shrink-0" />
+        <div className="flex-1" />
+        <div className="border-t border-border bg-card px-6 py-4 flex-shrink-0" />
+      </div>
+    )
+  }
   const isFirstStep = currentStepIndex === 0
   const isLastStep = currentStepIndex === steps.length - 1
   const canGoNext = currentStep.completed

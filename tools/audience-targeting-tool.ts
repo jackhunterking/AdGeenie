@@ -57,7 +57,7 @@ export const audienceTargetingTool = tool({
       interests: input.interests,
       demographics: input.demographics,
       toolCallId,
-      message: `AI Advantage+ audience configured: ${input.description}`,
+      message: `Enabled`,
     };
   },
 });
