@@ -232,8 +232,10 @@ export async function POST(req: Request) {
               .select('ad_copy_data')
               .eq('campaign_id', conversation.campaign_id)
               .maybeSingle();
-            const existing = (cs2?.ad_copy_data as Record<string, unknown> | null) || {};
-            const merged = { ...existing, offerText } as Record<string, unknown>;
+            const existing = (cs2?.ad_copy_data as unknown) as import('@/lib/supabase/database.types').Json | null;
+            const base: Record<string, import('@/lib/supabase/database.types').Json> =
+              existing && typeof existing === 'object' && !Array.isArray(existing) ? (existing as Record<string, import('@/lib/supabase/database.types').Json>) : {};
+            const merged = { ...base, offerText: offerText as import('@/lib/supabase/database.types').Json } as import('@/lib/supabase/database.types').Json;
             await supabase
               .from('campaign_states')
               .update({ ad_copy_data: merged, updated_at: new Date().toISOString() })
