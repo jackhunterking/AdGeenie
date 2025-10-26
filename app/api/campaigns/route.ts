@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import type { Tables } from '@/lib/supabase/database.types'
 import { conversationManager } from '@/lib/services/conversation-manager'
 import { generateNameCandidates, pickUniqueFromCandidates } from '@/lib/utils/campaign-naming'
 
@@ -121,7 +122,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Create campaign (retry on collision once with next candidate set)
-    let campaign
     const tryInsert = async (proposedName: string) => {
       return await supabaseServer
         .from('campaigns')
@@ -149,13 +149,14 @@ export async function POST(request: NextRequest) {
         insertResult = await tryInsert(next)
       }
     }
-    campaign = insertResult.data
+    const campaign: Tables<'campaigns'> | null = insertResult.data as Tables<'campaigns'> | null
     const campaignError = insertResult.error
 
-    if (campaignError) {
+    if (campaignError || !campaign) {
+      const message = campaignError?.message ?? 'Failed to create campaign'
       console.error('Error creating campaign:', campaignError)
       return NextResponse.json(
-        { error: campaignError.message },
+        { error: message },
         { status: 500 }
       )
     }
