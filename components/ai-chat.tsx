@@ -34,7 +34,7 @@ import {
 import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { useChat, type UIMessage } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X, Flag } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X } from "lucide-react";
 import {
   Source,
   Sources,
@@ -980,25 +980,6 @@ Make it conversational and easy to understand for a business owner.`,
 
   return (
     <div className="relative flex size-full flex-col overflow-hidden">
-      {/* Goal Indicator Badge */}
-      {goalType && (
-        <div className="flex-shrink-0 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-b border-border/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Flag className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-              <span className="text-xs font-medium text-muted-foreground">
-                Campaign Goal:
-              </span>
-              <span className="text-xs font-semibold text-foreground capitalize">
-                {goalType}
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              All suggestions will align with this goal
-            </span>
-          </div>
-        </div>
-      )}
       
       <Conversation>
         <ConversationContent>

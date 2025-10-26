@@ -14,7 +14,7 @@ import {
   PromptInputModelSelectItem,
   PromptInputModelSelectValue,
 } from '@/components/ai-elements/prompt-input'
-import { Flag } from 'lucide-react'
+import { Phone, Users, Globe } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCampaignContext } from '@/lib/context/campaign-context'
@@ -96,6 +96,20 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const animatedPlaceholder = useTypewriterPlaceholder()
 
+  // Map goal to the same icons used in the Ad Campaign Builder
+  const GoalIcon = ({ goal, className }: { goal: string; className?: string }) => {
+    switch (goal) {
+      case 'leads':
+        return <Users className={className} />
+      case 'calls':
+        return <Phone className={className} />
+      case 'website-visits':
+        return <Globe className={className} />
+      default:
+        return <Users className={className} />
+    }
+  }
+
   const handleSubmit = async (message: { text?: string }) => {
     const promptText = message.text?.trim()
     if (!promptText || !selectedGoal) return
@@ -123,9 +137,9 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
           setErrorMsg('We could not start your session. Please try again in a moment.')
         }
       } else {
-        // User is logged in - create campaign using context with goal
+        // User is logged in - create campaign; let server auto-name from prompt
         const campaign = await createCampaign(
-          `Campaign: ${promptText.substring(0, 50)}...`,
+          '',
           promptText,
           selectedGoal
         )
@@ -198,19 +212,28 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
             <PromptInputToolbar>
               <PromptInputModelSelect value={selectedGoal} onValueChange={setSelectedGoal}>
                 <PromptInputModelSelectTrigger className="w-auto gap-2">
-                  <Flag className="size-4" />
+                  <GoalIcon goal={selectedGoal} className="size-4" />
                   <span className="text-muted-foreground text-sm">Goal:</span>
                   <PromptInputModelSelectValue />
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
                   <PromptInputModelSelectItem value="leads">
-                    Leads
+                    <div className="flex items-center gap-2">
+                      <Users className="size-4" />
+                      Leads
+                    </div>
                   </PromptInputModelSelectItem>
                   <PromptInputModelSelectItem value="calls">
-                    Calls
+                    <div className="flex items-center gap-2">
+                      <Phone className="size-4" />
+                      Calls
+                    </div>
                   </PromptInputModelSelectItem>
                   <PromptInputModelSelectItem value="website-visits">
-                    Website Visits
+                    <div className="flex items-center gap-2">
+                      <Globe className="size-4" />
+                      Website Visits
+                    </div>
                   </PromptInputModelSelectItem>
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>

@@ -66,7 +66,7 @@ export function Dashboard({
                 <div className="relative h-8 w-8">
                   <img src="/AdPilot-Logomark.svg" alt="AdPilot" className="h-8 w-8" />
                 </div>
-                <span className="text-lg font-semibold">{COMPANY_NAME}</span>
+                <span className="text-lg font-semibold">{campaign?.name ?? COMPANY_NAME}</span>
               </div>
               
               <SaveIndicator />
@@ -101,10 +101,7 @@ export function Dashboard({
                     </p>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Rename ad
-                  </DropdownMenuItem>
+                  <RenameCampaignMenuItem />
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
@@ -148,5 +145,67 @@ export function Dashboard({
         </div>
       </div>
     </div>
+  )
+}
+
+// Inline component for rename dialog/menu item to keep file cohesive
+function RenameCampaignMenuItem() {
+  const { campaign, updateCampaign } = useCampaignContext()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState<string>(campaign?.name ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const onSubmit = async () => {
+    if (!campaign?.id) return
+    const next = name.trim()
+    if (!next) {
+      setError('Please enter a name')
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    try {
+      await updateCampaign({ name: next })
+      setOpen(false)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to rename'
+      // Surface common conflict error
+      if (/409|unique|exists|used/i.test(msg)) {
+        setError('Name already used. Try a different word combination.')
+      } else {
+        setError(msg)
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenuItem onClick={() => { setName(campaign?.name ?? ''); setOpen(true) }}>
+        <Edit className="mr-2 h-4 w-4" />
+        Rename ad
+      </DropdownMenuItem>
+      {/* Simple dialog using existing UI primitives */}
+      <div className={`fixed inset-0 z-50 ${open ? '' : 'hidden'}`}>
+        <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-sm rounded-lg border border-border bg-card p-4 shadow-xl">
+          <h3 className="text-sm font-medium mb-2">Rename Campaign</h3>
+          <p className="text-xs text-muted-foreground mb-3">Recommended up to 3 words. You can edit anytime.</p>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="e.g. Bright Maple Launch"
+          />
+          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button size="sm" onClick={onSubmit} disabled={submitting}>{submitting ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
