@@ -51,8 +51,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Could not derive page access token' }, { status: 400 })
     }
 
+    // Request only fields available on LeadGenData for the selected graph version
     const detailRes = await fetch(
-      `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(id)}?fields=id,name,questions,privacy_policy_url,privacy_link_text`,
+      `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(id)}?fields=id,name,questions,privacy_policy_url`,
       { headers: { Authorization: `Bearer ${pageToken}` }, cache: 'no-store' }
     )
     const json = await detailRes.json()

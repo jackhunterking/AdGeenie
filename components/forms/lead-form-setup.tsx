@@ -14,6 +14,7 @@ import { InstantFormPhoneMockup } from "@/components/forms/instant-form-phone-mo
 import { LeadFormCreate } from "@/components/forms/lead-form-create"
 import { LeadFormExisting } from "@/components/forms/lead-form-existing"
 import { cn } from "@/lib/utils"
+import { useGoal } from "@/lib/context/goal-context"
 
 interface SelectedFormData {
   id: string
@@ -26,8 +27,10 @@ interface LeadFormSetupProps {
 }
 
 export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupProps) {
-  const [tab, setTab] = useState<"create" | "existing">("create")
-  const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
+  const { goalState } = useGoal()
+  const hasSavedForm = !!goalState.formData?.id
+  const [tab, setTab] = useState<"create" | "existing">(hasSavedForm ? "existing" : "create")
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(goalState.formData?.id ?? null)
 
   // Shared preview state for Create tab
   const [formName, setFormName] = useState<string>("Lead Form")
@@ -104,6 +107,10 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
                 setSelectedFormId(created.id)
                 setTab("existing")
                 onFormSelected(created)
+                // Signal stepper to advance once state completes
+                setTimeout(() => {
+                  try { window.dispatchEvent(new Event('autoAdvanceStep')) } catch {}
+                }, 0)
               }}
             />
           )}
@@ -118,6 +125,10 @@ export function LeadFormSetup({ onFormSelected, onChangeGoal }: LeadFormSetupPro
               onConfirm={(existing) => {
                 setSelectedFormId(existing.id)
                 onFormSelected(existing)
+                // Signal stepper to advance once state completes
+                setTimeout(() => {
+                  try { window.dispatchEvent(new Event('autoAdvanceStep')) } catch {}
+                }, 0)
               }}
               onRequestCreate={() => setTab("create")}
               selectedFormId={selectedFormId}

@@ -179,7 +179,7 @@ export function LocationSelectionCanvas() {
 
     // Add markers and shapes for each location
     validLocations.forEach((location) => {
-      const color = location.mode === "include" ? "#9333EA" : "#DC2626"
+      const color = location.mode === "include" ? "#16A34A" : "#DC2626"
 
       // Add marker
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -276,17 +276,17 @@ export function LocationSelectionCanvas() {
           </div>
           
           {locationState.locations.length > 0 && (
-            <div className="bg-card border border-border rounded-lg p-6 space-y-3">
+              <div className="bg-card border border-border rounded-lg p-6 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Locations Targeted:</span>
                 <span className="text-sm font-semibold">{locationState.locations.length}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Status:</span>
-                <span className="text-sm text-orange-600 font-medium flex items-center gap-1">
-                  <Lock className="h-3 w-3" />
-                  Published
-                </span>
+                  <span className="status-muted flex items-center gap-1">
+                    <Lock className="h-3 w-3" />
+                    Published
+                  </span>
               </div>
             </div>
           )}
@@ -306,10 +306,10 @@ export function LocationSelectionCanvas() {
         <div className="max-w-2xl w-full space-y-8">
           <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
             {/* AI-Assisted Targeting Card */}
-            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-purple-500 hover:bg-purple-500/5 transition-all duration-300">
-              <div className="h-20 w-20 rounded-2xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors relative mb-4">
-                <MapPin className="h-10 w-10 text-purple-600" />
-                <Sparkles className="h-4 w-4 text-purple-600 absolute top-1 right-1" />
+            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:bg-accent/20 transition-all duration-300">
+              <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center relative mb-4">
+                <MapPin className="h-10 w-10" />
+                <Sparkles className="h-4 w-4 absolute top-1 right-1" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
                 <h3 className="text-xl font-semibold">AI-Assisted</h3>
@@ -359,7 +359,7 @@ export function LocationSelectionCanvas() {
       <div className="flex flex-col h-full overflow-auto p-8">
         <div className="max-w-3xl w-full mx-auto space-y-6">
           {/* Map Display */}
-          <div className="rounded-lg border-2 border-purple-500 bg-card overflow-hidden">
+          <div className="rounded-lg border-2 border-blue-600 bg-card overflow-hidden">
             <div ref={mapContainerRef} className="w-full h-[400px]" style={{ position: 'relative', isolation: 'isolate' }} />
           </div>
 
@@ -483,15 +483,9 @@ function LocationCard({
   }
 
   return (
-    <div
-      className={`flex items-center justify-between p-2 rounded-lg border text-xs ${
-        isExcluded 
-          ? "bg-red-500/5 border-red-500/30" 
-          : "bg-purple-500/5 border-purple-500/30"
-      }`}
-    >
+    <div className={`flex items-center justify-between p-2 rounded-lg border text-xs panel-surface`}>
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${isExcluded ? "text-red-600" : "text-purple-600"}`} />
+        <MapPin className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground`} />
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{location.name}</p>
           <p className="text-muted-foreground text-[10px]">{getLocationTypeLabel()}</p>

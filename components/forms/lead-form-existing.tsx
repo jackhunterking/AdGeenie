@@ -80,7 +80,6 @@ export function LeadFormExisting({ onPreview, onConfirm, onRequestCreate, select
         name: string
         questions?: Array<{ type?: string }>
         privacy_policy_url?: string
-        privacy_link_text?: string
       }
 
       const fields: PreviewData['fields'] = []
@@ -102,7 +101,7 @@ export function LeadFormExisting({ onPreview, onConfirm, onRequestCreate, select
         id: detail.id,
         name: detail.name,
         privacyUrl: detail.privacy_policy_url,
-        privacyLinkText: detail.privacy_link_text || 'Privacy Policy',
+        privacyLinkText: 'Privacy Policy',
         fields,
       })
     } catch (e) {

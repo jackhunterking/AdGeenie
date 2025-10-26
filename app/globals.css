@@ -164,6 +164,27 @@
   .dropdown-surface {
     @apply bg-popover text-popover-foreground border-border;
   }
+
+  /* Muted icon/status utilities for consistent gray accents */
+  .icon-tile-muted {
+    @apply h-8 w-8 rounded-lg bg-muted text-muted-foreground border border-border/50 flex items-center justify-center;
+  }
+
+  .status-muted {
+    @apply text-xs text-muted-foreground font-medium;
+  }
+
+  .badge-muted {
+    @apply rounded-md bg-muted text-muted-foreground border border-border/50 text-xs px-1.5 py-0.5;
+  }
+
+  /* Brand accent utilities */
+  .text-brand-blue {
+    color: #4B73FF;
+  }
+  .text-status-green {
+    color: #16A34A;
+  }
 }
 
 /* Leaflet Map Styles */

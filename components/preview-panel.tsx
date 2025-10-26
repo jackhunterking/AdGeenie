@@ -19,6 +19,10 @@ import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { cn } from "@/lib/utils"
 import { newEditSession } from "@/lib/utils/edit-session"
 import { MetaConnectStep } from "./meta-connect-step"
+import { MetaConnectionCard } from "@/components/meta/meta-connection-card"
+import { LocationSummaryCard } from "@/components/launch/location-summary-card"
+import { AudienceSummaryCard } from "@/components/launch/audience-summary-card"
+import { FormSummaryCard } from "@/components/launch/form-summary-card"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -37,7 +41,7 @@ export function PreviewPanel() {
   const { locationState } = useLocation()
   const { audienceState } = useAudience()
   const { goalState } = useGoal()
-  const { adCopyState } = useAdCopy()
+  const { adCopyState, getActiveVariations } = useAdCopy()
   const [showReelMessage, setShowReelMessage] = useState(false)
   const [isEditingBudget, setIsEditingBudget] = useState(false)
   const [budgetInputValue, setBudgetInputValue] = useState(budgetState.dailyBudget.toString())
@@ -140,9 +144,22 @@ export function PreviewPanel() {
     // In real implementation, this would open OAuth flow
   }
 
-  const handlePublish = () => {
-    if (allStepsComplete) {
-      setIsPublished(!isPublished)
+  const handlePublish = async () => {
+    if (!campaign?.id) return
+    if (!allStepsComplete) return
+    try {
+      const res = await fetch('/api/meta/ads/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: campaign.id, publish: true }),
+      })
+      if (res.ok) {
+        setIsPublished(true)
+      } else {
+        // Optionally surface error state via toast (omitted here)
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -325,7 +342,7 @@ export function PreviewPanel() {
           </div>
         )}
 
-        <div className="p-3 space-y-1.5">
+        <div className="p-3 space-y-2">
           <div className="flex items-center gap-3">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
@@ -334,10 +351,30 @@ export function PreviewPanel() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
           </div>
-          <p className="text-xs line-clamp-2">
-            <span className="font-semibold">Your Brand</span>{" "}
-            {adContent?.body || "Your ad caption goes here..."}
-          </p>
+          {(() => {
+            const variations = getActiveVariations()
+            const copy = adCopyState.selectedCopyIndex != null ? variations[adCopyState.selectedCopyIndex] : undefined
+            if (!copy) {
+              return (
+                <p className="text-xs line-clamp-2">
+                  <span className="font-semibold">Your Brand</span>{" "}
+                  {adContent?.body || "Your ad caption goes here..."}
+                </p>
+              )
+            }
+            return (
+              <>
+                <p className="text-xs line-clamp-3"><span className="font-semibold">Your Brand</span> {copy.primaryText}</p>
+                <div className="bg-muted rounded-lg p-2.5 space-y-1">
+                  <p className="text-xs font-bold line-clamp-1">{copy.headline}</p>
+                  <p className="text-[10px] text-muted-foreground line-clamp-2">{copy.description}</p>
+                  <Button size="sm" className="w-full mt-1.5 h-7 text-[10px] bg-[#4B73FF] hover:bg-[#3d5fd9]" disabled>
+                    {adContent?.cta || 'Learn More'}
+                  </Button>
+                </div>
+              </>
+            )
+          })()}
         </div>
       </div>
     )
@@ -431,11 +468,27 @@ export function PreviewPanel() {
           </div>
         </div>
 
-        <div className="absolute bottom-6 left-0 right-0 px-3 z-10">
-          <div className="bg-white/20 backdrop-blur-sm rounded-full py-2 px-4 text-center">
-            <p className="text-white font-semibold text-xs truncate">{adContent?.cta || "Learn More"}</p>
-          </div>
-        </div>
+        {(() => {
+          const variations = getActiveVariations()
+          const copy = adCopyState.selectedCopyIndex != null ? variations[adCopyState.selectedCopyIndex] : undefined
+          return (
+            <div className="absolute bottom-6 left-0 right-0 px-3 z-10 space-y-2">
+              {copy ? (
+                <>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                    <p className="text-white text-xs line-clamp-2 font-medium">{copy.primaryText}</p>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                    <p className="text-white font-bold text-xs line-clamp-1">{copy.headline}</p>
+                  </div>
+                </>
+              ) : null}
+              <div className="bg-white/20 backdrop-blur-sm rounded-full py-2 px-4 text-center">
+                <p className="text-white font-semibold text-xs truncate">{adContent?.cta || 'Learn More'}</p>
+              </div>
+            </div>
+          )
+        })()}
 
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <p className="text-white text-xs font-bold opacity-50">{variation.title}</p>
@@ -511,135 +564,123 @@ export function PreviewPanel() {
     </div>
   )
 
-  // Step 5: Budget & Publish Content
-  const budgetPublishContent = (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      {/* Budget Selection */}
-      <div className="space-y-4">
-        <div className="w-full rounded-lg border border-border p-4 bg-card">
-          <div className="flex items-center justify-between gap-4 mb-4">
+  // Step 5: Launch Content (new unified layout)
+  const launchContent = (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Left: Full ad mockup using selected variation */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold">Ad Preview</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'ads' } }))}
+            className="h-7 px-3"
+          >
+            Edit
+          </Button>
+        </div>
+        {/* Format selector (matches creator) */}
+        <div className="flex justify-center pb-4">
+          <div className="inline-flex rounded-lg border border-border p-1 bg-card">
+            {previewFormats.map((format) => {
+              const Icon = format.icon
+              const isActive = activeFormat === format.id
+
+              if (format.id === "reel") {
+                return (
+                  <div key={format.id} className="relative">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleReelClick}
+                      className="px-4 relative"
+                    >
+                      <Icon className="h-3.5 w-3.5 mr-1.5" />
+                      {format.label}
+                      <Sparkles size={10} className="absolute -top-0.5 -right-0.5 text-yellow-500 animate-pulse" />
+                    </Button>
+                    {showReelMessage && (
+                      <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="bg-popover border border-border rounded-md px-3 py-1.5 shadow-md">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Sparkles size={12} className="text-yellow-500" />
+                            <span className="font-medium">Coming Soon!</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              return (
+                <Button
+                  key={format.id}
+                  variant={isActive ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveFormat(format.id)}
+                  className="px-4"
+                >
+                  <Icon className="h-3.5 w-3.5 mr-1.5" />
+                  {format.label}
+                </Button>
+              )
+            })}
+          </div>
+        </div>
+
+        {activeFormat === "story"
+          ? adVariations.map((v, i) => selectedImageIndex === i && renderStoryAd(v, i))
+          : adVariations.map((v, i) => selectedImageIndex === i && renderFeedAd(v, i))}
+      </div>
+
+      {/* Right: Summary stack */}
+      <div className="flex flex-col gap-4">
+        <MetaConnectionCard
+          showAdAccount={true}
+          onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
+        />
+        <LocationSummaryCard />
+        <AudienceSummaryCard />
+        <FormSummaryCard />
+
+        {/* Budget Selection */}
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4 mb-3">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                <DollarSign className="h-4 w-4 text-green-600" />
+              <div className="icon-tile-muted">
+                <DollarSign className="h-4 w-4" />
               </div>
               <h3 className="text-sm font-medium">Daily Budget</h3>
             </div>
           </div>
-
           <div className="flex items-center justify-between gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleDecrementBudget}
-              disabled={budgetState.dailyBudget <= minBudget}
-              className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30"
-            >
+            <Button variant="ghost" size="icon" onClick={handleDecrementBudget} disabled={budgetState.dailyBudget <= minBudget} className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30">
               <Minus className="h-4 w-4" />
             </Button>
-
             {isEditingBudget ? (
               <div className="flex items-baseline gap-0">
                 <span className="text-3xl font-bold text-green-600">$</span>
-                <Input
-                  type="text"
-                  value={budgetInputValue}
-                  onChange={handleBudgetInputChange}
-                  onBlur={handleBudgetInputBlur}
-                  onKeyDown={handleBudgetInputKeyDown}
-                  autoFocus
-                  className="w-[90px] text-3xl font-bold text-green-600 text-center bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-[40px]"
-                />
+                <Input type="text" value={budgetInputValue} onChange={handleBudgetInputChange} onBlur={handleBudgetInputBlur} onKeyDown={handleBudgetInputKeyDown} autoFocus className="w-[90px] text-3xl font-bold text-green-600 text-center bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-[40px]" />
               </div>
             ) : (
-              <button
-                onClick={handleBudgetClick}
-                className="text-3xl font-bold text-green-600 hover:opacity-80 cursor-pointer min-w-[90px] text-center"
-              >
+              <button onClick={handleBudgetClick} className="text-3xl font-bold text-green-600 hover:opacity-80 cursor-pointer min-w-[90px] text-center">
                 ${budgetState.dailyBudget}
               </button>
             )}
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleIncrementBudget}
-              disabled={budgetState.dailyBudget >= maxBudget}
-              className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30"
-            >
+            <Button variant="ghost" size="icon" onClick={handleIncrementBudget} disabled={budgetState.dailyBudget >= maxBudget} className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30">
               <Plus className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* Ad Account Selection */}
-        <div className="w-full rounded-lg border border-border p-4 bg-card">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-              <Building2 className="h-4 w-4 text-green-600" />
-            </div>
-            <h3 className="text-sm font-medium">Ad Account</h3>
-            {budgetState.selectedAdAccount && (
-              <Check className="h-4 w-4 text-green-600 ml-auto" />
-            )}
-          </div>
-          <Select value={budgetState.selectedAdAccount || ""} onValueChange={handleAccountSelect}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select an ad account" />
-            </SelectTrigger>
-            <SelectContent>
-              {mockAdAccounts.map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  <div className="flex items-center justify-between w-full gap-4">
-                    <span className="font-medium text-xs">{account.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {account.id.replace("act_", "")} • {account.currency}
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Connect Facebook */}
-        <div className="w-full rounded-lg border border-blue-500/30 bg-blue-500/5 p-6 text-center space-y-4">
-          <div className="mx-auto h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-            <Facebook className="h-6 w-6 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="font-semibold mb-1">Connect Your Meta Account</h3>
-            <p className="text-sm text-muted-foreground">
-              {budgetState.isConnected 
-                ? "Your Meta account is connected" 
-                : "Connect to publish your ads on Facebook and Instagram"}
-            </p>
-          </div>
-          {budgetState.isConnected ? (
-            <div className="flex items-center justify-center gap-2 text-green-600">
-              <Check className="h-5 w-5" />
-              <span className="font-medium">Connected</span>
-            </div>
-          ) : (
-            <Button onClick={handleConnectMeta} className="w-full gap-2 bg-blue-600 hover:bg-blue-700">
-              <Facebook className="h-4 w-4" />
-              Connect Meta Account
-            </Button>
-          )}
-        </div>
-
-        {/* Review & Publish */}
+        {/* Publish CTA */}
         {isComplete() && (
-          <div className="w-full rounded-lg border border-green-500/30 bg-green-500/5 p-6 text-center space-y-3">
-            <h3 className="font-semibold">Ready to Publish!</h3>
-            <p className="text-sm text-muted-foreground">
-              All steps completed. Review your campaign and publish when ready.
-            </p>
-            <Button 
-              onClick={handlePublish}
-              disabled={!allStepsComplete}
-              size="lg" 
-              className="w-full gap-2 bg-[#4B73FF] hover:bg-[#3d5fd9] disabled:opacity-50"
-            >
+          <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4">
+            <h3 className="font-semibold mb-1">Ready to Publish!</h3>
+            <p className="text-sm text-muted-foreground mb-3">All steps completed. Review your campaign and publish when ready.</p>
+            <Button onClick={handlePublish} disabled={!allStepsComplete} size="lg" className="w-full gap-2 bg-[#4B73FF] hover:bg-[#3d5fd9] disabled:opacity-50">
               <Play className="h-4 w-4" />
               {isPublished ? 'Unpublish Campaign' : 'Publish Campaign'}
             </Button>
@@ -711,10 +752,10 @@ export function PreviewPanel() {
     {
       id: "budget",
       number: 7,
-      title: "Budget & Publish",
-      description: "Set your budget, connect Facebook, and launch your campaign",
+      title: "Launch Campaign",
+      description: "Review details and publish your ads",
       completed: isComplete(),
-      content: budgetPublishContent,
+      content: launchContent,
       icon: Rocket,
     },
   ]
