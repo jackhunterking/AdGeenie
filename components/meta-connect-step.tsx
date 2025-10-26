@@ -236,7 +236,7 @@ export function MetaConnectStep() {
               </div>
             </div>
             <div className="space-y-1 text-sm">
-              {summary.page && <div>Page: <span className="font-medium">{summary.page.name}</span></div>}
+              {summary.page && <div>Facebook: <span className="font-medium">{summary.page.name}</span></div>}
               {summary.instagram && <div>Instagram: <span className="font-medium">@{summary.instagram.username}</span></div>}
               {summary.adAccount && <div>Ad Account: <span className="font-medium">{summary.adAccount.name}</span> <span className="text-muted-foreground">({summary.adAccount.id})</span></div>}
               {summary.pixel && <div>Pixel: <span className="font-medium">{summary.pixel.name}</span> <span className="text-muted-foreground">({summary.pixel.id})</span></div>}

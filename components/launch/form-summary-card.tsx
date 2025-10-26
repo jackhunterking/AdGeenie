@@ -34,7 +34,7 @@ export function FormSummaryCard() {
             </div>
           </div>
           <div className="inline-flex items-center gap-1 text-status-green">
-            <Check className="h-4 w-4" /> Enabled
+            <Check className="h-4 w-4" /> Selected
           </div>
         </div>
       ) : (

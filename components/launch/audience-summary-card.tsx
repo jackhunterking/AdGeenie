@@ -20,7 +20,7 @@ export function AudienceSummaryCard() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="icon-tile-muted">
-              <Sparkles className="h-4 w-4 text-brand-blue" />
+              <Target className="h-4 w-4" />
             </div>
             <h3 className="font-semibold">Audience</h3>
           </div>
