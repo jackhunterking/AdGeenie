@@ -41,7 +41,7 @@ export function PreviewPanel() {
   const { locationState } = useLocation()
   const { audienceState } = useAudience()
   const { goalState } = useGoal()
-  const { adCopyState } = useAdCopy()
+  const { adCopyState, getActiveVariations } = useAdCopy()
   const [showReelMessage, setShowReelMessage] = useState(false)
   const [isEditingBudget, setIsEditingBudget] = useState(false)
   const [budgetInputValue, setBudgetInputValue] = useState(budgetState.dailyBudget.toString())
@@ -342,7 +342,7 @@ export function PreviewPanel() {
           </div>
         )}
 
-        <div className="p-3 space-y-1.5">
+        <div className="p-3 space-y-2">
           <div className="flex items-center gap-3">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
@@ -351,10 +351,30 @@ export function PreviewPanel() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
           </div>
-          <p className="text-xs line-clamp-2">
-            <span className="font-semibold">Your Brand</span>{" "}
-            {adContent?.body || "Your ad caption goes here..."}
-          </p>
+          {(() => {
+            const variations = getActiveVariations()
+            const copy = adCopyState.selectedCopyIndex != null ? variations[adCopyState.selectedCopyIndex] : undefined
+            if (!copy) {
+              return (
+                <p className="text-xs line-clamp-2">
+                  <span className="font-semibold">Your Brand</span>{" "}
+                  {adContent?.body || "Your ad caption goes here..."}
+                </p>
+              )
+            }
+            return (
+              <>
+                <p className="text-xs line-clamp-3"><span className="font-semibold">Your Brand</span> {copy.primaryText}</p>
+                <div className="bg-muted rounded-lg p-2.5 space-y-1">
+                  <p className="text-xs font-bold line-clamp-1">{copy.headline}</p>
+                  <p className="text-[10px] text-muted-foreground line-clamp-2">{copy.description}</p>
+                  <Button size="sm" className="w-full mt-1.5 h-7 text-[10px] bg-[#4B73FF] hover:bg-[#3d5fd9]" disabled>
+                    {adContent?.cta || 'Learn More'}
+                  </Button>
+                </div>
+              </>
+            )
+          })()}
         </div>
       </div>
     )
@@ -448,11 +468,27 @@ export function PreviewPanel() {
           </div>
         </div>
 
-        <div className="absolute bottom-6 left-0 right-0 px-3 z-10">
-          <div className="bg-white/20 backdrop-blur-sm rounded-full py-2 px-4 text-center">
-            <p className="text-white font-semibold text-xs truncate">{adContent?.cta || "Learn More"}</p>
-          </div>
-        </div>
+        {(() => {
+          const variations = getActiveVariations()
+          const copy = adCopyState.selectedCopyIndex != null ? variations[adCopyState.selectedCopyIndex] : undefined
+          return (
+            <div className="absolute bottom-6 left-0 right-0 px-3 z-10 space-y-2">
+              {copy ? (
+                <>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                    <p className="text-white text-xs line-clamp-2 font-medium">{copy.primaryText}</p>
+                  </div>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                    <p className="text-white font-bold text-xs line-clamp-1">{copy.headline}</p>
+                  </div>
+                </>
+              ) : null}
+              <div className="bg-white/20 backdrop-blur-sm rounded-full py-2 px-4 text-center">
+                <p className="text-white font-semibold text-xs truncate">{adContent?.cta || 'Learn More'}</p>
+              </div>
+            </div>
+          )
+        })()}
 
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <p className="text-white text-xs font-bold opacity-50">{variation.title}</p>
@@ -535,12 +571,14 @@ export function PreviewPanel() {
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold">Ad Preview</h3>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'ads' } }))}
-            className="text-xs text-blue-500 hover:underline"
+            className="h-7 px-3"
           >
             Edit
-          </button>
+          </Button>
         </div>
         {/* Format selector (matches creator) */}
         <div className="flex justify-center pb-4">
@@ -600,7 +638,7 @@ export function PreviewPanel() {
       {/* Right: Summary stack */}
       <div className="flex flex-col gap-4">
         <MetaConnectionCard
-          showAdAccount={false}
+          showAdAccount={true}
           onManage={() => window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: 'back' } }))}
           onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
         />
