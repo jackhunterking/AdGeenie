@@ -2,7 +2,7 @@
 
 /**
  * Feature: Card A – Connect Facebook Page & Instagram
- * Purpose: Authenticate (token), pick Business and Page, auto-resolve IG, persist selection
+ * Purpose: Authenticate (token), pick Business and Page, select Instagram (multi), persist selection
  * References:
  *  - Facebook Login (Web): https://developers.facebook.com/docs/facebook-login/web
  *  - Page → IG linked: https://developers.facebook.com/docs/instagram-api/reference/page#linked_ig_account
@@ -17,6 +17,7 @@ import { Loader2, Check, Link2, Building2 } from 'lucide-react'
 
 interface Business { id: string; name?: string }
 interface Page { id: string; name?: string; instagram_business_account?: { id: string; username?: string } }
+interface IgAccount { id: string; username?: string }
 
 export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: { businessId: string; pageId: string; igUserId: string | null }) => void }) {
   const { campaign } = useCampaignContext()
@@ -28,7 +29,8 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
   const [pages, setPages] = useState<Page[]>([])
   const [selectedBusiness, setSelectedBusiness] = useState<string>("")
   const [selectedPage, setSelectedPage] = useState<string>("")
-  const [igUsername, setIgUsername] = useState<string | null>(null)
+  const [igOptions, setIgOptions] = useState<IgAccount[]>([])
+  const [selectedIgUserId, setSelectedIgUserId] = useState<string>("")
 
   const tokenReady = hasToken
   const cardComplete = Boolean(selectedBusiness && selectedPage)
@@ -69,13 +71,23 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
     if (!campaign?.id) return
     const r = await fetch(`/api/meta/assets?campaignId=${encodeURIComponent(campaign.id)}&businessId=${encodeURIComponent(bizId)}`)
     const j = await r.json() as { pages?: Page[] }
-    setPages(Array.isArray(j.pages) ? j.pages : [])
+    const newPages = Array.isArray(j.pages) ? j.pages : []
+    setPages(newPages)
+    // derive IG options (unique across returned pages)
+    const uniq = new Map<string, IgAccount>()
+    for (const p of newPages) {
+      const ig = p?.instagram_business_account
+      if (ig?.id && !uniq.has(ig.id)) {
+        uniq.set(ig.id, { id: ig.id, username: ig.username })
+      }
+    }
+    setIgOptions(Array.from(uniq.values()))
   }, [campaign?.id])
 
   const handleBusinessChange = async (value: string) => {
     setSelectedBusiness(value)
     setSelectedPage("")
-    setIgUsername(null)
+    setSelectedIgUserId("")
     if (value) await loadPages(value)
   }
 
@@ -83,29 +95,53 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
     setSelectedPage(value)
     const p = pages.find(p => p.id === value)
     const ig = p?.instagram_business_account
-    setIgUsername(ig?.username || null)
+    setSelectedIgUserId(ig?.id || "")
   }
+
+  // find ig username for selected selection
+  const selectedIg = useMemo(() => {
+    return igOptions.find(o => o.id === selectedIgUserId) || null
+  }, [igOptions, selectedIgUserId])
 
   const persistSelection = useCallback(async () => {
     if (!campaign?.id || !selectedBusiness || !selectedPage) return
-    const page = pages.find(p => p.id === selectedPage)
-    const ig = page?.instagram_business_account
-    const res = await fetch('/api/meta/selection', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        campaignId: campaign.id,
-        businessId: selectedBusiness,
-        businessName: businesses.find(b => b.id === selectedBusiness)?.name || null,
-        pageId: selectedPage,
-        pageName: page?.name || null,
-        igUserId: ig?.id || null,
-        igUsername: ig?.username || null,
-        // ad account not set here
+    setLoading(true)
+    setError(null)
+    try {
+      const page = pages.find(p => p.id === selectedPage)
+      // prefer explicit selection; fallback to page-linked ig
+      const igId = selectedIgUserId || page?.instagram_business_account?.id || null
+      const igName = (selectedIg?.username) || page?.instagram_business_account?.username || null
+      const res = await fetch('/api/meta/selection', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: campaign.id,
+          businessId: selectedBusiness,
+          businessName: businesses.find(b => b.id === selectedBusiness)?.name || null,
+          pageId: selectedPage,
+          pageName: page?.name || null,
+          igUserId: igId,
+          igUsername: igName,
+          // ad account not set here
+        })
       })
-    })
-    if (!res.ok) throw new Error('Failed to save selection')
-    onComplete?.({ businessId: selectedBusiness, pageId: selectedPage, igUserId: ig?.id || null })
-  }, [campaign?.id, selectedBusiness, selectedPage, pages, businesses, onComplete])
+      if (!res.ok) {
+        let message = 'Failed to save selection'
+        try {
+          const j = await res.json()
+          if (j && typeof j === 'object' && 'error' in j) message = String(j.error)
+          if (j && typeof j === 'object' && 'details' in j && j.details) message += `: ${String(j.details)}`
+        } catch {
+          // ignore
+        }
+        setError(message)
+        return
+      }
+      onComplete?.({ businessId: selectedBusiness, pageId: selectedPage, igUserId: igId })
+    } finally {
+      setLoading(false)
+    }
+  }, [campaign?.id, selectedBusiness, selectedPage, pages, businesses, selectedIgUserId, selectedIg, onComplete])
 
   return (
     <div className="rounded-lg border-2 border-border bg-card p-6 transition-all duration-300 hover:border-blue-500/20">
@@ -137,12 +173,12 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                Business
-              </label>
+          <div className="flex items-center justify-between gap-6">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2 shrink-0">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              Business
+            </label>
+            <div className="w-full max-w-sm">
               <Select onValueChange={handleBusinessChange} value={selectedBusiness}>
                 <SelectTrigger><SelectValue placeholder="Select Business" /></SelectTrigger>
                 <SelectContent>
@@ -154,11 +190,14 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <svg className="h-4 w-4" fill="#1877F2" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                Facebook Page
-              </label>
+          </div>
+
+          <div className="flex items-center justify-between gap-6">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2 shrink-0">
+              <svg className="h-4 w-4" fill="#1877F2" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              Facebook Page
+            </label>
+            <div className="w-full max-w-sm">
               <Select onValueChange={handlePageChange} value={selectedPage} disabled={!selectedBusiness}>
                 <SelectTrigger><SelectValue placeholder="Select Page" /></SelectTrigger>
                 <SelectContent>
@@ -171,10 +210,10 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
               </Select>
             </div>
           </div>
-          
-          {selectedPage && (
-            <div className="rounded-md bg-accent/20 border border-border p-3 flex items-center gap-2">
-              <svg className="h-5 w-5" viewBox="0 0 24 24">
+          {/* Instagram row */}
+          <div className="flex items-center justify-between gap-6">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2 shrink-0">
+              <svg className="h-4 w-4" viewBox="0 0 24 24">
                 <defs>
                   <linearGradient id="ig-grad-card-a" x1="0%" y1="100%" x2="100%" y2="0%">
                     <stop offset="0%" stopColor="#FD1D1D" />
@@ -184,12 +223,29 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
                 </defs>
                 <path fill="url(#ig-grad-card-a)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM18.406 4.155a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
               </svg>
-              <div className="text-sm">
-                <span className="text-muted-foreground">Instagram:</span>{' '}
-                <span className="font-medium">{igUsername ? `@${igUsername}` : 'Not linked to this page'}</span>
-              </div>
+              Instagram Page
+            </label>
+            <div className="w-full max-w-sm">
+              <Select onValueChange={setSelectedIgUserId} value={selectedIgUserId} disabled={!selectedBusiness}>
+                <SelectTrigger><SelectValue placeholder={igOptions.length ? 'Select Instagram' : 'No Instagram found'} /></SelectTrigger>
+                <SelectContent>
+                  {igOptions.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">No Instagram accounts detected</div>
+                  ) : (
+                    <>
+                      <SelectItem value="">None</SelectItem>
+                      {igOptions.map(ig => (
+                        <SelectItem key={ig.id} value={ig.id}>{ig.username ? `@${ig.username}` : ig.id}</SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              {selectedIg && selectedIg.username && (
+                <p className="text-xs text-muted-foreground mt-1">Selected: @{selectedIg.username}</p>
+              )}
             </div>
-          )}
+          </div>
           
           <div className="flex items-center justify-between pt-2">
             <Button onClick={persistSelection} disabled={!cardComplete || loading} className="bg-blue-600 hover:bg-blue-700 text-white">
