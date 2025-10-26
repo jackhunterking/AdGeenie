@@ -639,7 +639,6 @@ export function PreviewPanel() {
       <div className="flex flex-col gap-4">
         <MetaConnectionCard
           showAdAccount={true}
-          onManage={() => window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: 'back' } }))}
           onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
         />
         <LocationSummaryCard />
@@ -650,8 +649,8 @@ export function PreviewPanel() {
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-4 mb-3">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-green-600" />
+              <div className="icon-tile-muted">
+                <DollarSign className="h-4 w-4" />
               </div>
               <h3 className="text-sm font-medium">Daily Budget</h3>
             </div>

@@ -19,8 +19,8 @@ export function AudienceSummaryCard() {
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <Target className="h-4 w-4 text-blue-600" />
+            <div className="icon-tile-muted">
+              <Target className="h-4 w-4" />
             </div>
             <h3 className="font-semibold">Audience</h3>
           </div>
@@ -28,15 +28,13 @@ export function AudienceSummaryCard() {
         </div>
         <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center">
-              <Target className="h-4 w-4" />
-            </div>
+            <div className="icon-tile-muted"><Target className="h-4 w-4" /></div>
             <div>
               <p className="text-sm font-medium">AI Targeting</p>
               <p className="text-xs text-muted-foreground">AI Advantage+ will optimize who sees your ad</p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+          <div className="status-muted inline-flex items-center gap-1">
             <Check className="h-4 w-4" /> Enabled
           </div>
         </div>
@@ -48,8 +46,8 @@ export function AudienceSummaryCard() {
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-            <Target className="h-4 w-4 text-blue-600" />
+          <div className="icon-tile-muted">
+            <Target className="h-4 w-4" />
           </div>
           <h3 className="font-semibold">Audience</h3>
         </div>

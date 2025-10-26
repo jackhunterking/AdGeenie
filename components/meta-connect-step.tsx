@@ -173,9 +173,9 @@ export function MetaConnectStep() {
   return (
     <div className="flex flex-col items-center justify-center h-full p-8">
       <div className="max-w-2xl w-full space-y-8">
-        <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
-          <div className="h-20 w-20 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
-            <Link2 className="h-10 w-10 text-blue-600" />
+        <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:bg-accent/20 transition-all duration-300">
+          <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
+            <Link2 className="h-10 w-10" />
           </div>
           <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
             <h3 className="text-xl font-semibold">Connect Facebook & Instagram</h3>
@@ -226,12 +226,12 @@ export function MetaConnectStep() {
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <Facebook className="h-4 w-4 text-blue-600" />
+                <div className="icon-tile-muted">
+                  <Facebook className="h-4 w-4" />
                 </div>
                 <h3 className="font-semibold text-lg">Connected</h3>
               </div>
-              <div className="inline-flex items-center gap-2 text-green-600 text-sm">
+              <div className="status-muted inline-flex items-center gap-2 text-sm">
                 <Check className="h-4 w-4" /> Connected
               </div>
             </div>
