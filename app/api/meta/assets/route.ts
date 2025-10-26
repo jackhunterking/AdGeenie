@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const campaignId = searchParams.get('campaignId')
+    const businessId = searchParams.get('businessId')
     if (!campaignId) {
       return NextResponse.json({ error: 'campaignId required' }, { status: 400 })
     }
@@ -42,11 +43,28 @@ export async function GET(req: NextRequest) {
 
     const token = conn.long_lived_user_token as string
 
-    const pagesRes = await fetch(`https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,category,access_token&limit=500`, {
+    const pagesRes = await fetch(`https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,category,access_token,instagram_business_account{id,username}&limit=500`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     const pagesJson = await pagesRes.json()
-    const pages = Array.isArray(pagesJson.data) ? pagesJson.data : []
+    let pages = Array.isArray(pagesJson.data) ? pagesJson.data : []
+
+    // Optional: filter by business by checking page's business affiliation
+    if (businessId && typeof businessId === 'string' && businessId.length > 0 && Array.isArray(pages)) {
+      const checks = await Promise.all(
+        pages.map(async (p: { id?: string }) => {
+          const pid = typeof p?.id === 'string' ? p.id : ''
+          if (!pid) return false
+          const r = await fetch(`https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(pid)}?fields=business{id,name}`, {
+            headers: { Authorization: `Bearer ${token}` }, cache: 'no-store'
+          })
+          const j: unknown = await r.json()
+          const belongs = j && typeof j === 'object' && j !== null && (j as { business?: { id?: string } }).business?.id === businessId
+          return belongs
+        })
+      )
+      pages = pages.filter((_, idx) => checks[idx])
+    }
 
     // Optionally, for a selected page you can resolve IG account client-side by calling selection API
 

@@ -108,6 +108,8 @@ export type Database = {
           fb_user_id: string | null
           long_lived_user_token: string | null
           token_expires_at: string | null
+          selected_business_id: string | null
+          selected_business_name: string | null
           selected_page_id: string | null
           selected_page_name: string | null
           selected_page_access_token: string | null
@@ -115,6 +117,7 @@ export type Database = {
           selected_ig_username: string | null
           selected_ad_account_id: string | null
           selected_ad_account_name: string | null
+          ad_account_payment_connected: boolean
           created_at: string
           updated_at: string
         }
@@ -125,6 +128,8 @@ export type Database = {
           fb_user_id?: string | null
           long_lived_user_token?: string | null
           token_expires_at?: string | null
+          selected_business_id?: string | null
+          selected_business_name?: string | null
           selected_page_id?: string | null
           selected_page_name?: string | null
           selected_page_access_token?: string | null
@@ -132,6 +137,7 @@ export type Database = {
           selected_ig_username?: string | null
           selected_ad_account_id?: string | null
           selected_ad_account_name?: string | null
+          ad_account_payment_connected?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -142,6 +148,8 @@ export type Database = {
           fb_user_id?: string | null
           long_lived_user_token?: string | null
           token_expires_at?: string | null
+          selected_business_id?: string | null
+          selected_business_name?: string | null
           selected_page_id?: string | null
           selected_page_name?: string | null
           selected_page_access_token?: string | null
@@ -149,6 +157,7 @@ export type Database = {
           selected_ig_username?: string | null
           selected_ad_account_id?: string | null
           selected_ad_account_name?: string | null
+          ad_account_payment_connected?: boolean
           created_at?: string
           updated_at?: string
         }

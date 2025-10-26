@@ -11,11 +11,11 @@ import type { Json } from '@/lib/supabase/database.types'
 
 export async function POST(req: NextRequest) {
   try {
-    const { campaignId, pageId, pageName, igUserId, igUsername, adAccountId, adAccountName } = await req.json() as {
-      campaignId?: string; pageId?: string; pageName?: string; igUserId?: string; igUsername?: string; adAccountId?: string; adAccountName?: string;
+    const { campaignId, businessId, businessName, pageId, pageName, igUserId, igUsername, adAccountId, adAccountName } = await req.json() as {
+      campaignId?: string; businessId?: string; businessName?: string; pageId?: string; pageName?: string; igUserId?: string; igUsername?: string; adAccountId?: string; adAccountName?: string;
     }
-    if (!campaignId || !pageId || !adAccountId) {
-      return NextResponse.json({ error: 'campaignId, pageId, adAccountId required' }, { status: 400 })
+    if (!campaignId || !businessId || !pageId || !adAccountId) {
+      return NextResponse.json({ error: 'campaignId, businessId, pageId, adAccountId required' }, { status: 400 })
     }
 
     const supabase = await createServerClient()
@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
       .upsert({
         campaign_id: campaignId,
         user_id: user.id,
+        selected_business_id: businessId,
+        selected_business_name: businessName || null,
         selected_page_id: pageId,
         selected_page_name: pageName || null,
         selected_ig_user_id: igUserId || null,
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
     // Optionally, save a minimal meta_connect_data state to campaign_states for UI completion flags
     const metaConnectData: Record<string, unknown> = {
       status: 'connected',
+      businessId,
       pageId,
       igUserId: igUserId || null,
       adAccountId,
