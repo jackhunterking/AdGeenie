@@ -162,6 +162,7 @@ export async function POST(req: Request) {
 
   // Load latest CreativePlan for this campaign (if any) to provide plan-driven guardrails
   let planContext = '';
+  let offerAskContext = '';
   let planId: string | null = null;
   if (conversation?.campaign_id) {
     const { data: planRow } = await supabase
@@ -197,33 +198,34 @@ export async function POST(req: Request) {
           offerText = text;
         }
       }
+      if (!offerText) {
+        // Stricter ask-one-offer-question branch; plan will be created after user answers
+        offerAskContext = `\n[OFFER REQUIRED]\nAsk ONE concise question to capture the user's concrete offer/value (e.g., "Free quote", "% off", "Consultation", "Download").\nRules:\n- Ask ONLY this one question, no extra text.\n- Do NOT call any tools.\n- After the user answers, proceed to create the Creative Plan automatically.`;
+      } else {
+        // Create plan now that we have an offer
+        try {
+          const plan = await createCreativePlan({
+            goal: (['calls','leads','website-visits'].includes(String(effectiveGoal)) ? String(effectiveGoal) : 'unknown') as 'calls'|'leads'|'website-visits'|'unknown',
+            inferredCategory: undefined,
+            offerText,
+          });
 
-      // Create plan
-      try {
-        const plan = await createCreativePlan({
-          goal: (['calls','leads','website-visits'].includes(String(effectiveGoal)) ? String(effectiveGoal) : 'unknown') as 'calls'|'leads'|'website-visits'|'unknown',
-          inferredCategory: undefined,
-          offerText: offerText || undefined,
-        });
+          const { data: inserted, error } = await supabase
+            .from('creative_plans')
+            .insert({
+              campaign_id: conversation.campaign_id,
+              plan,
+              status: 'generated',
+              created_by: user.id,
+            })
+            .select('id')
+            .single();
+          if (!error && inserted?.id) {
+            planId = inserted.id as string;
+            planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Reflow overlays within 10–12% safe zones. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
+          }
 
-        const { data: inserted, error } = await supabase
-          .from('creative_plans')
-          .insert({
-            campaign_id: conversation.campaign_id,
-            plan,
-            status: 'generated',
-            created_by: user.id,
-          })
-          .select('id')
-          .single();
-        if (!error && inserted?.id) {
-          planId = inserted.id as string;
-          planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Reflow overlays within 10–12% safe zones. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
-        }
-
-        // Persist offerText to memory if we have one
-        if (offerText) {
-          // Merge into existing ad_copy_data
+          // Persist offerText to memory
           try {
             const { data: cs2 } = await supabase
               .from('campaign_states')
@@ -239,9 +241,9 @@ export async function POST(req: Request) {
           } catch (e) {
             console.warn('[API] Failed to upsert offerText in ad_copy_data:', e);
           }
+        } catch (e) {
+          console.error('[API] Failed to auto-create CreativePlan:', e);
         }
-      } catch (e) {
-        console.error('[API] Failed to auto-create CreativePlan:', e);
       }
     }
   }
@@ -498,6 +500,8 @@ User: "make background darker"
 
 ---
 ` : ''}
+${planContext}
+${offerAskContext}
 # CAMPAIGN GOAL: ${effectiveGoal?.toUpperCase() || 'NOT SET'}
 
 ${effectiveGoal ? getGoalContextDescription(effectiveGoal) : 'No specific goal has been set for this campaign yet. Consider asking the user about their campaign objectives if relevant.'}
