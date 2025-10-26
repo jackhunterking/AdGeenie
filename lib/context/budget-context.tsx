@@ -9,6 +9,9 @@ interface BudgetState {
   dailyBudget: number
   selectedAdAccount: string | null
   isConnected: boolean
+  startTime?: string | null
+  endTime?: string | null
+  timezone?: string | null
 }
 
 interface BudgetContextType {
@@ -16,6 +19,7 @@ interface BudgetContextType {
   setDailyBudget: (budget: number) => void
   setSelectedAdAccount: (accountId: string) => void
   setIsConnected: (connected: boolean) => void
+  setSchedule: (opts: { startTime?: string | null; endTime?: string | null; timezone?: string | null }) => void
   resetBudget: () => void
   isComplete: () => boolean
 }
@@ -28,6 +32,9 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     dailyBudget: 20,
     selectedAdAccount: null,
     isConnected: false,
+    startTime: null,
+    endTime: null,
+    timezone: null,
   })
   const [isInitialized, setIsInitialized] = useState(false)
 
@@ -69,11 +76,23 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     setBudgetState(prev => ({ ...prev, isConnected: connected }))
   }
 
+  const setSchedule = ({ startTime, endTime, timezone }: { startTime?: string | null; endTime?: string | null; timezone?: string | null }) => {
+    setBudgetState(prev => ({
+      ...prev,
+      startTime: startTime === undefined ? prev.startTime : startTime,
+      endTime: endTime === undefined ? prev.endTime : endTime,
+      timezone: timezone === undefined ? prev.timezone : timezone,
+    }))
+  }
+
   const resetBudget = () => {
     setBudgetState({
       dailyBudget: 20,
       selectedAdAccount: null,
       isConnected: false,
+      startTime: null,
+      endTime: null,
+      timezone: null,
     })
   }
 
@@ -88,6 +107,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         setDailyBudget,
         setSelectedAdAccount,
         setIsConnected,
+        setSchedule,
         resetBudget,
         isComplete
       }}

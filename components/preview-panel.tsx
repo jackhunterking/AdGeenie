@@ -23,6 +23,7 @@ import { MetaConnectionCard } from "@/components/meta/meta-connection-card"
 import { LocationSummaryCard } from "@/components/launch/location-summary-card"
 import { AudienceSummaryCard } from "@/components/launch/audience-summary-card"
 import { FormSummaryCard } from "@/components/launch/form-summary-card"
+import { BudgetSchedule } from "@/components/forms/budget-schedule"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import type { Database } from "@/lib/supabase/database.types"
 
@@ -148,15 +149,60 @@ export function PreviewPanel() {
     if (!campaign?.id) return
     if (!allStepsComplete) return
     try {
-      const res = await fetch('/api/meta/ads/launch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId: campaign.id, publish: true }),
-      })
-      if (res.ok) {
-        setIsPublished(true)
-      } else {
-        // Optionally surface error state via toast (omitted here)
+      // Branch by goal: leads (existing orchestrator) vs calls/website
+      const goal = goalState.selectedGoal
+      if (goal === 'leads') {
+        const res = await fetch('/api/meta/ads/launch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id, publish: true }),
+        })
+        if (res.ok) setIsPublished(true)
+        return
+      }
+
+      if (goal === 'website-visits') {
+        // Create Traffic assets (paused)
+        const createRes = await fetch('/api/meta/campaigns/create-traffic-ad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id }),
+        })
+        const created: unknown = await createRes.json()
+        if (!createRes.ok || !created || typeof created !== 'object' || created === null || typeof (created as { id?: unknown }).id !== 'string') {
+          return
+        }
+        const adId = (created as { id: string }).id
+        // Publish ad
+        const pubRes = await fetch('/api/meta/ads/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id, targetType: 'ad', targetId: adId })
+        })
+        if (pubRes.ok) setIsPublished(true)
+        return
+      }
+
+      if (goal === 'calls') {
+        // Create Calls assets (paused)
+        const createRes = await fetch('/api/meta/campaigns/create-call-ad', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id }),
+        })
+        const created: unknown = await createRes.json()
+        if (!createRes.ok || !created || typeof created !== 'object' || created === null || typeof (created as { id?: unknown }).id !== 'string') {
+          return
+        }
+        const adId = (created as { id: string }).id
+        // Publish ad
+        const pubRes = await fetch('/api/meta/ads/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id, targetType: 'ad', targetId: adId })
+        })
+        if (pubRes.ok) setIsPublished(true)
+        return
       }
     } catch {
       // ignore
@@ -645,35 +691,9 @@ export function PreviewPanel() {
         <AudienceSummaryCard />
         <FormSummaryCard />
 
-        {/* Budget Selection */}
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center justify-between gap-4 mb-3">
-            <div className="flex items-center gap-3">
-              <div className="icon-tile-muted">
-                <DollarSign className="h-4 w-4" />
-              </div>
-              <h3 className="text-sm font-medium">Daily Budget</h3>
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <Button variant="ghost" size="icon" onClick={handleDecrementBudget} disabled={budgetState.dailyBudget <= minBudget} className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30">
-              <Minus className="h-4 w-4" />
-            </Button>
-            {isEditingBudget ? (
-              <div className="flex items-baseline gap-0">
-                <span className="text-3xl font-bold text-green-600">$</span>
-                <Input type="text" value={budgetInputValue} onChange={handleBudgetInputChange} onBlur={handleBudgetInputBlur} onKeyDown={handleBudgetInputKeyDown} autoFocus className="w-[90px] text-3xl font-bold text-green-600 text-center bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-[40px]" />
-              </div>
-            ) : (
-              <button onClick={handleBudgetClick} className="text-3xl font-bold text-green-600 hover:opacity-80 cursor-pointer min-w-[90px] text-center">
-                ${budgetState.dailyBudget}
-              </button>
-            )}
-            <Button variant="ghost" size="icon" onClick={handleIncrementBudget} disabled={budgetState.dailyBudget >= maxBudget} className="h-10 w-10 rounded-lg hover:bg-green-500/10 disabled:opacity-30">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <BudgetSchedule />
+
+        {/* Removed old inline budget block in favor of BudgetSchedule */}
 
         {/* Publish CTA */}
         {isComplete() && (

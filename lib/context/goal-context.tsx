@@ -8,6 +8,14 @@ import { AUTO_SAVE_CONFIGS } from "@/lib/types/auto-save"
 type GoalType = "leads" | "calls" | "website-visits" | null
 type GoalStatus = "idle" | "selecting" | "setup-in-progress" | "completed" | "error"
 
+interface BusinessHoursDay {
+  enabled: boolean
+  start: string // HH:MM (24h)
+  end: string   // HH:MM (24h)
+}
+
+type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
 interface GoalFormData {
   // Leads
   id?: string
@@ -19,9 +27,17 @@ interface GoalFormData {
   phoneNumber?: string
   countryCode?: string
   callTracking?: boolean
+  businessHours?: Record<DayOfWeek, BusinessHoursDay>
   
   // Website Visits
   websiteUrl?: string
+  utm?: {
+    source: string
+    medium: string
+    campaign: string
+    term?: string
+    content?: string
+  }
 }
 
 interface GoalState {
