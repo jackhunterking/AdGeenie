@@ -16,7 +16,8 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useGoal } from "@/lib/context/goal-context"
-import { Phone, Check, Clock, AlertCircle } from "lucide-react"
+import { Phone, Check, AlertCircle } from "lucide-react"
+import { COUNTRY_CALLING_CODES } from "@/lib/meta/country-codes"
 
 export function CallConfiguration() {
   const { setFormData, goalState } = useGoal()
@@ -54,32 +55,27 @@ export function CallConfiguration() {
         <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
           <Phone className="h-8 w-8 text-blue-600" />
         </div>
-        <h3 className="text-2xl font-bold">Call Configuration</h3>
-        <p className="text-muted-foreground">
-          Set up a phone number for click-to-call ads.
-        </p>
+        <h3 className="text-2xl font-bold">Set up calls</h3>
+        <p className="text-muted-foreground">Which number should people call?</p>
       </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="countryCode">Country Code</Label>
+          <Label htmlFor="countryCode">Country code</Label>
           <Select value={countryCode} onValueChange={setCountryCode}>
             <SelectTrigger id="countryCode">
               <SelectValue placeholder="Select country code" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="+1">+1 (US/Canada)</SelectItem>
-              <SelectItem value="+44">+44 (UK)</SelectItem>
-              <SelectItem value="+61">+61 (Australia)</SelectItem>
-              <SelectItem value="+81">+81 (Japan)</SelectItem>
-              <SelectItem value="+49">+49 (Germany)</SelectItem>
-              <SelectItem value="+33">+33 (France)</SelectItem>
+              {COUNTRY_CALLING_CODES.map(({ code, label }) => (
+                <SelectItem key={code} value={code}>{label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="phoneNumber">Phone Number</Label>
+          <Label htmlFor="phoneNumber">Phone number</Label>
           <Input
             id="phoneNumber"
             type="tel"
@@ -87,9 +83,7 @@ export function CallConfiguration() {
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
           />
-          <p className="text-xs text-muted-foreground">
-            Enter the local phone; we will format to international E.164.
-          </p>
+          <p className="text-xs text-muted-foreground">Enter your local number; we’ll format it internationally.</p>
           {phoneNumber && (
             <p className="text-xs text-muted-foreground">Formatted: <span className="font-mono">{fullPhone}</span></p>
           )}
@@ -111,7 +105,7 @@ export function CallConfiguration() {
         className="w-full bg-blue-600 hover:bg-blue-700"
       >
         <Check className="h-4 w-4 mr-2" />
-        Save Configuration
+        Use this number
       </Button>
     </div>
   )

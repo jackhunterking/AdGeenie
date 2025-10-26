@@ -1,12 +1,13 @@
 "use client"
 
-import { Phone, Users, CheckCircle2, Loader2, Lock, Flag, Filter, FileText, Check, AlertCircle } from "lucide-react"
+import { Phone, Users, CheckCircle2, Loader2, Lock, Flag, Filter, FileText, Check, AlertCircle, Globe } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useGoal } from "@/lib/context/goal-context"
 import { useAdPreview } from "@/lib/context/ad-preview-context"
 import { LeadFormSetup } from "@/components/forms/lead-form-setup"
+import { FormSummaryCard } from "@/components/launch/form-summary-card"
 import { CallConfiguration } from "@/components/forms/call-configuration"
 import { WebsiteConfiguration } from "@/components/forms/website-configuration"
 
@@ -184,10 +185,10 @@ export function GoalSelectionCanvas() {
             {/* Website Visits Card */}
             <div className="group relative flex flex-col items-center p-6 rounded-2xl border-2 border-border hover:border-blue-500 hover:bg-blue-500/5 transition-all duration-300">
               <div className="h-16 w-16 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors mb-4">
-                <CheckCircle2 className="h-8 w-8 text-blue-600" />
+                <Globe className="h-8 w-8 text-blue-600" />
               </div>
               <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-lg font-semibold">Website Visits</h3>
+                <h3 className="text-lg font-semibold">Website visits</h3>
                 <p className="text-xs text-muted-foreground">
                   Drive traffic to your website
                 </p>
@@ -199,7 +200,7 @@ export function GoalSelectionCanvas() {
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 mt-auto"
               >
-                Get Visits
+                Get visits
               </Button>
             </div>
           </div>
@@ -250,6 +251,28 @@ export function GoalSelectionCanvas() {
             <p className="text-muted-foreground">
               AI is configuring your goal setup. This may take a few seconds.
             </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Completed setup: show saved goal summary (calls or website)
+  if (goalState.status === "completed" && (goalState.selectedGoal === 'calls' || goalState.selectedGoal === 'website-visits')) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <div className="max-w-2xl w-full space-y-6">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Flag className="h-4 w-4 text-blue-600" />
+              </div>
+              <h3 className="font-semibold">Goal</h3>
+            </div>
+            <FormSummaryCard />
+            <div className="pt-4 flex justify-end">
+              <Button variant="outline" onClick={resetGoal}>Change goal</Button>
+            </div>
           </div>
         </div>
       </div>

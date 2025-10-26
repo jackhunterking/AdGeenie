@@ -7,7 +7,7 @@
 
 import { useGoal } from "@/lib/context/goal-context"
 import { Button } from "@/components/ui/button"
-import { FileText, Check, Flag, Phone, Link } from "lucide-react"
+import { FileText, Check, Flag, Phone, Globe } from "lucide-react"
 
 export function FormSummaryCard() {
   const { goalState } = useGoal()
@@ -61,7 +61,7 @@ export function FormSummaryCard() {
       ) : goalState.selectedGoal === 'website-visits' && form?.websiteUrl ? (
         <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
           <div className="flex items-center gap-2">
-            <div className="icon-tile-muted"><Link className="h-4 w-4 text-brand-blue" /></div>
+            <div className="icon-tile-muted"><Globe className="h-4 w-4 text-brand-blue" /></div>
             <div>
               <p className="text-sm font-medium">{form.displayLink || 'Website'}</p>
               <p className="text-xs text-muted-foreground truncate max-w-[220px]">{form.websiteUrl}</p>

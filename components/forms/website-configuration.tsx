@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useGoal } from "@/lib/context/goal-context"
-import { CheckCircle2, Check, AlertCircle, Link } from "lucide-react"
+import { Globe, Check, AlertCircle, Link } from "lucide-react"
 
 export function WebsiteConfiguration() {
   const { setFormData, goalState } = useGoal()
@@ -24,11 +24,15 @@ export function WebsiteConfiguration() {
   const [error, setError] = useState("")
 
   const finalUrl = useMemo(() => {
+    const value = websiteUrl.trim()
+    if (!value) return ""
+    const hasScheme = /^https?:\/\//i.test(value)
+    const normalized = hasScheme ? value : `https://${value}`
     try {
-      const url = new URL(websiteUrl)
+      const url = new URL(normalized)
       return url.toString()
     } catch {
-      return websiteUrl
+      return normalized
     }
   }, [websiteUrl])
 
@@ -47,8 +51,8 @@ export function WebsiteConfiguration() {
       return
     }
 
-    if (!validateUrl(websiteUrl)) {
-      setError("Please enter a valid URL (including http:// or https://)")
+    if (!validateUrl(finalUrl)) {
+      setError("Please enter a valid website address")
       return
     }
 
@@ -63,15 +67,15 @@ export function WebsiteConfiguration() {
     <div className="space-y-6 max-w-md mx-auto">
       <div className="text-center space-y-2">
         <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
-          <CheckCircle2 className="h-8 w-8 text-blue-600" />
+          <Globe className="h-8 w-8 text-blue-600" />
         </div>
-        <h3 className="text-2xl font-bold">Website Visits</h3>
-        <p className="text-muted-foreground">Provide the landing page URL and optional display link (shown under your ad).</p>
+        <h3 className="text-2xl font-bold">Website visits</h3>
+        <p className="text-muted-foreground">Where should people go when they click?</p>
       </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="websiteUrl">Website URL</Label>
+          <Label htmlFor="websiteUrl">Website address</Label>
           <Input
             id="websiteUrl"
             type="url"
@@ -108,7 +112,7 @@ export function WebsiteConfiguration() {
           </div>
         )}
 
-        {websiteUrl && validateUrl(websiteUrl) && !error && (
+        {finalUrl && validateUrl(finalUrl) && !error && (
           <div className="flex items-start gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
             <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-green-600">Valid URL format</p>
@@ -122,7 +126,7 @@ export function WebsiteConfiguration() {
         className="w-full bg-blue-600 hover:bg-blue-700"
       >
         <Check className="h-4 w-4 mr-2" />
-        Save Configuration
+        Use this website
       </Button>
     </div>
   )
