@@ -30,6 +30,15 @@ interface FBNamespace {
   getLoginStatus: (cb: (res: FBLoginStatusResponse) => void, forceRefresh?: boolean) => void
   api: (path: string, callback: (res: unknown) => void) => void
   api: (path: string, method: string, params: Record<string, unknown>, callback: (res: unknown) => void) => void
+  /**
+   * FB.ui dialog invocation.
+   * Minimal typing to support ads payment dialog while remaining flexible.
+   * https://developers.facebook.com/docs/javascript/reference/FB.ui/
+   */
+  ui: (
+    params: { method: string } & Record<string, unknown>,
+    callback?: (response: unknown) => void
+  ) => void
   AppEvents?: { logPageView?: () => void }
 }
 
