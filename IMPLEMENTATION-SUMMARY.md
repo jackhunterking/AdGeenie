@@ -235,6 +235,20 @@ LIMIT 5;
 - **State Manager:** `lib/services/state-manager.ts`
 - **Auto-save Hook:** `lib/hooks/use-auto-save.ts`
 
+### Meta Launch Implementation
+- Marketing API Lead Ads (create): https://developers.facebook.com/docs/marketing-api/guides/lead-ads/create/
+- Ad Image: https://developers.facebook.com/docs/marketing-api/reference/ad-image/
+- Ad (AdGroup) reference: https://developers.facebook.com/docs/marketing-api/reference/adgroup/
+- Access Tokens (long-lived): https://developers.facebook.com/docs/facebook-login/access-tokens/refreshing/
+
+Affected files:
+- `components/meta/meta-connection-card.tsx`
+- `components/launch/location-summary-card.tsx`
+- `components/launch/audience-summary-card.tsx`
+- `components/launch/form-summary-card.tsx`
+- `components/preview-panel.tsx` (final step redesigned)
+- `app/api/meta/ads/launch/route.ts` (publish orchestration)
+
 ### External Docs
 - [AI SDK Core](https://ai-sdk.dev/docs/ai-sdk-core/conversation-history)
 - [Supabase Database](https://supabase.com/docs/guides/database)
