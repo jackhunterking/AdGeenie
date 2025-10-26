@@ -30,8 +30,8 @@ export function LocationSummaryCard() {
           {included.map(loc => (
             <div key={loc.id} className="flex items-center justify-between">
               <span className="truncate mr-2">{loc.name}</span>
-              {typeof loc.radiusKm === "number" && (
-                <span className="text-muted-foreground shrink-0">{loc.radiusKm} km</span>
+              {typeof loc.radius === "number" && (
+                <span className="text-muted-foreground shrink-0">{loc.radius} km</span>
               )}
             </div>
           ))}
