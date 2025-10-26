@@ -110,31 +110,31 @@ export function AudienceSelectionCanvas() {
 
   // All other intermediate states removed
 
-  // Completed: simple enabled confirmation only
+  // Completed: show compact confirmation matching Launch summary
   if (audienceState.status === "completed") {
-    // Same card as idle, but button disabled and label changed
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="max-w-2xl w-full space-y-8">
-          <div className="flex flex-col gap-4 max-w-md mx-auto w-full">
-            <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:bg-accent/20 transition-all duration-300">
-              <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
-                <Sparkles className="h-10 w-10 text-brand-blue" />
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="icon-tile-muted">
+                  <Target className="h-4 w-4" />
+                </div>
+                <h3 className="font-semibold">Audience</h3>
               </div>
-              <div className="text-center space-y-2 flex-1 flex flex-col justify-start mb-4">
-                <h3 className="text-xl font-semibold">AI Targeting</h3>
-                <p className="text-sm text-muted-foreground">Enable AI Advantage+ audience targeting</p>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg border panel-surface">
+              <div className="flex items-center gap-2">
+                <div className="icon-tile-muted"><Sparkles className="h-4 w-4 text-brand-blue" /></div>
+                <div>
+                  <p className="text-sm font-medium">AI Targeting</p>
+                  <p className="text-xs text-muted-foreground">AI Advantage+ will optimize who sees your ad</p>
+                </div>
               </div>
-              <Button
-                size="lg"
-                disabled
-                className="px-8 mt-auto cursor-default bg-muted text-status-green border border-border/50 hover:bg-muted"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Check className="h-4 w-4" />
-                  <span>AI Targeting Enabled</span>
-                </span>
-              </Button>
+              <div className="inline-flex items-center gap-1 text-status-green text-xs font-medium">
+                <Check className="h-4 w-4" /> Enabled
+              </div>
             </div>
           </div>
         </div>
