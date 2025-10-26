@@ -61,17 +61,16 @@ export function Dashboard({
         <div className="w-1/4 bg-preview-panel text-preview-panel-foreground flex flex-col h-full">
           {/* Header - Only for left section */}
           <div className="flex h-12 items-center justify-between px-4 bg-preview-panel text-preview-panel-foreground shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 my-4">
-                <div className="relative h-8 w-8">
-                  <img src="/AdPilot-Logomark.svg" alt="AdPilot" className="h-8 w-8" />
-                </div>
-                <span className="text-lg font-semibold">{campaign?.name ?? COMPANY_NAME}</span>
+            <div className="flex items-center gap-2">
+              <div className="relative h-8 w-8">
+                <img src="/AdPilot-Logomark.svg" alt="AdPilot" className="h-8 w-8" />
               </div>
-              
-              <SaveIndicator />
-              
-              {/* Dropdown Menu */}
+              <div className="flex flex-col leading-none">
+                <span className="text-sm font-semibold truncate max-w-[160px]">{campaign?.name ?? COMPANY_NAME}</span>
+                <div className="-mt-0.5">
+                  <SaveIndicator />
+                </div>
+              </div>
               <DropdownMenu onOpenChange={setIsDropdownOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">

@@ -153,21 +153,17 @@ export function CampaignProvider({
   // Update campaign metadata
   const updateCampaign = async (updates: Partial<Campaign>) => {
     if (!campaign?.id) return
-    
-    try {
-      const response = await fetch(`/api/campaigns/${campaign.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setCampaign(data.campaign)
-      }
-    } catch (err) {
-      console.error('Error updating campaign:', err)
+    const response = await fetch(`/api/campaigns/${campaign.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(text || `HTTP ${response.status}`)
     }
+    const data = await response.json()
+    setCampaign(data.campaign)
   }
 
   // Save campaign state (goal, location, audience, etc.) with retry logic

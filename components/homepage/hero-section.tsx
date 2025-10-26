@@ -14,7 +14,7 @@ import {
   PromptInputModelSelectItem,
   PromptInputModelSelectValue,
 } from '@/components/ai-elements/prompt-input'
-import { Phone, Users, Globe } from 'lucide-react'
+import { Phone, Users, Globe, Flag } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCampaignContext } from '@/lib/context/campaign-context'
@@ -209,29 +209,32 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
                 disabled={isSubmitting}
               />
             </PromptInputBody>
-            <PromptInputToolbar>
+              <PromptInputToolbar>
               <PromptInputModelSelect value={selectedGoal} onValueChange={setSelectedGoal}>
                 <PromptInputModelSelectTrigger className="w-auto gap-2">
-                  <GoalIcon goal={selectedGoal} className="size-4" />
+                  {/* Left: gray flag for the label */}
+                  <Flag className="size-4 text-muted-foreground" />
                   <span className="text-muted-foreground text-sm">Goal:</span>
+                  {/* Right: colored goal icon before the selected value */}
+                  <GoalIcon goal={selectedGoal} className="size-4 text-blue-600" />
                   <PromptInputModelSelectValue />
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
                   <PromptInputModelSelectItem value="leads">
                     <div className="flex items-center gap-2">
-                      <Users className="size-4" />
+                      <Users className="size-4 text-blue-600" />
                       Leads
                     </div>
                   </PromptInputModelSelectItem>
                   <PromptInputModelSelectItem value="calls">
                     <div className="flex items-center gap-2">
-                      <Phone className="size-4" />
+                      <Phone className="size-4 text-blue-600" />
                       Calls
                     </div>
                   </PromptInputModelSelectItem>
                   <PromptInputModelSelectItem value="website-visits">
                     <div className="flex items-center gap-2">
-                      <Globe className="size-4" />
+                      <Globe className="size-4 text-blue-600" />
                       Website Visits
                     </div>
                   </PromptInputModelSelectItem>
