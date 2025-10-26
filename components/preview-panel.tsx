@@ -533,7 +533,65 @@ export function PreviewPanel() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Left: Full ad mockup using selected variation */}
       <div className="rounded-lg border border-border bg-card p-4">
-        <h3 className="font-semibold mb-3">Ad Preview</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold">Ad Preview</h3>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'ads' } }))}
+            className="text-xs text-blue-500 hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+        {/* Format selector (matches creator) */}
+        <div className="flex justify-center pb-4">
+          <div className="inline-flex rounded-lg border border-border p-1 bg-card">
+            {previewFormats.map((format) => {
+              const Icon = format.icon
+              const isActive = activeFormat === format.id
+
+              if (format.id === "reel") {
+                return (
+                  <div key={format.id} className="relative">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleReelClick}
+                      className="px-4 relative"
+                    >
+                      <Icon className="h-3.5 w-3.5 mr-1.5" />
+                      {format.label}
+                      <Sparkles size={10} className="absolute -top-0.5 -right-0.5 text-yellow-500 animate-pulse" />
+                    </Button>
+                    {showReelMessage && (
+                      <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="bg-popover border border-border rounded-md px-3 py-1.5 shadow-md">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Sparkles size={12} className="text-yellow-500" />
+                            <span className="font-medium">Coming Soon!</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              return (
+                <Button
+                  key={format.id}
+                  variant={isActive ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveFormat(format.id)}
+                  className="px-4"
+                >
+                  <Icon className="h-3.5 w-3.5 mr-1.5" />
+                  {format.label}
+                </Button>
+              )
+            })}
+          </div>
+        </div>
+
         {activeFormat === "story"
           ? adVariations.map((v, i) => selectedImageIndex === i && renderStoryAd(v, i))
           : adVariations.map((v, i) => selectedImageIndex === i && renderFeedAd(v, i))}
@@ -541,7 +599,11 @@ export function PreviewPanel() {
 
       {/* Right: Summary stack */}
       <div className="flex flex-col gap-4">
-        <MetaConnectionCard showAdAccount={false} onManage={() => window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: 'back' } }))} />
+        <MetaConnectionCard
+          showAdAccount={false}
+          onManage={() => window.dispatchEvent(new CustomEvent('stepNavigation', { detail: { direction: 'back' } }))}
+          onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
+        />
         <LocationSummaryCard />
         <AudienceSummaryCard />
         <FormSummaryCard />

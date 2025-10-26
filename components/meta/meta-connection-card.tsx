@@ -22,9 +22,10 @@ interface MetaSummary {
 interface MetaConnectionCardProps {
   showAdAccount?: boolean
   onManage?: () => void
+  onEdit?: () => void
 }
 
-export function MetaConnectionCard({ showAdAccount = false, onManage }: MetaConnectionCardProps) {
+export function MetaConnectionCard({ showAdAccount = false, onManage, onEdit }: MetaConnectionCardProps) {
   const { campaign } = useCampaignContext()
   const [summary, setSummary] = useState<MetaSummary | null>(null)
   const [loading, setLoading] = useState(false)
@@ -61,14 +62,19 @@ export function MetaConnectionCard({ showAdAccount = false, onManage }: MetaConn
           <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
             <Facebook className="h-4 w-4 text-blue-600" />
           </div>
-          <h3 className="font-semibold text-lg">Meta Connection</h3>
+          <h3 className="font-semibold">Meta Connection</h3>
         </div>
-        <div className="inline-flex items-center gap-2 text-sm">
-          {isConnected ? (
-            <span className="inline-flex items-center gap-1 text-green-600"><Check className="h-4 w-4" />Connected</span>
-          ) : (
-            <span className="text-muted-foreground">Not connected</span>
+        <div className="flex items-center gap-3">
+          {onEdit && (
+            <button onClick={onEdit} className="text-xs text-blue-500 hover:underline">Edit</button>
           )}
+          <div className="inline-flex items-center gap-1 text-sm">
+            {isConnected ? (
+              <span className="inline-flex items-center gap-1 text-green-600"><Check className="h-4 w-4" />Connected</span>
+            ) : (
+              <span className="text-muted-foreground">Not connected</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -78,13 +84,13 @@ export function MetaConnectionCard({ showAdAccount = false, onManage }: MetaConn
         ) : (
           <>
             {summary?.page && (
-              <div>Page: <span className="font-medium">{summary.page.name}</span></div>
+              <div><span className="text-muted-foreground">Page:</span> <span className="font-medium">{summary.page.name}</span></div>
             )}
             {summary?.instagram && (
-              <div>Instagram: <span className="font-medium">@{summary.instagram.username}</span></div>
+              <div><span className="text-muted-foreground">Instagram:</span> <span className="font-medium">@{summary.instagram.username}</span></div>
             )}
             {showAdAccount && summary?.adAccount && (
-              <div>Ad Account: <span className="font-medium">{summary.adAccount.name}</span> <span className="text-muted-foreground">({summary.adAccount.id})</span></div>
+              <div><span className="text-muted-foreground">Ad Account:</span> <span className="font-medium">{summary.adAccount.name}</span> <span className="text-muted-foreground">({summary.adAccount.id})</span></div>
             )}
           </>
         )}

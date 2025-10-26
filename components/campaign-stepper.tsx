@@ -99,6 +99,34 @@ export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
     }
   }, [currentStepIndex, steps, campaignId])
 
+  // Support external navigation requests (Edit links in summary cards)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ id?: string }>
+      const stepId = custom.detail?.id
+      if (!stepId) return
+      const targetIndex = steps.findIndex((s) => s.id === stepId)
+      if (targetIndex < 0) return
+
+      // Rules: allow moving backward freely; allow moving forward only to
+      // completed steps, never beyond the first incomplete step.
+      const firstIncomplete = steps.findIndex((s) => !s.completed)
+      const maxForwardIndex = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete
+
+      const clampedIndex = targetIndex <= currentStepIndex
+        ? targetIndex // backward edit always allowed
+        : Math.min(targetIndex, maxForwardIndex)
+
+      if (clampedIndex === currentStepIndex) return
+
+      setDirection(clampedIndex > currentStepIndex ? 'forward' : 'backward')
+      setCurrentStepIndex(clampedIndex)
+    }
+
+    window.addEventListener('gotoStep', handler as EventListener)
+    return () => window.removeEventListener('gotoStep', handler as EventListener)
+  }, [steps, currentStepIndex])
+
   const currentStep = steps[currentStepIndex]
   const isFirstStep = currentStepIndex === 0
   const isLastStep = currentStepIndex === steps.length - 1

@@ -13,7 +13,15 @@ export function FormSummaryCard() {
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="font-semibold mb-2">Lead Form</h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold">Lead Form</h3>
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'goal' } }))}
+          className="text-xs text-blue-500 hover:underline"
+        >
+          Edit
+        </button>
+      </div>
       {form?.id ? (
         <div className="text-sm">
           <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{form.name ?? "Instant Form"}</span></div>
