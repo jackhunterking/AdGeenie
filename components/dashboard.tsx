@@ -21,6 +21,7 @@ import {
 import { UIMessage } from "ai"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { SaveIndicator } from "./save-indicator"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 interface DashboardProps {
   messages?: UIMessage[]  // AI SDK v5 prop name
@@ -154,6 +155,7 @@ function RenameCampaignMenuItem() {
   const [name, setName] = useState<string>(campaign?.name ?? '')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const MAX_LEN = 20
 
   const onSubmit = async () => {
     if (!campaign?.id) return
@@ -182,29 +184,38 @@ function RenameCampaignMenuItem() {
 
   return (
     <>
-      <DropdownMenuItem onClick={() => { setName(campaign?.name ?? ''); setOpen(true) }}>
+      <DropdownMenuItem onClick={() => { setName(campaign?.name ?? ''); setTimeout(() => setOpen(true), 0) }}>
         <Edit className="mr-2 h-4 w-4" />
         Rename ad
       </DropdownMenuItem>
-      {/* Simple dialog using existing UI primitives */}
-      <div className={`fixed inset-0 z-50 ${open ? '' : 'hidden'}`}>
-        <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-sm rounded-lg border border-border bg-card p-4 shadow-xl">
-          <h3 className="text-sm font-medium mb-2">Rename Campaign</h3>
-          <p className="text-xs text-muted-foreground mb-3">Recommended up to 3 words. You can edit anytime.</p>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="e.g. Bright Maple Launch"
-          />
-          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
-            <Button size="sm" onClick={onSubmit} disabled={submitting}>{submitting ? 'Saving…' : 'Save'}</Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="p-0">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle>Rename Campaign</DialogTitle>
+            <DialogDescription>Up to 3 words and 20 characters.</DialogDescription>
+          </DialogHeader>
+          <div className="px-4 pb-2">
+            <input
+              value={name}
+              onChange={(e) => {
+                if (e.target.value.length <= MAX_LEN) setName(e.target.value)
+              }}
+              maxLength={MAX_LEN}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder="e.g. Bright Maple"
+            />
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">Recommended ≤ 3 words</span>
+              <span className="text-[11px] text-muted-foreground">{name.length}/{MAX_LEN}</span>
+            </div>
+            {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
           </div>
-        </div>
-      </div>
+          <DialogFooter className="p-4 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button size="sm" onClick={onSubmit} disabled={submitting || name.trim().length === 0}>{submitting ? 'Saving…' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

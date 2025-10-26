@@ -217,7 +217,8 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
                   <span className="text-muted-foreground text-sm">Goal:</span>
                   {/* Right: colored goal icon before the selected value */}
                   <GoalIcon goal={selectedGoal} className="size-4 text-blue-600" />
-                  <PromptInputModelSelectValue />
+                  {/* Hide any SVGs coming from the selected item's content to avoid duplicate icons */}
+                  <PromptInputModelSelectValue className="[&_svg]:hidden" />
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
                   <PromptInputModelSelectItem value="leads">
