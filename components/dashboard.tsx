@@ -22,6 +22,7 @@ import { UIMessage } from "ai"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { SaveIndicator } from "./save-indicator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { generateNameCandidates } from "@/lib/utils/campaign-naming"
 
 interface DashboardProps {
   messages?: UIMessage[]  // AI SDK v5 prop name
@@ -41,7 +42,52 @@ export function Dashboard({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dailyCredits = 500
   const { setTheme, resolvedTheme } = useTheme()
-  const { campaign } = useCampaignContext()
+  const { campaign, updateCampaign } = useCampaignContext()
+
+  // Rename dialog state (lifted outside dropdown so it persists)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameName, setRenameName] = useState<string>("")
+  const [renameError, setRenameError] = useState<string | null>(null)
+  const [renameSubmitting, setRenameSubmitting] = useState(false)
+  const MAX_LEN = 20
+
+  const openRename = () => {
+    const current = campaign?.name ?? ""
+    // If name is untitled or empty, propose an AI-generated suggestion from prompt
+    if (!current || /untitled/i.test(current)) {
+      const prompt = campaignMetadata?.initialPrompt || (campaign?.metadata as { initialPrompt?: string } | null)?.initialPrompt || ""
+      const suggestion = generateNameCandidates(prompt)[0] || "Campaign"
+      setRenameName(suggestion.slice(0, MAX_LEN))
+    } else {
+      setRenameName(current.slice(0, MAX_LEN))
+    }
+    setRenameError(null)
+    setTimeout(() => setRenameOpen(true), 0)
+  }
+
+  const submitRename = async () => {
+    if (!campaign?.id) return
+    const next = renameName.trim()
+    if (!next) {
+      setRenameError('Please enter a name')
+      return
+    }
+    setRenameSubmitting(true)
+    setRenameError(null)
+    try {
+      await updateCampaign({ name: next })
+      setRenameOpen(false)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to rename'
+      if (/409|unique|exists|used/i.test(msg)) {
+        setRenameError('Name already used. Try a different word combination.')
+      } else {
+        setRenameError(msg)
+      }
+    } finally {
+      setRenameSubmitting(false)
+    }
+  }
 
   console.log(`[DASHBOARD] Received ${messages.length} messages`, messages.map(m => ({ 
     id: m.id, 
@@ -101,7 +147,10 @@ export function Dashboard({
                     </p>
                   </div>
                   <DropdownMenuSeparator />
-                  <RenameCampaignMenuItem />
+                  <DropdownMenuItem onClick={openRename}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Rename ad
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
@@ -128,6 +177,36 @@ export function Dashboard({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+
+            {/* Rename Dialog mounted outside dropdown */}
+            <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+              <DialogContent className="p-0">
+                <DialogHeader className="p-4 pb-2">
+                  <DialogTitle>Rename Campaign</DialogTitle>
+                  <DialogDescription>Up to 3 words and 20 characters.</DialogDescription>
+                </DialogHeader>
+                <div className="px-4 pb-2">
+                  <input
+                    value={renameName}
+                    onChange={(e) => {
+                      if (e.target.value.length <= MAX_LEN) setRenameName(e.target.value)
+                    }}
+                    maxLength={MAX_LEN}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    placeholder="e.g. Bright Maple"
+                  />
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">Recommended ≤ 3 words</span>
+                    <span className="text-[11px] text-muted-foreground">{renameName.length}/{MAX_LEN}</span>
+                  </div>
+                  {renameError && <p className="text-xs text-red-500 mt-2">{renameError}</p>}
+                </div>
+                <DialogFooter className="p-4 pt-2">
+                  <Button variant="ghost" size="sm" onClick={() => setRenameOpen(false)} disabled={renameSubmitting}>Cancel</Button>
+                  <Button size="sm" onClick={submitRename} disabled={renameSubmitting || renameName.trim().length === 0}>{renameSubmitting ? 'Saving…' : 'Save'}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
           
           {/* AI Chat Content */}
