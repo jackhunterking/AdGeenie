@@ -16,6 +16,7 @@ import { useCampaignContext } from '@/lib/context/campaign-context'
 import { useBudget } from '@/lib/context/budget-context'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { fbLogin } from '@/lib/utils/facebook-sdk'
+import { MetaConnectionCard } from '@/components/meta/meta-connection-card'
 
 interface SummaryData {
   businessId?: string
