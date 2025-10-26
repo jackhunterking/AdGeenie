@@ -110,6 +110,12 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
     }
   }
 
+  const goalLabelMap: Record<string, string> = {
+    leads: 'Leads',
+    calls: 'Calls',
+    'website-visits': 'Website Visits',
+  }
+
   const handleSubmit = async (message: { text?: string }) => {
     const promptText = message.text?.trim()
     if (!promptText || !selectedGoal) return
@@ -217,8 +223,9 @@ export function HeroSection({ onAuthRequired }: HeroSectionProps) {
                   <span className="text-muted-foreground text-sm">Goal:</span>
                   {/* Right: colored goal icon before the selected value */}
                   <GoalIcon goal={selectedGoal} className="size-4 text-blue-600" />
-                  {/* Hide any SVGs coming from the selected item's content to avoid duplicate icons */}
-                  <PromptInputModelSelectValue className="[&_svg]:hidden" />
+                  <span className="font-medium text-foreground">
+                    {goalLabelMap[selectedGoal]}
+                  </span>
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
                   <PromptInputModelSelectItem value="leads">
