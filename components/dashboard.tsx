@@ -183,7 +183,6 @@ export function Dashboard({
               <DialogContent className="p-0">
                 <DialogHeader className="p-4 pb-2">
                   <DialogTitle>Rename Campaign</DialogTitle>
-                  <DialogDescription>Up to 3 words and 20 characters.</DialogDescription>
                 </DialogHeader>
                 <div className="px-4 pb-2">
                   <input
@@ -196,7 +195,7 @@ export function Dashboard({
                     placeholder="e.g. Bright Maple"
                   />
                   <div className="mt-1 flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground">Recommended ≤ 3 words</span>
+                    <span className="text-[11px] text-muted-foreground">Less than 3 words</span>
                     <span className="text-[11px] text-muted-foreground">{renameName.length}/{MAX_LEN}</span>
                   </div>
                   {renameError && <p className="text-xs text-red-500 mt-2">{renameError}</p>}
