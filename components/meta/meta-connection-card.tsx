@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Check, Link2, Building2, CreditCard, Loader2 } from "lucide-react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
-import { fbBusinessLoginWithSdk } from '@/lib/utils/facebook-sdk'
+import { fbBusinessLogin, fbBusinessLoginWithSdk } from '@/lib/utils/facebook-sdk'
 
 interface MetaSummary {
   business?: { id: string; name: string }
@@ -144,12 +144,13 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
 
   const openConnect = useCallback(() => {
     const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID || '1352055236432179'
-    // Set cookie to bring the user back to the campaign page
-    if (campaign?.id) {
-      const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
-      document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
-    }
-    fbBusinessLoginWithSdk(configId)
+    if (!campaign?.id) return
+    // Persist campaign id so callback can resolve state
+    const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
+    document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
+    // Prefer explicit redirect to ensure callback executes with cookies
+    const redirectUri = `${window.location.origin}/api/meta/auth/callback`
+    fbBusinessLogin(configId, redirectUri)
   }, [campaign?.id])
 
   const connectPayment = useCallback(async () => {

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCampaignContext } from '@/lib/context/campaign-context'
-import { fbLogin, fbBusinessLoginWithSdk } from '@/lib/utils/facebook-sdk'
+import { fbLogin, fbBusinessLogin, fbBusinessLoginWithSdk } from '@/lib/utils/facebook-sdk'
 import { Loader2, Check, Link2, Building2 } from 'lucide-react'
 
 interface Business { id: string; name?: string }
@@ -40,12 +40,11 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
     try {
       setLoading(true)
       setError(null)
-      // Business Login for Business (System User token) using config_id (SDK popup)
-      // Persist campaignId in a short-lived cookie for the GET callback to read
       const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
       document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
       const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID || '1352055236432179'
-      fbBusinessLoginWithSdk(configId)
+      const redirectUri = `${window.location.origin}/api/meta/auth/callback`
+      fbBusinessLogin(configId, redirectUri)
       return
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to connect to Meta')
