@@ -85,6 +85,28 @@ export function fbBusinessLogin(configId: string, redirectUri: string): void {
 }
 
 /**
+ * Preferred: Open Business Login dialog using the JS SDK (popup) exactly per docs.
+ * Meta will redirect to the whitelisted redirect_uri after completion.
+ */
+export function fbBusinessLoginWithSdk(configId: string): void {
+  if (!window.FB) {
+    // eslint-disable-next-line no-console
+    console.error('[FB] SDK not initialized')
+    return
+  }
+  // Response type MUST be 'code' for Business Integration System User tokens
+  window.FB.login(
+    () => {},
+    {
+      config_id: configId,
+      response_type: 'code',
+      override_default_response_type: true,
+      return_scopes: true,
+    } as unknown as Record<string, unknown>
+  )
+}
+
+/**
  * Check current Facebook login status
  * Useful for checking if user is already connected
  */

@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 
 // Narrow types are not needed here since we no longer fetch assets
@@ -124,6 +125,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       error: 'Internal server error' 
     }, { status: 500 })
+  }
+}
+
+// Handle SDK redirect (GET) and exchange code via the POST route
+export async function GET(req: NextRequest) {
+  try {
+    const url = new URL(req.url)
+    const origin = `${url.protocol}//${url.host}`
+    const code = url.searchParams.get('code')
+    if (!code) {
+      return NextResponse.redirect(`${origin}/?meta=error`)
+    }
+
+    // Read campaign id from short-lived cookie
+    const cookieStore = await cookies()
+    const cid = cookieStore.get('meta_cid')?.value || null
+
+    const res = await fetch(`${origin}/api/meta/auth/callback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, redirectUri: `${origin}/api/meta/auth/callback` })
+    })
+
+    const redirect = NextResponse.redirect(
+      cid ? `${origin}/${encodeURIComponent(cid)}?meta=connected` : `${origin}/?meta=connected`
+    )
+    // Clear cookie
+    redirect.cookies.set('meta_cid', '', { path: '/', expires: new Date(0) })
+
+    if (!res.ok) {
+      return NextResponse.redirect(
+        cid ? `${origin}/${encodeURIComponent(cid)}?meta=error` : `${origin}/?meta=error`
+      )
+    }
+    return redirect
+  } catch (error) {
+    const url = new URL(req.url)
+    const origin = `${url.protocol}//${url.host}`
+    return NextResponse.redirect(`${origin}/?meta=error`)
   }
 }
 
