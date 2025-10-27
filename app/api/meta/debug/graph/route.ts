@@ -1,8 +1,6 @@
 /**
- * Feature: Graph Proxy for Billing Debug (temporary)
- * Purpose: Run specific Graph calls server-side with stored long-lived token
- * References:
- *  - Graph API: https://developers.facebook.com/docs/graph-api
+ * DEPRECATED: Temporary Graph Proxy for Billing Debug
+ * Safe to delete once role guard is validated.
  */
 
 import { NextRequest, NextResponse } from 'next/server'

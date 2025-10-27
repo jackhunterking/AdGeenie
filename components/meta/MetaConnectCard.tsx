@@ -30,6 +30,15 @@ export function MetaConnectCard() {
   const [loading, setLoading] = useState(false)
   const [popupRef, setPopupRef] = useState<Window | null>(null)
   const [timeoutId, setTimeoutId] = useState<number | null>(null)
+  const [roleCheck, setRoleCheck] = useState<{
+    ok: boolean
+    selectedBusinessId?: string
+    ownerBusinessId?: string | null
+    appInBusiness?: boolean | null
+    isBusinessAdmin?: boolean | null
+    isAssignedToAdAccount?: boolean | null
+    errors?: string[]
+  } | null>(null)
 
   const hydrate = useCallback(async () => {
     if (!campaign?.id) return
@@ -78,6 +87,25 @@ export function MetaConnectCard() {
       window.clearInterval(poll)
     }
   }, [hydrate, popupRef, status, timeoutId])
+
+  // Run role/ownership checks when we have an ad account selected
+  const runRoleCheck = useCallback(async () => {
+    if (!campaign?.id) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/meta/role-check?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
+      const j = await res.json()
+      setRoleCheck(j)
+    } catch {
+      setRoleCheck(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [campaign?.id])
+
+  useEffect(() => {
+    if (summary?.adAccount?.id) { void runRoleCheck() }
+  }, [summary?.adAccount?.id, runRoleCheck])
 
   const onConnect = useCallback(() => {
     if (!campaign?.id) return
@@ -277,8 +305,53 @@ export function MetaConnectCard() {
             <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" /><span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span></div>
-                <Button size="sm" onClick={onAddPayment} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
+                <Button
+                  size="sm"
+                  onClick={onAddPayment}
+                  disabled={Boolean(roleCheck && roleCheck.ok === false)}
+                  className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+                >
+                  Add Payment
+                </Button>
               </div>
+              {roleCheck && roleCheck.ok === false && (
+                <div className="mt-2 text-xs space-y-1">
+                  <div className="font-medium">Before adding a payment method:</div>
+                  <ul className="list-disc ml-5 space-y-1">
+                    <li>
+                      Business match: selected <span className="font-mono">{roleCheck.selectedBusinessId || '—'}</span>
+                      {roleCheck.ownerBusinessId ? <> vs owner <span className="font-mono">{roleCheck.ownerBusinessId}</span></> : null}
+                    </li>
+                    <li>
+                      App added to Business: <span className="font-mono">{String(roleCheck.appInBusiness)}</span>
+                      {roleCheck.selectedBusinessId && (
+                        <>
+                          {' '}• <a className="underline" href={`https://business.facebook.com/latest/settings/apps?business_id=${encodeURIComponent(roleCheck.selectedBusinessId)}`} target="_blank" rel="noreferrer">Open Business Apps</a>
+                        </>
+                      )}
+                    </li>
+                    <li>
+                      Your role is Admin: <span className="font-mono">{String(roleCheck.isBusinessAdmin)}</span>
+                    </li>
+                    <li>
+                      You are assigned to the ad account: <span className="font-mono">{String(roleCheck.isAssignedToAdAccount)}</span>
+                      {roleCheck.selectedBusinessId && summary?.adAccount?.id && (
+                        <>
+                          {' '}• <a
+                            className="underline"
+                            href={`https://business.facebook.com/latest/settings/ad_accounts?business_id=${encodeURIComponent(roleCheck.selectedBusinessId)}&selected_asset_id=${encodeURIComponent(summary.adAccount.id)}&selected_asset_type=ad-account&detail_view_tab=ASSET_ACCESS`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >Open People for this ad account</a>
+                        </>
+                      )}
+                    </li>
+                  </ul>
+                  <div className="pt-1">
+                    <Button size="sm" variant="outline" onClick={runRoleCheck} className="h-7 px-3">Re-check</Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {!summary.adAccount && (
@@ -289,118 +362,6 @@ export function MetaConnectCard() {
         </div>
       )}
 
-      {process.env.NEXT_PUBLIC_DEBUG_META_BILLING === '1' && (
-        <details className="mt-4">
-          <summary className="cursor-pointer">Billing Debug</summary>
-          <div className="mt-3 space-y-2">
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={onAddPayment}>Open Payments Dialog</Button>
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  if (!campaign?.id || !summary?.adAccount?.id) return
-                  const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(summary.adAccount.id)}`
-                  try {
-                    const r = await fetch(url, { cache: 'no-store' })
-                    const j = await r.json()
-                    console.log('[Billing Debug] payment status', j)
-                    await hydrate()
-                  } catch {}
-                }}
-              >
-                Check Billing
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!campaign?.id) return
-                  try {
-                    const url = `/api/meta/diagnostics?campaignId=${encodeURIComponent(campaign.id)}${summary?.business?.id ? `&businessId=${encodeURIComponent(summary.business.id)}` : ''}${summary?.page?.id ? `&pageId=${encodeURIComponent(summary.page.id)}` : ''}`
-                    const r = await fetch(url, { cache: 'no-store' })
-                    const j = await r.json()
-                    console.log('[Billing Debug] diagnostics', j)
-                  } catch {}
-                }}
-              >
-                Diagnostics
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!campaign?.id || !summary?.adAccount?.id) return
-                  const qs = new URLSearchParams({ campaignId: String(campaign.id), adAccountId: String(summary.adAccount.id), what: 'act' })
-                  if (summary?.business?.id) qs.set('businessId', summary.business.id)
-                  if (summary?.page?.id) qs.set('pageId', summary.page.id)
-                  try {
-                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
-                    const j = await r.json()
-                    console.log('[Billing Debug] graph:account', j)
-                  } catch {}
-                }}
-              >
-                Graph: Account
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!campaign?.id) return
-                  const qs = new URLSearchParams({ campaignId: String(campaign.id), what: 'perms' })
-                  try {
-                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
-                    const j = await r.json()
-                    console.log('[Billing Debug] graph:perms', j)
-                  } catch {}
-                }}
-              >
-                Graph: Me Permissions
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!campaign?.id || !summary?.business?.id) return
-                  const qs = new URLSearchParams({ campaignId: String(campaign.id), businessId: String(summary.business.id), what: 'apps' })
-                  try {
-                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
-                    const j = await r.json()
-                    console.log('[Billing Debug] graph:biz apps', j)
-                  } catch {}
-                }}
-              >
-                Graph: Biz Apps
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!campaign?.id) return
-                  const qs = new URLSearchParams({ campaignId: String(campaign.id), what: 'mebiz' })
-                  try {
-                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
-                    const j = await r.json()
-                    console.log('[Billing Debug] graph:me businesses', j)
-                  } catch {}
-                }}
-              >
-                Graph: My Businesses
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  if (!campaign?.id || !summary?.business?.id) return
-                  const qs = new URLSearchParams({ campaignId: String(campaign.id), businessId: String(summary.business.id), what: 'owned' })
-                  try {
-                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
-                    const j = await r.json()
-                    console.log('[Billing Debug] graph:owned ad accounts', j)
-                  } catch {}
-                }}
-              >
-                Graph: Owned Ad Accounts
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Open your browser console to see detailed JSON outputs for each action.</p>
-          </div>
-        </details>
-      )}
     </div>
   )
 }
