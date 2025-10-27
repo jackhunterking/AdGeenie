@@ -105,6 +105,91 @@ export function MetaConnectCard() {
     setTimeoutId(id)
   }, [campaign?.id])
 
+  // Minimal FB SDK surface used here
+  type FacebookSDK = {
+    ui: (
+      params: { method: 'ads_payment'; display?: 'popup'; account_id: string },
+      cb?: (response: unknown) => void,
+    ) => void
+  }
+
+  const waitForFacebookSDK = useCallback(async (): Promise<FacebookSDK | null> => {
+    if (typeof window === 'undefined') return null
+    const getFB = (): FacebookSDK | null => {
+      const maybe = (window as unknown as { FB?: unknown }).FB
+      if (maybe && typeof maybe === 'object' && maybe !== null && typeof (maybe as { ui?: unknown }).ui === 'function') {
+        return maybe as FacebookSDK
+      }
+      return null
+    }
+    const existing = getFB()
+    if (existing) return existing
+    // Poll up to ~5s for SDK readiness
+    return await new Promise<FacebookSDK | null>((resolve) => {
+      let attempts = 0
+      const iv = window.setInterval(() => {
+        attempts += 1
+        const fb = getFB()
+        if (fb) {
+          window.clearInterval(iv)
+          resolve(fb)
+        } else if (attempts >= 25) {
+          window.clearInterval(iv)
+          resolve(null)
+        }
+      }, 200)
+    })
+  }, [])
+
+  const onAddPayment = useCallback(async () => {
+    if (!campaign?.id || !summary?.adAccount?.id) return
+    const fb = await waitForFacebookSDK()
+    if (!fb) {
+      // Provide a light feedback without throwing
+      window.alert('Facebook SDK did not load. Please refresh and try again.')
+      return
+    }
+
+    // Numeric id for FB.ui
+    const numericId = summary.adAccount.id.replace(/^act_/i, '')
+    try {
+      fb.ui({ method: 'ads_payment', display: 'popup', account_id: numericId })
+    } catch {
+      // If the SDK throws for any reason, fail softly
+    }
+
+    // Poll server for funding_source and persist when connected
+    const actId = summary.adAccount.id.startsWith('act_') ? summary.adAccount.id : `act_${numericId}`
+    const pollOnce = async (): Promise<boolean> => {
+      try {
+        const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`
+        const res = await fetch(url, { cache: 'no-store' })
+        if (!res.ok) return false
+        const json: unknown = await res.json()
+        const connected = Boolean((json as { connected?: boolean } | null)?.connected)
+        if (connected) {
+          await hydrate()
+          return true
+        }
+      } catch {
+        // ignore and continue polling
+      }
+      return false
+    }
+
+    void (async () => {
+      if (await pollOnce()) return
+      let attempts = 0
+      const iv = window.setInterval(async () => {
+        attempts += 1
+        const ok = await pollOnce()
+        if (ok || attempts >= 15) {
+          window.clearInterval(iv)
+        }
+      }, 2000)
+    })()
+  }, [campaign?.id, hydrate, summary?.adAccount?.id, waitForFacebookSDK])
+
   const disconnect = useCallback(async () => {
     if (!campaign?.id) return
     const ok = window.confirm('Disconnect Meta from this campaign?')
@@ -192,7 +277,7 @@ export function MetaConnectCard() {
             <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" /><span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span></div>
-                <Button size="sm" className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
+                <Button size="sm" onClick={onAddPayment} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
               </div>
             </div>
           )}
