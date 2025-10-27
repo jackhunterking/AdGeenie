@@ -38,6 +38,28 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 })
 
     const gv = getGraphVersion()
+
+    // Preflight: ensure the caller is ADMIN on the Business to avoid opaque Graph errors
+    try {
+      const roleRes = await fetch(
+        `https://graph.facebook.com/${gv}/me/businesses?fields=id,permitted_roles&limit=500`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+      )
+      const roleJson: unknown = await roleRes.json()
+      const roles = Array.isArray((roleJson as { data?: Array<{ id: string; permitted_roles?: string[] }> }).data)
+        ? (roleJson as { data: Array<{ id: string; permitted_roles?: string[] }> }).data
+        : []
+      const meOnBiz = roles.find(b => b.id === businessId)
+      const isAdmin = Boolean(meOnBiz?.permitted_roles?.includes('ADMIN'))
+      if (!isAdmin) {
+        return NextResponse.json(
+          { error: 'You must be a Business Admin to create ad accounts for this business.' },
+          { status: 403 }
+        )
+      }
+    } catch {
+      // if preflight fails, continue; Graph response below will still inform
+    }
     const body = new URLSearchParams()
     body.set('name', name)
     body.set('currency', currency || 'USD')
@@ -51,10 +73,13 @@ export async function POST(req: NextRequest) {
     })
     const json: unknown = await res.json()
     if (!res.ok) {
-      const message = json && typeof json === 'object' && json !== null && 'error' in json
-        ? String((json as { error?: { message?: string } }).error?.message || 'Graph error')
-        : 'Graph error'
-      return NextResponse.json({ error: message }, { status: 400 })
+      const graphErr = (json && typeof json === 'object' && json !== null && 'error' in json)
+        ? (json as { error?: { message?: string; code?: number; error_subcode?: number; type?: string } }).error
+        : undefined
+      return NextResponse.json(
+        { error: graphErr?.message || 'Graph error', code: graphErr?.code, subcode: graphErr?.error_subcode, type: graphErr?.type },
+        { status: 400 }
+      )
     }
 
     // Response typically includes id of the new ad account

@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const campaignId = searchParams.get('campaignId')
     const businessId = searchParams.get('businessId')
+    const pageId = searchParams.get('pageId')
     if (!campaignId || !businessId) return NextResponse.json({ error: 'campaignId and businessId required' }, { status: 400 })
 
     const supabase = await createServerClient()
@@ -44,7 +45,28 @@ export async function GET(req: NextRequest) {
       ? (json as { data: Array<{ id: string; name?: string; account_status?: number; currency?: string }> }).data
       : []
 
-    return NextResponse.json({ adAccounts })
+    // Union with Page-allowed ad accounts, if a pageId is provided
+    let pageAllowed: Array<{ id: string; name?: string; account_status?: number; currency?: string }> = []
+    if (pageId) {
+      try {
+        const url2 = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(pageId)}/adaccounts?fields=id,name,account_status,currency&limit=500`
+        const res2 = await fetch(url2, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+        const json2: unknown = await res2.json()
+        pageAllowed = (json2 && typeof json2 === 'object' && json2 !== null && Array.isArray((json2 as { data?: unknown[] }).data))
+          ? (json2 as { data: Array<{ id: string; name?: string; account_status?: number; currency?: string }> }).data
+          : []
+      } catch {
+        // ignore
+      }
+    }
+
+    const map = new Map<string, { id: string; name?: string; account_status?: number; currency?: string }>()
+    for (const a of [...adAccounts, ...pageAllowed]) {
+      if (!a?.id) continue
+      map.set(a.id, a)
+    }
+
+    return NextResponse.json({ adAccounts: Array.from(map.values()) })
   } catch (e) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }

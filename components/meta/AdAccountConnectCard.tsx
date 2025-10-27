@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { useCampaignContext } from '@/lib/context/campaign-context'
 import { useBudget } from '@/lib/context/budget-context'
-import { Building2, CreditCard, Loader2, ShieldCheck, Check } from 'lucide-react'
+import { Building2, CreditCard, Loader2, ShieldCheck, Check, AlertTriangle } from 'lucide-react'
 
 interface Props { businessId: string; pageId: string }
 interface AdAccount { id: string; name?: string; currency?: string }
@@ -31,16 +31,28 @@ export function AdAccountConnectCard({ businessId, pageId }: Props) {
   const [newName, setNewName] = useState("")
   const [creatingId, setCreatingId] = useState<string>("")
 
+  // Diagnostics state
+  const [diagLoading, setDiagLoading] = useState(false)
+  const [diag, setDiag] = useState<null | {
+    tokenPresent: boolean
+    missingPermissions: string[]
+    appInBusiness: boolean | null
+    userRole: 'ADMIN' | 'OTHER' | null
+    ownedCount: number
+    pageAllowedCount: number
+    recommendations: string[]
+  }>(null)
+
   const cardEnabled = Boolean(businessId && pageId)
   const completed = Boolean(selected && paymentOk)
 
   const loadAdAccounts = useCallback(async () => {
     if (!campaign?.id || !businessId) return
-    const r = await fetch(`/api/meta/business/adaccounts?campaignId=${encodeURIComponent(campaign.id)}&businessId=${encodeURIComponent(businessId)}`)
+    const r = await fetch(`/api/meta/business/adaccounts?campaignId=${encodeURIComponent(campaign.id)}&businessId=${encodeURIComponent(businessId)}&pageId=${encodeURIComponent(pageId)}`)
     if (!r.ok) return
     const j = await r.json() as { adAccounts?: AdAccount[] }
     setAdAccounts(Array.isArray(j.adAccounts) ? j.adAccounts : [])
-  }, [campaign?.id, businessId])
+  }, [campaign?.id, businessId, pageId])
 
   useEffect(() => { loadAdAccounts() }, [loadAdAccounts])
 
@@ -75,8 +87,18 @@ export function AdAccountConnectCard({ businessId, pageId }: Props) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ campaignId: campaign.id, businessId, name: newName })
       })
-      const j = await res.json() as { adAccountId?: string; error?: string }
-      if (!res.ok || !j.adAccountId) throw new Error(j.error || 'Create failed')
+      const j = await res.json() as { adAccountId?: string; error?: string; code?: number; subcode?: number; type?: string }
+      if (!res.ok || !j.adAccountId) {
+        const msg = j.error || 'Create failed'
+        if (/Unsupported post request/i.test(msg) || j.code === 100) {
+          setError('This Business cannot create ad accounts via API. Use the manual creation option below, then refresh the list.')
+        } else if (res.status === 403) {
+          setError('You must be a Business Admin to create ad accounts for this Business.')
+        } else {
+          setError(msg)
+        }
+        return
+      }
       setCreatingId(j.adAccountId)
       await loadAdAccounts()
       setSelected(j.adAccountId)
@@ -110,6 +132,48 @@ export function AdAccountConnectCard({ businessId, pageId }: Props) {
     })
   }, [selected, creatingId, campaign?.id, setIsConnected, saveCampaignState])
 
+  const runDiagnostics = useCallback(async () => {
+    if (!campaign?.id || !businessId) return
+    setDiagLoading(true)
+    try {
+      const url = `/api/meta/diagnostics?campaignId=${encodeURIComponent(campaign.id)}&businessId=${encodeURIComponent(businessId)}&pageId=${encodeURIComponent(pageId)}`
+      const res = await fetch(url)
+      const j = await res.json() as {
+        ok?: boolean
+        tokenPresent?: boolean
+        missingPermissions?: string[]
+        appInBusiness?: boolean | null
+        userRole?: 'ADMIN' | 'OTHER' | null
+        ownedCount?: number
+        pageAllowedCount?: number
+        recommendations?: string[]
+      }
+      if (res.ok && j.ok) {
+        setDiag({
+          tokenPresent: Boolean(j.tokenPresent),
+          missingPermissions: j.missingPermissions || [],
+          appInBusiness: j.appInBusiness ?? null,
+          userRole: j.userRole ?? null,
+          ownedCount: j.ownedCount || 0,
+          pageAllowedCount: j.pageAllowedCount || 0,
+          recommendations: j.recommendations || [],
+        })
+      }
+    } finally {
+      setDiagLoading(false)
+    }
+  }, [campaign?.id, businessId, pageId])
+
+  useEffect(() => { if (cardEnabled) runDiagnostics() }, [cardEnabled, runDiagnostics])
+
+  const canCreate = useMemo(() => {
+    if (!diag) return false
+    const permsOk = (diag.missingPermissions || []).length === 0
+    const appOk = diag.appInBusiness === true
+    const roleOk = diag.userRole === 'ADMIN'
+    return diag.tokenPresent && permsOk && appOk && roleOk
+  }, [diag])
+
   return (
     <div className={`rounded-lg border-2 border-border bg-card p-6 transition-all duration-300 ${!cardEnabled ? 'opacity-50 pointer-events-none' : 'hover:border-blue-500/20'}`}>
       <div className="flex items-center justify-between mb-4">
@@ -138,6 +202,39 @@ export function AdAccountConnectCard({ businessId, pageId }: Props) {
 
       {cardEnabled && (
         <div className="space-y-5">
+          {/* Preflight checklist */}
+          <div className="rounded-md border border-border bg-muted/30 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Preflight checks</span>
+              <Button variant="outline" size="sm" onClick={runDiagnostics} disabled={diagLoading}>
+                {diagLoading ? (<><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin"/>Checking...</>) : 'Retry checks'}
+              </Button>
+            </div>
+            <ul className="space-y-1 text-xs">
+              <li className="flex items-center gap-2">
+                {diag?.tokenPresent ? <Check className="h-4 w-4 text-green-600"/> : <AlertTriangle className="h-4 w-4 text-yellow-600"/>}
+                <span>Facebook connection token</span>
+              </li>
+              <li className="flex items-center gap-2">
+                {(diag && (diag.missingPermissions || []).length === 0) ? <Check className="h-4 w-4 text-green-600"/> : <AlertTriangle className="h-4 w-4 text-yellow-600"/>}
+                <span>Required permissions granted</span>
+              </li>
+              <li className="flex items-center gap-2">
+                {diag?.appInBusiness ? <Check className="h-4 w-4 text-green-600"/> : <AlertTriangle className="h-4 w-4 text-yellow-600"/>}
+                <span>App added to selected Business</span>
+              </li>
+              <li className="flex items-center gap-2">
+                {diag?.userRole === 'ADMIN' ? <Check className="h-4 w-4 text-green-600"/> : <AlertTriangle className="h-4 w-4 text-yellow-600"/>}
+                <span>You're a Business Admin</span>
+              </li>
+            </ul>
+            {businessId && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <a className="text-xs underline text-muted-foreground" href={`https://business.facebook.com/settings/apps?business_id=${encodeURIComponent(businessId)}`} target="_blank" rel="noreferrer">Open Business Settings → Apps</a>
+                <a className="text-xs underline text-muted-foreground" href={`https://business.facebook.com/settings/people?business_id=${encodeURIComponent(businessId)}`} target="_blank" rel="noreferrer">Open Business Settings → People</a>
+              </div>
+            )}
+          </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -177,10 +274,22 @@ export function AdAccountConnectCard({ businessId, pageId }: Props) {
                 onChange={(e) => setNewName(e.target.value)}
                 className="flex-1"
               />
-              <Button onClick={createNew} disabled={!newName || creating} variant="outline" className="shrink-0">
+              <Button onClick={createNew} disabled={!newName || creating || !canCreate} variant="outline" className="shrink-0">
                 {creating ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin"/>Creating...</>) : 'Create Account'}
               </Button>
             </div>
+            {!canCreate && (
+              <p className="text-xs text-muted-foreground">Creation is disabled until preflight checks pass.</p>
+            )}
+            {error && /cannot create ad accounts via API|Unsupported post request/i.test(error) && businessId && (
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-3 mt-2">
+                <div className="text-xs text-foreground mb-2">Your Business may not allow API-based creation. Create it in Business Manager, then select it here.</div>
+                <div className="flex gap-2">
+                  <a className="text-xs underline" href={`https://business.facebook.com/settings/ad-accounts?business_id=${encodeURIComponent(businessId)}`} target="_blank" rel="noreferrer">Open Business Manager</a>
+                  <Button variant="outline" size="sm" onClick={loadAdAccounts}>I created it — refresh</Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {(selected || creatingId) && !paymentOk && (
