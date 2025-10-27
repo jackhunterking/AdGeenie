@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
-import type { Json } from '@/lib/supabase/database.types'
+import type { Json, TablesInsert } from '@/lib/supabase/database.types'
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // Upsert selection
-    const baseUpdate: Record<string, unknown> = {
+    let baseUpdate: TablesInsert<'campaign_meta_connections'> = {
       campaign_id: campaignId,
       user_id: user.id,
       selected_business_id: businessId,
@@ -34,8 +34,11 @@ export async function POST(req: NextRequest) {
       selected_ig_username: igUsername || null,
     }
     if (adAccountId) {
-      baseUpdate.selected_ad_account_id = adAccountId
-      baseUpdate.selected_ad_account_name = adAccountName || null
+      baseUpdate = {
+        ...baseUpdate,
+        selected_ad_account_id: adAccountId,
+        selected_ad_account_name: adAccountName || null,
+      }
     }
 
     const { error: upErr } = await supabaseServer
