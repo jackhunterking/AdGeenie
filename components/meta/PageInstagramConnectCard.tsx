@@ -143,6 +143,35 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
     }
   }, [campaign?.id, selectedBusiness, selectedPage, pages, businesses, selectedIgUserId, selectedIg, onComplete])
 
+  const disconnect = useCallback(async () => {
+    if (!campaign?.id) return
+    const ok = window.confirm('Disconnect Meta from this campaign? You can reconnect anytime.')
+    if (!ok) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/meta/disconnect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: campaign.id })
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(j.error || 'Failed to disconnect')
+      }
+      // Reset local state
+      setHasToken(false)
+      setBusinesses([])
+      setPages([])
+      setSelectedBusiness("")
+      setSelectedPage("")
+      setSelectedIgUserId("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to disconnect')
+    } finally {
+      setLoading(false)
+    }
+  }, [campaign?.id])
+
   return (
     <div className="rounded-lg border-2 border-border bg-card p-6 transition-all duration-300 hover:border-blue-500/20">
       <div className="flex items-center justify-between mb-4">
@@ -155,12 +184,17 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
             <p className="text-sm text-muted-foreground">Step 1: Select your business assets</p>
           </div>
         </div>
-        {cardComplete && (
-          <div className="flex items-center gap-2 text-status-green">
-            <Check className="h-5 w-5" />
-            <span className="text-sm font-medium">Connected</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {cardComplete && (
+            <div className="flex items-center gap-2 text-status-green">
+              <Check className="h-5 w-5" />
+              <span className="text-sm font-medium">Connected</span>
+            </div>
+          )}
+          {hasToken && (
+            <Button variant="outline" size="sm" onClick={disconnect} disabled={loading}>Disconnect</Button>
+          )}
+        </div>
       </div>
 
       {!tokenReady ? (
@@ -247,7 +281,7 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
             </div>
           </div>
           
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-end pt-2">
             <Button onClick={persistSelection} disabled={!cardComplete || loading} className="bg-blue-600 hover:bg-blue-700 text-white">
               {loading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin"/>Saving...</>) : 'Save Connection'}
             </Button>
