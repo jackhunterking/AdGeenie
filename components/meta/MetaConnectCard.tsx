@@ -28,6 +28,8 @@ export function MetaConnectCard() {
   const [status, setStatus] = useState<Status>('idle')
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)
+  const [popupRef, setPopupRef] = useState<Window | null>(null)
+  const [timeoutId, setTimeoutId] = useState<number | null>(null)
 
   const hydrate = useCallback(async () => {
     if (!campaign?.id) return
@@ -44,17 +46,38 @@ export function MetaConnectCard() {
   }, [campaign?.id])
 
   useEffect(() => { void hydrate() }, [hydrate])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URL(window.location.href).searchParams.get('meta') === 'connected') {
+      setStatus('finalizing')
+      void hydrate()
+    }
+  }, [hydrate])
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e?.data && typeof e.data === 'object' && (e.data as { type?: string }).type === 'meta-connected') {
         setStatus('finalizing')
         void hydrate()
+        if (timeoutId) { window.clearTimeout(timeoutId); setTimeoutId(null) }
+        try { popupRef && !popupRef.closed && popupRef.close() } catch {}
       }
     }
     window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [hydrate])
+    const poll = window.setInterval(() => {
+      try {
+        if (popupRef && popupRef.closed && (status === 'authorizing' || status === 'finalizing')) {
+          setStatus('idle')
+          if (timeoutId) { window.clearTimeout(timeoutId); setTimeoutId(null) }
+          window.clearInterval(poll)
+        }
+      } catch {}
+    }, 500)
+    return () => {
+      window.removeEventListener('message', onMessage)
+      window.clearInterval(poll)
+    }
+  }, [hydrate, popupRef, status, timeoutId])
 
   const onConnect = useCallback(() => {
     if (!campaign?.id) return
@@ -73,7 +96,13 @@ export function MetaConnectCard() {
     const w = 720, h = 800
     const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2)
     const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2)
-    window.open(url.toString(), 'fb-login', `popup=yes,width=${w},height=${h},left=${left},top=${top}`)
+    const win = window.open(url.toString(), 'fb-login', `popup=yes,width=${w},height=${h},left=${left},top=${top}`)
+    setPopupRef(win || null)
+    const id = window.setTimeout(() => {
+      setStatus('idle')
+      try { win && !win.closed && win.close() } catch {}
+    }, 20000)
+    setTimeoutId(id)
   }, [campaign?.id])
 
   const disconnect = useCallback(async () => {
@@ -88,7 +117,8 @@ export function MetaConnectCard() {
     } finally { setLoading(false) }
   }, [campaign?.id])
 
-  const isConnected = useMemo(() => status === 'connected' && !!summary?.page, [status, summary?.page])
+  const isConnected = useMemo(() => (summary?.status === 'connected') && !!summary?.page, [summary?.status, summary?.page])
+  const isSelectedAssets = useMemo(() => (summary?.status === 'selected_assets') && !!summary?.page, [summary?.status, summary?.page])
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -103,9 +133,9 @@ export function MetaConnectCard() {
         {isConnected && <Button variant="ghost" size="sm" onClick={disconnect} className="h-7 px-3">Disconnect</Button>}
       </div>
 
-      {!isConnected && (
+      {!isConnected && !isSelectedAssets && (
         <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border">
-          {status === 'authorizing' || status === 'finalizing' || loading ? (
+          {(status === 'authorizing' || status === 'finalizing') && loading ? (
             <>
               <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
                 <Loader2 className="h-10 w-10 animate-spin" />
@@ -130,7 +160,7 @@ export function MetaConnectCard() {
         </div>
       )}
 
-      {isConnected && summary && (
+      {(isConnected || isSelectedAssets) && summary && (
         <div className="space-y-1 text-sm rounded-lg border panel-surface p-3">
           {summary.business && (
             <div className="flex items-center gap-2">
@@ -164,6 +194,11 @@ export function MetaConnectCard() {
                 <div className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" /><span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span></div>
                 <Button size="sm" className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
               </div>
+            </div>
+          )}
+          {!summary.adAccount && (
+            <div className="pt-2">
+              <Button variant="outline" size="sm" className="h-8 px-3">Select Ad Account</Button>
             </div>
           )}
         </div>
