@@ -719,7 +719,7 @@ export function PreviewPanel() {
       </div>
 
       {/* Right: Summary stack */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 max-w-3xl mx-auto">
         <MetaConnectionCard showAdAccount={true} />
         <LocationSummaryCard />
         <AudienceSummaryCard />
@@ -826,7 +826,9 @@ export function PreviewPanel() {
       })(),
       content: (
         <div className="p-2">
-          <MetaConnectionCard showAdAccount={true} />
+          <div className="max-w-3xl mx-auto">
+            <MetaConnectionCard showAdAccount={true} />
+          </div>
         </div>
       ),
       icon: Link2,

@@ -2,23 +2,33 @@
 
 /**
  * Feature: Meta Connection Card (Reusable)
- * Purpose: Display a unified, read-only summary of connected Meta assets
+ * Purpose: Display a unified summary of Meta connection and manage actions (connect, select Ad Account, disconnect)
  * References:
  *  - Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
  *  - Graph API Reference: https://developers.facebook.com/docs/graph-api/reference
+ *  - Business owned ad accounts: https://developers.facebook.com/docs/marketing-api/businessmanager#owned_ad_accounts
+ *  - AI SDK Core: https://ai-sdk.dev/docs/introduction
+ *  - AI Elements: https://ai-sdk.dev/elements/overview
+ *  - Vercel AI Gateway: https://vercel.com/docs/ai-gateway
+ *  - Supabase: https://supabase.com/docs
  */
 
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Check, Link2, Building2, CreditCard } from "lucide-react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { fbBusinessLoginWithSdk } from '@/lib/utils/facebook-sdk'
 
 interface MetaSummary {
+  business?: { id: string; name: string }
   page?: { id: string; name: string }
   instagram?: { id: string; username: string } | null
   adAccount?: { id: string; name: string }
 }
+
+interface AdAccount { id: string; name?: string; currency?: string; account_status?: number }
 
 interface MetaConnectionCardProps {
   showAdAccount?: boolean
@@ -27,10 +37,14 @@ interface MetaConnectionCardProps {
 }
 
 export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel }: MetaConnectionCardProps) {
-  const { campaign } = useCampaignContext()
+  const { campaign, loadCampaign } = useCampaignContext()
   const [summary, setSummary] = useState<MetaSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [paymentConnected, setPaymentConnected] = useState<boolean>(false)
+  const [adAcctDialogOpen, setAdAcctDialogOpen] = useState(false)
+  const [adAccounts, setAdAccounts] = useState<AdAccount[]>([])
+  const [adAccountsLoading, setAdAccountsLoading] = useState(false)
+  const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>("")
 
   useEffect(() => {
     const hydrate = async () => {
@@ -41,12 +55,13 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
         if (!res.ok) return
         const j = await res.json() as {
           status?: string
+          business?: { id: string; name: string }
           page?: { id: string; name: string }
           instagram?: { id: string; username: string } | null
           adAccount?: { id: string; name: string }
           paymentConnected?: boolean
         }
-        setSummary({ page: j.page, instagram: j.instagram ?? null, adAccount: j.adAccount })
+        setSummary({ business: j.business, page: j.page, instagram: j.instagram ?? null, adAccount: j.adAccount })
         setPaymentConnected(Boolean(j.paymentConnected))
       } finally {
         setLoading(false)
@@ -66,7 +81,13 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
     }
   }, [campaign?.id])
 
-  const isConnected = useMemo(() => Boolean(summary?.page && (summary?.adAccount || !showAdAccount)), [summary, showAdAccount])
+  const connectionState: 'not_connected' | 'assets_selected' | 'connected' = useMemo(() => {
+    if (!summary?.page) return 'not_connected'
+    if (showAdAccount && !summary.adAccount) return 'assets_selected'
+    return 'connected'
+  }, [summary, showAdAccount])
+
+  const isConnected = connectionState === 'connected'
 
   const openConnect = useCallback(() => {
     const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID || '1352055236432179'
@@ -92,6 +113,81 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
     })
   }, [summary?.adAccount?.id, campaign?.id])
 
+  const openSelectAdAccount = useCallback(async () => {
+    if (!campaign?.id || !summary?.business?.id) return
+    setAdAccountsLoading(true)
+    try {
+      const params = new URLSearchParams({
+        campaignId: campaign.id,
+        businessId: summary.business.id,
+      })
+      if (summary.page?.id) params.append('pageId', summary.page.id)
+      const res = await fetch(`/api/meta/business/adaccounts?${params.toString()}`, { cache: 'no-store' })
+      if (res.ok) {
+        const j = await res.json() as { adAccounts?: AdAccount[] }
+        setAdAccounts(Array.isArray(j.adAccounts) ? j.adAccounts : [])
+      } else {
+        setAdAccounts([])
+      }
+      setAdAcctDialogOpen(true)
+    } finally {
+      setAdAccountsLoading(false)
+    }
+  }, [campaign?.id, summary?.business?.id, summary?.page?.id])
+
+  const saveSelectedAdAccount = useCallback(async () => {
+    if (!campaign?.id || !summary?.business?.id || !summary?.page?.id || !selectedAdAccountId) return
+    const selected = adAccounts.find(a => a.id === selectedAdAccountId)
+    setLoading(true)
+    try {
+      const res = await fetch('/api/meta/selection', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: campaign.id,
+          businessId: summary.business.id,
+          businessName: summary.business.name,
+          pageId: summary.page.id,
+          pageName: summary.page.name,
+          igUserId: summary.instagram?.id || null,
+          igUsername: summary.instagram?.username || null,
+          adAccountId: selectedAdAccountId,
+          adAccountName: selected?.name || null,
+        })
+      })
+      if (res.ok) {
+        // Rehydrate
+        const sel = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
+        if (sel.ok) {
+          const j = await sel.json() as { business?: { id: string; name: string }; page?: { id: string; name: string }; instagram?: { id: string; username: string } | null; adAccount?: { id: string; name: string }; paymentConnected?: boolean }
+          setSummary({ business: j.business, page: j.page, instagram: j.instagram ?? null, adAccount: j.adAccount })
+          setPaymentConnected(Boolean(j.paymentConnected))
+        }
+        setAdAcctDialogOpen(false)
+        setSelectedAdAccountId("")
+        if (campaign?.id) await loadCampaign(campaign.id)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [adAccounts, campaign?.id, loadCampaign, selectedAdAccountId, summary?.business?.id, summary?.business?.name, summary?.instagram?.id, summary?.instagram?.username, summary?.page?.id, summary?.page?.name])
+
+  const disconnect = useCallback(async () => {
+    if (!campaign?.id) return
+    const ok = window.confirm('Disconnect Meta from this campaign? You can reconnect anytime.')
+    if (!ok) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/meta/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campaignId: campaign.id }) })
+      if (res.ok) {
+        setSummary(null)
+        setPaymentConnected(false)
+        if (campaign?.id) await loadCampaign(campaign.id)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [campaign?.id, loadCampaign])
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-3">
@@ -101,15 +197,30 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
           </div>
           <h3 className="font-semibold">Meta Connection</h3>
           <div className="inline-flex items-center gap-1 text-sm ml-2">
-            {isConnected ? (
+            {connectionState === 'connected' && (
               <span className="inline-flex items-center gap-1 text-status-green"><Check className="h-4 w-4" />Connected</span>
-            ) : (
+            )}
+            {connectionState === 'assets_selected' && (
+              <span className="inline-flex items-center gap-1 text-amber-500">Assets selected</span>
+            )}
+            {connectionState === 'not_connected' && (
               <span className="text-muted-foreground">Not connected</span>
             )}
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={onEdit ?? openConnect} className="h-7 px-3">{actionLabel || (isConnected ? 'Edit Connection' : 'Connect with Meta')}</Button>
+          {connectionState === 'not_connected' && (
+            <Button variant="outline" size="sm" onClick={onEdit ?? openConnect} className="h-7 px-3">{actionLabel || 'Connect with Meta'}</Button>
+          )}
+          {connectionState === 'assets_selected' && (
+            <Button variant="outline" size="sm" onClick={openSelectAdAccount} className="h-7 px-3">Select Ad Account</Button>
+          )}
+          {connectionState === 'connected' && (
+            <Button variant="outline" size="sm" onClick={onEdit ?? openConnect} className="h-7 px-3">{actionLabel || 'Edit Connection'}</Button>
+          )}
+          {(connectionState === 'assets_selected' || connectionState === 'connected') && (
+            <Button variant="ghost" size="sm" onClick={disconnect} className="h-7 px-3">Disconnect</Button>
+          )}
         </div>
       </div>
 
@@ -118,6 +229,16 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
           <div className="text-muted-foreground">Loading...</div>
         ) : (
           <>
+            {summary?.business && (
+              <div className="flex items-center gap-2">
+                <div className="icon-tile-muted rounded-md">
+                  <Building2 className="h-4 w-4 text-brand-blue" />
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Business:</span> <span className="font-medium">{summary.business.name}</span>
+                </div>
+              </div>
+            )}
             {summary?.page && (
               <div className="flex items-center gap-2">
                 <div className="icon-tile-muted rounded-md">
@@ -173,6 +294,39 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
           </>
         )}
       </div>
+
+      {/* Select Ad Account Dialog */}
+      <Dialog open={adAcctDialogOpen} onOpenChange={setAdAcctDialogOpen}>
+        <DialogContent className="p-0">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle>Select Ad Account</DialogTitle>
+          </DialogHeader>
+          <div className="px-4 pb-2">
+            {adAccountsLoading ? (
+              <div className="text-sm text-muted-foreground">Loading ad accounts…</div>
+            ) : adAccounts.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No ad accounts available for the selected business.</div>
+            ) : (
+              <div className="max-w-sm">
+                <Select value={selectedAdAccountId} onValueChange={setSelectedAdAccountId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose an ad account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {adAccounts.map(a => (
+                      <SelectItem key={a.id} value={a.id}>{a.name || a.id}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="p-4 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setAdAcctDialogOpen(false)}>Cancel</Button>
+            <Button size="sm" disabled={!selectedAdAccountId || adAccountsLoading} onClick={saveSelectedAdAccount}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )
