@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCampaignContext } from '@/lib/context/campaign-context'
-import { fbLogin } from '@/lib/utils/facebook-sdk'
+import { fbLogin, fbBusinessLogin } from '@/lib/utils/facebook-sdk'
 import { Loader2, Check, Link2, Building2 } from 'lucide-react'
 
 interface Business { id: string; name?: string }
@@ -40,15 +40,11 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
     try {
       setLoading(true)
       setError(null)
-      const response = await fbLogin([
-        'public_profile','email','business_management','pages_show_list','pages_read_engagement','pages_manage_metadata','instagram_basic','ads_read','ads_management'
-      ])
-      const res = await fetch('/api/meta/auth/callback', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId: campaign.id, accessToken: response.accessToken, userID: response.userID })
-      })
-      if (!res.ok) throw new Error('Could not finalize Meta token exchange')
-      setHasToken(true)
+      // Prefer Business Login for Business (System User token) using config_id.
+      const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID || '1352055236432179'
+      const redirectUri = `${window.location.origin}/api/meta/auth/bridge?campaignId=${encodeURIComponent(campaign.id)}`
+      fbBusinessLogin(configId, redirectUri)
+      return
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to connect to Meta')
     } finally {

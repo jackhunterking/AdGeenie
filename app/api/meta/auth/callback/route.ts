@@ -71,6 +71,11 @@ export async function POST(req: NextRequest) {
       persistedToken = tJson.access_token
       expiresAt = tJson.expires_in ? new Date(Date.now() + tJson.expires_in * 1000).toISOString() : null
       tokenType = 'system_user'
+      // Optionally persist minimal meta_connect_data to indicate token present
+      await supabaseServer
+        .from('campaign_states')
+        .update({ meta_connect_data: { status: 'token_ready', connectedAt: new Date().toISOString() } })
+        .eq('campaign_id', campaignId)
     } else {
       // Standard user token flow: exchange short-lived for long-lived token
       if (!accessToken || !userID) {
