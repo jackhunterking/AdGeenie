@@ -41,12 +41,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { error: upErr } = await supabaseServer
+    const upsertRes = await supabaseServer
       .from('campaign_meta_connections')
       .upsert(baseUpdate, { onConflict: 'campaign_id' })
-
-    if (upErr) {
-      return NextResponse.json({ error: 'Failed to save selection', details: upErr.message }, { status: 500 })
+    if (upsertRes.error) {
+      return NextResponse.json({ error: 'Failed to save selection', details: upsertRes.error.message }, { status: 500 })
     }
 
     // Optionally, save a minimal meta_connect_data state to campaign_states for UI completion flags
