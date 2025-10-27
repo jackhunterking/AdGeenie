@@ -225,23 +225,156 @@ export async function GET(req: NextRequest) {
     const cookieStore = await cookies()
     const cid = cookieStore.get('meta_cid')?.value || null
 
-    const res = await fetch(`${origin}/api/meta/auth/callback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, redirectUri: `${origin}/api/meta/auth/callback`, campaignId: cid })
-    })
+    // Resolve environment
+    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION || process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID
+    const FB_APP_SECRET = process.env.FB_APP_SECRET
 
-    const redirect = NextResponse.redirect(
-      cid ? `${origin}/${encodeURIComponent(cid)}?meta=connected` : `${origin}/?meta=connected`
-    )
+    if (!FB_APP_ID || !FB_APP_SECRET) {
+      return NextResponse.redirect(cid ? `${origin}/${encodeURIComponent(cid)}?meta=error` : `${origin}/?meta=error`)
+    }
+
+    // Authenticate user via cookies and verify campaign ownership
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !cid) {
+      return NextResponse.redirect(`${origin}/?meta=error`)
+    }
+
+    const { data: campaign } = await supabaseServer
+      .from('campaigns')
+      .select('id, user_id')
+      .eq('id', cid)
+      .single()
+    if (!campaign || campaign.user_id !== user.id) {
+      return NextResponse.redirect(`${origin}/?meta=error`)
+    }
+
+    // 1) Exchange authorization code for token (System User token via Business Login)
+    const tokenUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/oauth/access_token` +
+      `?client_id=${encodeURIComponent(FB_APP_ID)}` +
+      `&client_secret=${encodeURIComponent(FB_APP_SECRET)}` +
+      `&code=${encodeURIComponent(code)}` +
+      `&redirect_uri=${encodeURIComponent(`${origin}/api/meta/auth/callback`)}`
+
+    const tRes = await fetch(tokenUrl)
+    const tJson = await tRes.json() as { access_token?: string; expires_in?: number; error?: { message?: string } }
+    if (!tRes.ok || !tJson.access_token) {
+      return NextResponse.redirect(`${origin}/${encodeURIComponent(cid)}?meta=error`)
+    }
+
+    const persistedToken = tJson.access_token
+    const expiresAt = tJson.expires_in ? new Date(Date.now() + tJson.expires_in * 1000).toISOString() : null
+
+    // 2) Persist token (upsert)
+    await supabaseServer
+      .from('campaign_meta_connections')
+      .upsert({
+        campaign_id: cid,
+        user_id: user.id,
+        fb_user_id: null,
+        long_lived_user_token: persistedToken,
+        token_expires_at: expiresAt,
+      }, { onConflict: 'campaign_id' })
+
+    // 3) Ensure campaign_states row exists
+    const existing = await supabaseServer
+      .from('campaign_states')
+      .select('id')
+      .eq('campaign_id', cid)
+      .limit(1)
+    if (!existing.data || existing.data.length === 0) {
+      await supabaseServer
+        .from('campaign_states')
+        .insert({ campaign_id: cid } as { campaign_id: string })
+    }
+
+    // 4) Auto-resolve Business → Pages(+IG) → Ad Accounts and persist selections
+    try {
+      const gv = FB_GRAPH_VERSION
+      const token = persistedToken
+
+      const bizRes = await fetch(`https://graph.facebook.com/${gv}/me/businesses?fields=id,name&limit=200`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      const bizJson: unknown = await bizRes.json()
+      const businesses = (bizJson && typeof bizJson === 'object' && bizJson !== null && Array.isArray((bizJson as { data?: unknown[] }).data))
+        ? (bizJson as { data: Array<{ id: string; name?: string }> }).data
+        : []
+      const firstBiz = businesses[0]
+
+      let firstPage: { id: string; name?: string; instagram_business_account?: { id?: string; username?: string } } | null = null
+      if (firstBiz?.id) {
+        const pagesRes = await fetch(`https://graph.facebook.com/${gv}/${encodeURIComponent(firstBiz.id)}/owned_pages?fields=id,name,instagram_business_account{id,username}&limit=500`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        const pagesJson: unknown = await pagesRes.json()
+        const pages = (pagesJson && typeof pagesJson === 'object' && pagesJson !== null && Array.isArray((pagesJson as { data?: unknown[] }).data))
+          ? (pagesJson as { data: Array<{ id: string; name?: string; instagram_business_account?: { id?: string; username?: string } }> }).data
+          : []
+        firstPage = pages[0] || null
+      }
+
+      let firstAdAccount: { id: string; name?: string; account_status?: number } | null = null
+      if (firstBiz?.id) {
+        const actsRes = await fetch(`https://graph.facebook.com/${gv}/${encodeURIComponent(firstBiz.id)}/adaccounts?fields=id,name,account_status,currency&limit=500`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        const actsJson: unknown = await actsRes.json()
+        const adAccounts = (actsJson && typeof actsJson === 'object' && actsJson !== null && Array.isArray((actsJson as { data?: unknown[] }).data))
+          ? (actsJson as { data: Array<{ id: string; name?: string; account_status?: number }> }).data
+          : []
+        firstAdAccount = adAccounts.find(a => a && typeof a.account_status === 'number' && a.account_status === 1) || adAccounts[0] || null
+      }
+
+      if (firstBiz?.id && firstPage?.id) {
+        await supabaseServer
+          .from('campaign_meta_connections')
+          .upsert({
+            campaign_id: cid,
+            user_id: user.id,
+            selected_business_id: firstBiz.id,
+            selected_business_name: firstBiz.name || null,
+            selected_page_id: firstPage.id,
+            selected_page_name: firstPage.name || null,
+            selected_ig_user_id: firstPage.instagram_business_account?.id || null,
+            selected_ig_username: firstPage.instagram_business_account?.username || null,
+            selected_ad_account_id: firstAdAccount?.id || null,
+            selected_ad_account_name: firstAdAccount?.name || null,
+          }, { onConflict: 'campaign_id' })
+
+        await supabaseServer
+          .from('campaign_states')
+          .update({
+            meta_connect_data: {
+              status: firstAdAccount?.id ? 'connected' : 'selected_assets',
+              businessId: firstBiz.id,
+              pageId: firstPage.id,
+              igUserId: firstPage.instagram_business_account?.id || null,
+              adAccountId: firstAdAccount?.id || null,
+              connectedAt: new Date().toISOString(),
+            }
+          })
+          .eq('campaign_id', cid)
+      } else {
+        await supabaseServer
+          .from('campaign_states')
+          .update({ meta_connect_data: { status: 'token_ready', connectedAt: new Date().toISOString() } })
+          .eq('campaign_id', cid)
+      }
+    } catch {
+      await supabaseServer
+        .from('campaign_states')
+        .update({ meta_connect_data: { status: 'token_ready', connectedAt: new Date().toISOString() } })
+        .eq('campaign_id', cid)
+    }
+
+    const redirect = NextResponse.redirect(`${origin}/${encodeURIComponent(cid)}?meta=connected`)
     // Clear cookie
     redirect.cookies.set('meta_cid', '', { path: '/', expires: new Date(0) })
-
-    if (!res.ok) {
-      return NextResponse.redirect(
-        cid ? `${origin}/${encodeURIComponent(cid)}?meta=error` : `${origin}/?meta=error`
-      )
-    }
     return redirect
   } catch (error) {
     const url = new URL(req.url)
