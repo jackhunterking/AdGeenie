@@ -56,6 +56,35 @@ export const fbLogin = (permissions: string[]): Promise<FBLoginResult> => {
 }
 
 /**
+ * Launch Facebook Login for Business (System User Access Token) via redirect.
+ * This uses the configuration-based dialog with authorization code grant.
+ * The user selects a specific Business; Meta redirects back with `code`.
+ *
+ * References:
+ *  - Facebook Login for Business (config_id, SUAT):
+ *    https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
+ */
+export function fbBusinessLogin(configId: string, redirectUri: string): void {
+  const appId = process.env.NEXT_PUBLIC_FB_APP_ID
+  const graphVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+  if (!appId) {
+    // Fail fast to console; caller can surface a friendly message
+    // eslint-disable-next-line no-console
+    console.error('[FB] Missing NEXT_PUBLIC_FB_APP_ID')
+    return
+  }
+  const url = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`)
+  url.searchParams.set('client_id', appId)
+  url.searchParams.set('config_id', configId)
+  url.searchParams.set('redirect_uri', redirectUri)
+  url.searchParams.set('response_type', 'code')
+  // Note: override_default_response_type is accepted when invoking via SDK;
+  // manual dialog respects response_type=code
+  // Navigate to dialog
+  window.location.href = url.toString()
+}
+
+/**
  * Check current Facebook login status
  * Useful for checking if user is already connected
  */

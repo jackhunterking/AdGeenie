@@ -1,6 +1,6 @@
 /**
- * Feature: Meta Facebook Login Callback (Slim)
- * Purpose: Exchange short-lived token for long-lived user token and persist. Do NOT auto-select assets.
+ * Feature: Meta Facebook Login Callback (Dual)
+ * Purpose: Handle both standard user-token exchange and Business Login for Business (SUAT) code exchange.
  * References:
  *  - Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
  *  - Access tokens (long-lived): https://developers.facebook.com/docs/facebook-login/access-tokens/refreshing/
@@ -18,16 +18,16 @@ export async function POST(req: NextRequest) {
     const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID
     const FB_APP_SECRET = process.env.FB_APP_SECRET
 
-    const { campaignId, accessToken, userID } = await req.json() as { 
+    const { campaignId, accessToken, userID, code, redirectUri } = await req.json() as { 
       campaignId?: string
       accessToken?: string
       userID?: string
+      code?: string
+      redirectUri?: string
     }
 
-    if (!campaignId || !accessToken || !userID) {
-      return NextResponse.json({ 
-        error: 'campaignId, accessToken, and userID are required' 
-      }, { status: 400 })
+    if (!campaignId) {
+      return NextResponse.json({ error: 'campaignId is required' }, { status: 400 })
     }
 
     // Auth user via cookies
@@ -48,36 +48,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Exchange short-lived token for long-lived token per Meta docs
-    // If app credentials are present, perform exchange; otherwise, fail fast
     if (!FB_APP_ID || !FB_APP_SECRET) {
       return NextResponse.json({ error: 'Server missing FB app credentials' }, { status: 500 })
     }
 
-    const exchangeUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/oauth/access_token` +
-      `?grant_type=fb_exchange_token` +
-      `&client_id=${encodeURIComponent(FB_APP_ID)}` +
-      `&client_secret=${encodeURIComponent(FB_APP_SECRET)}` +
-      `&fb_exchange_token=${encodeURIComponent(accessToken)}`
+    let persistedToken: string | null = null
+    let expiresAt: string | null = null
+    let tokenType: 'user' | 'system_user' = 'user'
 
-    const exchangeRes = await fetch(exchangeUrl)
-    const exchangeJson = await exchangeRes.json() as { access_token?: string; expires_in?: number; error?: { message?: string } }
-    if (!exchangeRes.ok || !exchangeJson.access_token) {
-      return NextResponse.json({ error: exchangeJson?.error?.message || 'Failed to exchange long-lived token' }, { status: 400 })
+    if (code && redirectUri) {
+      // Business Login for Business: exchange authorization code for SUAT
+      const tokenUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/oauth/access_token` +
+        `?client_id=${encodeURIComponent(FB_APP_ID)}` +
+        `&client_secret=${encodeURIComponent(FB_APP_SECRET)}` +
+        `&code=${encodeURIComponent(code)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}`
+      const tRes = await fetch(tokenUrl)
+      const tJson = await tRes.json() as { access_token?: string; expires_in?: number; error?: { message?: string } }
+      if (!tRes.ok || !tJson.access_token) {
+        return NextResponse.json({ error: tJson?.error?.message || 'Failed to exchange code for token' }, { status: 400 })
+      }
+      persistedToken = tJson.access_token
+      expiresAt = tJson.expires_in ? new Date(Date.now() + tJson.expires_in * 1000).toISOString() : null
+      tokenType = 'system_user'
+    } else {
+      // Standard user token flow: exchange short-lived for long-lived token
+      if (!accessToken || !userID) {
+        return NextResponse.json({ error: 'accessToken and userID are required for user-token flow' }, { status: 400 })
+      }
+      const exchangeUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/oauth/access_token` +
+        `?grant_type=fb_exchange_token` +
+        `&client_id=${encodeURIComponent(FB_APP_ID)}` +
+        `&client_secret=${encodeURIComponent(FB_APP_SECRET)}` +
+        `&fb_exchange_token=${encodeURIComponent(accessToken)}`
+      const exchangeRes = await fetch(exchangeUrl)
+      const exchangeJson = await exchangeRes.json() as { access_token?: string; expires_in?: number; error?: { message?: string } }
+      if (!exchangeRes.ok || !exchangeJson.access_token) {
+        return NextResponse.json({ error: exchangeJson?.error?.message || 'Failed to exchange long-lived token' }, { status: 400 })
+      }
+      persistedToken = exchangeJson.access_token
+      expiresAt = exchangeJson.expires_in ? new Date(Date.now() + exchangeJson.expires_in * 1000).toISOString() : null
+      tokenType = 'user'
     }
 
-    const longLivedToken = exchangeJson.access_token
-    const tokenExpiresAt = exchangeJson.expires_in ? new Date(Date.now() + exchangeJson.expires_in * 1000).toISOString() : null
-
-    // Persist only token/user linkage to campaign_meta_connections
+    // Persist token
     await supabaseServer
       .from('campaign_meta_connections')
       .upsert({
         campaign_id: campaignId,
         user_id: user.id,
-        fb_user_id: userID,
-        long_lived_user_token: longLivedToken,
-        token_expires_at: tokenExpiresAt,
+        fb_user_id: userID || null,
+        long_lived_user_token: persistedToken,
+        token_expires_at: expiresAt,
       }, { onConflict: 'campaign_id' })
 
     // Mark minimal meta_connect_data to indicate token presence; asset selections occur later
@@ -91,7 +113,7 @@ export async function POST(req: NextRequest) {
       })
       .eq('campaign_id', campaignId)
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, token_type: tokenType })
   } catch (error) {
     console.error('Meta auth callback error:', error)
     return NextResponse.json({ 
