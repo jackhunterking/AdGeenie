@@ -138,8 +138,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Read connection selections and payment flag
-    const { data: conn } = await supabaseServer
+    // Read connection selections and payment flag with explicit narrowing
+    type ConnRow = {
+      selected_business_id: string | null
+      selected_business_name: string | null
+      selected_page_id: string | null
+      selected_page_name: string | null
+      selected_ig_user_id: string | null
+      selected_ig_username: string | null
+      selected_ad_account_id: string | null
+      selected_ad_account_name: string | null
+      ad_account_payment_connected: boolean | null
+    }
+
+    const connRes = await supabaseServer
       .from('campaign_meta_connections')
       .select(
         [
@@ -157,13 +169,16 @@ export async function GET(req: NextRequest) {
       .eq('campaign_id', campaignId)
       .single()
 
+    const conn = (connRes && 'data' in connRes ? (connRes.data as Partial<ConnRow> | null) : null)
+
     // Read lightweight UI state for status
-    const { data: stateRow } = await supabaseServer
+    const stateRes = await supabaseServer
       .from('campaign_states')
       .select('meta_connect_data')
       .eq('campaign_id', campaignId)
       .single()
 
+    const stateRow = (stateRes && 'data' in stateRes ? stateRes.data : null) as { meta_connect_data: unknown } | null
     const meta = (stateRow?.meta_connect_data ?? null) as Record<string, unknown> | null
 
     const page = conn?.selected_page_id
