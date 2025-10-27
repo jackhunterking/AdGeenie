@@ -57,30 +57,30 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
   const [selectedIgUserId, setSelectedIgUserId] = useState<string>("")
   const [assetsLoading, setAssetsLoading] = useState(false)
 
-  useEffect(() => {
-    const hydrate = async () => {
-      if (!campaign?.id) return
-      setLoading(true)
-      try {
-        const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
-        if (!res.ok) return
-        const j = await res.json() as {
-          status?: string
-          business?: { id: string; name: string }
-          page?: { id: string; name: string }
-          instagram?: { id: string; username: string } | null
-          adAccount?: { id: string; name: string }
-          paymentConnected?: boolean
-        }
-        setSummary({ business: j.business, page: j.page, instagram: j.instagram ?? null, adAccount: j.adAccount })
-        setPaymentConnected(Boolean(j.paymentConnected))
-        const st = (j?.status as 'token_ready' | 'selected_assets' | 'connected' | undefined) || 'idle'
-        setServerStatus(st)
-      } finally {
-        setLoading(false)
+  const hydrate = useCallback(async () => {
+    if (!campaign?.id) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const j = await res.json() as {
+        status?: string
+        business?: { id: string; name: string }
+        page?: { id: string; name: string }
+        instagram?: { id: string; username: string } | null
+        adAccount?: { id: string; name: string }
+        paymentConnected?: boolean
       }
+      setSummary({ business: j.business, page: j.page, instagram: j.instagram ?? null, adAccount: j.adAccount })
+      setPaymentConnected(Boolean(j.paymentConnected))
+      const st = (j?.status as 'token_ready' | 'selected_assets' | 'connected' | undefined) || 'idle'
+      setServerStatus(st)
+    } finally {
+      setLoading(false)
     }
+  }, [campaign?.id])
 
+  useEffect(() => {
     hydrate()
 
     // Refresh when returning from Meta dialog (?meta=connected) and when tab becomes visible
@@ -88,11 +88,22 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
     const onPopstate = () => { hydrate() }
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('popstate', onPopstate)
+    const onMessage = (e: MessageEvent) => {
+      try {
+        if (typeof e.data === 'object' && e.data && (e.data as { type?: string }).type === 'meta-connected') {
+          void hydrate()
+        }
+      } catch {
+        /* noop */
+      }
+    }
+    window.addEventListener('message', onMessage)
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('popstate', onPopstate)
+      window.removeEventListener('message', onMessage)
     }
-  }, [campaign?.id])
+  }, [campaign?.id, hydrate])
 
   // When returning from Meta login, auto-poll briefly to allow backend to auto-select assets
   useEffect(() => {
@@ -148,6 +159,7 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
     // Persist campaign id so callback can resolve state
     const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
     document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
+    document.cookie = `meta_popup=1; Path=/; Expires=${expires}; SameSite=Lax`
     // Prefer explicit redirect to ensure callback executes with cookies
     const redirectUri = `${window.location.origin}/api/meta/auth/callback`
     fbBusinessLogin(configId, redirectUri)

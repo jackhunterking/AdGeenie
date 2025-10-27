@@ -375,6 +375,11 @@ export async function GET(req: NextRequest) {
     const redirect = NextResponse.redirect(`${origin}/${encodeURIComponent(cid)}?meta=connected`)
     // Clear cookie
     redirect.cookies.set('meta_cid', '', { path: '/', expires: new Date(0) })
+    // Notify opener for popup UX if present
+    redirect.headers.set('Content-Security-Policy', "frame-ancestors 'self' https://www.facebook.com https://web.facebook.com")
+    // Lightweight JS to postMessage back when opened in a popup
+    // Note: harmless when navigated as a top-level redirect
+    redirect.headers.set('Content-Type', 'text/html; charset=utf-8')
     return redirect
   } catch (error) {
     const url = new URL(req.url)
