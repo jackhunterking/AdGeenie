@@ -288,6 +288,119 @@ export function MetaConnectCard() {
           )}
         </div>
       )}
+
+      {process.env.NEXT_PUBLIC_DEBUG_META_BILLING === '1' && (
+        <details className="mt-4">
+          <summary className="cursor-pointer">Billing Debug</summary>
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={onAddPayment}>Open Payments Dialog</Button>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (!campaign?.id || !summary?.adAccount?.id) return
+                  const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(summary.adAccount.id)}`
+                  try {
+                    const r = await fetch(url, { cache: 'no-store' })
+                    const j = await r.json()
+                    console.log('[Billing Debug] payment status', j)
+                    await hydrate()
+                  } catch {}
+                }}
+              >
+                Check Billing
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!campaign?.id) return
+                  try {
+                    const url = `/api/meta/diagnostics?campaignId=${encodeURIComponent(campaign.id)}${summary?.business?.id ? `&businessId=${encodeURIComponent(summary.business.id)}` : ''}${summary?.page?.id ? `&pageId=${encodeURIComponent(summary.page.id)}` : ''}`
+                    const r = await fetch(url, { cache: 'no-store' })
+                    const j = await r.json()
+                    console.log('[Billing Debug] diagnostics', j)
+                  } catch {}
+                }}
+              >
+                Diagnostics
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!campaign?.id || !summary?.adAccount?.id) return
+                  const qs = new URLSearchParams({ campaignId: String(campaign.id), adAccountId: String(summary.adAccount.id), what: 'act' })
+                  if (summary?.business?.id) qs.set('businessId', summary.business.id)
+                  if (summary?.page?.id) qs.set('pageId', summary.page.id)
+                  try {
+                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
+                    const j = await r.json()
+                    console.log('[Billing Debug] graph:account', j)
+                  } catch {}
+                }}
+              >
+                Graph: Account
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!campaign?.id) return
+                  const qs = new URLSearchParams({ campaignId: String(campaign.id), what: 'perms' })
+                  try {
+                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
+                    const j = await r.json()
+                    console.log('[Billing Debug] graph:perms', j)
+                  } catch {}
+                }}
+              >
+                Graph: Me Permissions
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!campaign?.id || !summary?.business?.id) return
+                  const qs = new URLSearchParams({ campaignId: String(campaign.id), businessId: String(summary.business.id), what: 'apps' })
+                  try {
+                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
+                    const j = await r.json()
+                    console.log('[Billing Debug] graph:biz apps', j)
+                  } catch {}
+                }}
+              >
+                Graph: Biz Apps
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!campaign?.id) return
+                  const qs = new URLSearchParams({ campaignId: String(campaign.id), what: 'mebiz' })
+                  try {
+                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
+                    const j = await r.json()
+                    console.log('[Billing Debug] graph:me businesses', j)
+                  } catch {}
+                }}
+              >
+                Graph: My Businesses
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!campaign?.id || !summary?.business?.id) return
+                  const qs = new URLSearchParams({ campaignId: String(campaign.id), businessId: String(summary.business.id), what: 'owned' })
+                  try {
+                    const r = await fetch(`/api/meta/debug/graph?${qs.toString()}`, { cache: 'no-store' })
+                    const j = await r.json()
+                    console.log('[Billing Debug] graph:owned ad accounts', j)
+                  } catch {}
+                }}
+              >
+                Graph: Owned Ad Accounts
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Open your browser console to see detailed JSON outputs for each action.</p>
+          </div>
+        </details>
+      )}
     </div>
   )
 }
