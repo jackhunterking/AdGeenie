@@ -94,6 +94,46 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
     }
   }, [campaign?.id])
 
+  // When returning from Meta login, auto-poll briefly to allow backend to auto-select assets
+  useEffect(() => {
+    if (!campaign?.id) return
+    if (serverStatus !== 'token_ready') return
+
+    let cancelled = false
+    let attempts = 0
+
+    const poll = async () => {
+      attempts += 1
+      try {
+        const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
+        if (!res.ok) return
+        const j = await res.json() as {
+          status?: string
+          business?: { id: string; name: string }
+          page?: { id: string; name: string }
+          instagram?: { id: string; username: string } | null
+          adAccount?: { id: string; name: string }
+          paymentConnected?: boolean
+        }
+        if (cancelled) return
+        setSummary({ business: j.business, page: j.page, instagram: j.instagram ?? null, adAccount: j.adAccount })
+        setPaymentConnected(Boolean(j.paymentConnected))
+        const st = (j?.status as 'token_ready' | 'selected_assets' | 'connected' | undefined) || 'idle'
+        setServerStatus(st)
+        // Stop early if connected or we already have page/ad account
+        if (st === 'connected' || j.page || j.adAccount) return
+      } finally {
+        if (!cancelled && attempts < 8) {
+          setTimeout(poll, 1500)
+        }
+      }
+    }
+
+    // kick off first poll
+    poll()
+    return () => { cancelled = true }
+  }, [campaign?.id, serverStatus])
+
   const connectionState: 'not_connected' | 'assets_selected' | 'connected' = useMemo(() => {
     if (!summary?.page) return 'not_connected'
     if (showAdAccount && !summary.adAccount) return 'assets_selected'
@@ -345,19 +385,16 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
         </div>
       )}
 
-      {/* Empty-state hero: Token ready, ask to select assets */}
+      {/* Token present: backend finalizing selections automatically */}
       {connectionState === 'not_connected' && serverStatus === 'token_ready' && (
-        <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border hover:bg-blue-500/5 hover:border-blue-500/40 transition-all duration-300">
+        <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-dashed border-border bg-card/40">
           <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
-            <Building2 className="h-10 w-10 text-brand-blue" />
+            <Loader2 className="h-10 w-10 animate-spin" />
           </div>
-          <div className="text-center space-y-2 mb-4">
-            <h3 className="text-xl font-semibold">Select Business & Page</h3>
-            <p className="text-sm text-muted-foreground">Choose your Business assets to continue</p>
+          <div className="text-center space-y-2">
+            <h3 className="text-xl font-semibold">Finalizing your Meta assets…</h3>
+            <p className="text-sm text-muted-foreground">This usually takes a few seconds.</p>
           </div>
-          <Button size="lg" onClick={() => void openAssetDialog()} className="bg-blue-600 hover:bg-blue-700 text-white px-8">
-            Select Assets
-          </Button>
         </div>
       )}
 
@@ -419,11 +456,7 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
                   </div>
                 </div>
               )}
-              {connectionState === 'assets_selected' && (
-                <div className="pt-2">
-                  <Button variant="outline" size="sm" onClick={openSelectAdAccount} className="h-8 px-3">Select Ad Account</Button>
-                </div>
-              )}
+              {/* Ad account selection handled automatically by backend. */}
               {showAdAccount && summary?.adAccount && !paymentConnected && (
                 <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3">
                   <div className="flex items-center justify-between">

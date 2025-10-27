@@ -19,13 +19,18 @@ export async function POST(req: NextRequest) {
     const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID
     const FB_APP_SECRET = process.env.FB_APP_SECRET
 
-    const { campaignId, accessToken, userID, code, redirectUri } = await req.json() as { 
+    const body = await req.json() as { 
       campaignId?: string
       accessToken?: string
       userID?: string
       code?: string
       redirectUri?: string
     }
+    // Resolve campaign id either from body or short-lived cookie set before redirect
+    const cookieStore = await cookies()
+    const cookieCid = cookieStore.get('meta_cid')?.value || null
+    const campaignId = body.campaignId || cookieCid
+    const { accessToken, userID, code, redirectUri } = body
 
     if (!campaignId) {
       return NextResponse.json({ error: 'campaignId is required' }, { status: 400 })
@@ -108,16 +113,94 @@ export async function POST(req: NextRequest) {
         token_expires_at: expiresAt,
       }, { onConflict: 'campaign_id' })
 
-    // Mark minimal meta_connect_data to indicate token presence; asset selections occur later
-    await supabaseServer
-      .from('campaign_states')
-      .update({
-        meta_connect_data: {
-          status: 'token_ready',
-          connectedAt: new Date().toISOString(),
-        }
+    // Attempt to auto-resolve assets (Business → Page(+IG) → Ad Account) and persist selection
+    try {
+      const gv = FB_GRAPH_VERSION
+      const token = persistedToken as string
+
+      // 1) Businesses
+      const bizRes = await fetch(`https://graph.facebook.com/${gv}/me/businesses?fields=id,name&limit=200`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       })
-      .eq('campaign_id', campaignId)
+      const bizJson: unknown = await bizRes.json()
+      const businesses = (bizJson && typeof bizJson === 'object' && bizJson !== null && Array.isArray((bizJson as { data?: unknown[] }).data))
+        ? (bizJson as { data: Array<{ id: string; name?: string }> }).data
+        : []
+      const firstBiz = businesses[0]
+
+      // 2) Pages for business (owned_pages) with IG
+      let firstPage: { id: string; name?: string; instagram_business_account?: { id?: string; username?: string } } | null = null
+      if (firstBiz?.id) {
+        const pagesRes = await fetch(`https://graph.facebook.com/${gv}/${encodeURIComponent(firstBiz.id)}/owned_pages?fields=id,name,instagram_business_account{id,username}&limit=500`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        const pagesJson: unknown = await pagesRes.json()
+        const pages = (pagesJson && typeof pagesJson === 'object' && pagesJson !== null && Array.isArray((pagesJson as { data?: unknown[] }).data))
+          ? (pagesJson as { data: Array<{ id: string; name?: string; instagram_business_account?: { id?: string; username?: string } }> }).data
+          : []
+        firstPage = pages[0] || null
+      }
+
+      // 3) Ad Accounts for business
+      let firstAdAccount: { id: string; name?: string; account_status?: number } | null = null
+      if (firstBiz?.id) {
+        const actsRes = await fetch(`https://graph.facebook.com/${gv}/${encodeURIComponent(firstBiz.id)}/adaccounts?fields=id,name,account_status,currency&limit=500`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        const actsJson: unknown = await actsRes.json()
+        const adAccounts = (actsJson && typeof actsJson === 'object' && actsJson !== null && Array.isArray((actsJson as { data?: unknown[] }).data))
+          ? (actsJson as { data: Array<{ id: string; name?: string; account_status?: number }> }).data
+          : []
+        // Prefer active accounts (status 1), else fallback to first
+        firstAdAccount = adAccounts.find(a => a && typeof a.account_status === 'number' && a.account_status === 1) || adAccounts[0] || null
+      }
+
+      if (firstBiz?.id && firstPage?.id) {
+        await supabaseServer
+          .from('campaign_meta_connections')
+          .upsert({
+            campaign_id: campaignId,
+            user_id: user.id,
+            selected_business_id: firstBiz.id,
+            selected_business_name: firstBiz.name || null,
+            selected_page_id: firstPage.id,
+            selected_page_name: firstPage.name || null,
+            selected_ig_user_id: firstPage.instagram_business_account?.id || null,
+            selected_ig_username: firstPage.instagram_business_account?.username || null,
+            selected_ad_account_id: firstAdAccount?.id || null,
+            selected_ad_account_name: firstAdAccount?.name || null,
+          }, { onConflict: 'campaign_id' })
+
+        await supabaseServer
+          .from('campaign_states')
+          .update({
+            meta_connect_data: {
+              status: firstAdAccount?.id ? 'connected' : 'selected_assets',
+              businessId: firstBiz.id,
+              pageId: firstPage.id,
+              igUserId: firstPage.instagram_business_account?.id || null,
+              adAccountId: firstAdAccount?.id || null,
+              connectedAt: new Date().toISOString(),
+            }
+          })
+          .eq('campaign_id', campaignId)
+      } else {
+        // Fallback: mark token ready so UI can prompt or retry
+        await supabaseServer
+          .from('campaign_states')
+          .update({ meta_connect_data: { status: 'token_ready', connectedAt: new Date().toISOString() } })
+          .eq('campaign_id', campaignId)
+      }
+    } catch (e) {
+      // Non-fatal: leave status as token_ready; UI can retry fetch/persist via other routes
+      await supabaseServer
+        .from('campaign_states')
+        .update({ meta_connect_data: { status: 'token_ready', connectedAt: new Date().toISOString() } })
+        .eq('campaign_id', campaignId)
+    }
 
     return NextResponse.json({ ok: true, token_type: tokenType })
   } catch (error) {
@@ -145,7 +228,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch(`${origin}/api/meta/auth/callback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, redirectUri: `${origin}/api/meta/auth/callback` })
+      body: JSON.stringify({ code, redirectUri: `${origin}/api/meta/auth/callback`, campaignId: cid })
     })
 
     const redirect = NextResponse.redirect(
