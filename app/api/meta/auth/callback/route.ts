@@ -316,6 +316,15 @@ export async function GET(req: NextRequest) {
           : []
         firstPage = pages[0] || null
       }
+      // Fallback: if no business-owned pages, try user managed pages
+      if (!firstPage) {
+        const mePagesRes = await fetch(`https://graph.facebook.com/${gv}/me/accounts?fields=id,name,instagram_business_account{id,username}&limit=500`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+        const mePagesJson: unknown = await mePagesRes.json()
+        const mePages = (mePagesJson && typeof mePagesJson === 'object' && mePagesJson !== null && Array.isArray((mePagesJson as { data?: unknown[] }).data))
+          ? (mePagesJson as { data: Array<{ id: string; name?: string; instagram_business_account?: { id?: string; username?: string } }> }).data
+          : []
+        firstPage = mePages[0] || null
+      }
 
       let firstAdAccount: { id: string; name?: string; account_status?: number } | null = null
       if (firstBiz?.id) {
@@ -329,15 +338,24 @@ export async function GET(req: NextRequest) {
           : []
         firstAdAccount = adAccounts.find(a => a && typeof a.account_status === 'number' && a.account_status === 1) || adAccounts[0] || null
       }
+      // Fallback: if no business ad accounts, try user adaccounts list
+      if (!firstAdAccount) {
+        const meActsRes = await fetch(`https://graph.facebook.com/${gv}/me/adaccounts?fields=id,name,account_status,currency&limit=500`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+        const meActsJson: unknown = await meActsRes.json()
+        const meAdAccounts = (meActsJson && typeof meActsJson === 'object' && meActsJson !== null && Array.isArray((meActsJson as { data?: unknown[] }).data))
+          ? (meActsJson as { data: Array<{ id: string; name?: string; account_status?: number }> }).data
+          : []
+        firstAdAccount = meAdAccounts.find(a => a && typeof a.account_status === 'number' && a.account_status === 1) || meAdAccounts[0] || null
+      }
 
-      if (firstBiz?.id && firstPage?.id) {
+      if (firstPage?.id) {
         await supabaseServer
           .from('campaign_meta_connections')
           .upsert({
             campaign_id: cid,
             user_id: user.id,
-            selected_business_id: firstBiz.id,
-            selected_business_name: firstBiz.name || null,
+            selected_business_id: firstBiz?.id || null,
+            selected_business_name: firstBiz?.name || null,
             selected_page_id: firstPage.id,
             selected_page_name: firstPage.name || null,
             selected_ig_user_id: firstPage.instagram_business_account?.id || null,
@@ -351,7 +369,7 @@ export async function GET(req: NextRequest) {
           .update({
             meta_connect_data: {
               status: firstAdAccount?.id ? 'connected' : 'selected_assets',
-              businessId: firstBiz.id,
+              businessId: firstBiz?.id || null,
               pageId: firstPage.id,
               igUserId: firstPage.instagram_business_account?.id || null,
               adAccountId: firstAdAccount?.id || null,
