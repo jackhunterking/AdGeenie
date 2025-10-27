@@ -18,7 +18,7 @@ import { useGoal } from "@/lib/context/goal-context"
 import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { cn } from "@/lib/utils"
 import { newEditSession } from "@/lib/utils/edit-session"
-import { MetaConnectStep } from "./meta-connect-step"
+// Removed two-step Meta connect flow; using single summary card
 import { MetaConnectionCard } from "@/components/meta/meta-connection-card"
 import { LocationSummaryCard } from "@/components/launch/location-summary-card"
 import { AudienceSummaryCard } from "@/components/launch/audience-summary-card"
@@ -720,11 +720,7 @@ export function PreviewPanel() {
 
       {/* Right: Summary stack */}
       <div className="flex flex-col gap-4">
-        <MetaConnectionCard
-          showAdAccount={true}
-          onEdit={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
-          actionLabel="Edit"
-        />
+        <MetaConnectionCard showAdAccount={true} />
         <LocationSummaryCard />
         <AudienceSummaryCard />
         <FormSummaryCard />
@@ -828,7 +824,11 @@ export function PreviewPanel() {
         const serverConnected = Boolean((states as unknown as { meta_connect_data?: { status?: string } } | null | undefined)?.meta_connect_data && (states as unknown as { meta_connect_data?: { status?: string } }).meta_connect_data?.status === 'connected')
         return serverConnected || budgetState.isConnected === true
       })(),
-      content: <MetaConnectStep />,
+      content: (
+        <div className="p-2">
+          <MetaConnectionCard showAdAccount={true} />
+        </div>
+      ),
       icon: Link2,
     },
     {

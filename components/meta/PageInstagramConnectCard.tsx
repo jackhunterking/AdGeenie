@@ -170,6 +170,7 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
     }
   }, [campaign?.id])
 
+  // Deprecated from the main flow. Kept for internal/legacy use. Not rendered by default.
   return (
     <div className="rounded-lg border-2 border-border bg-card p-6 transition-all duration-300 hover:border-blue-500/20">
       <div className="flex items-center justify-between mb-4">

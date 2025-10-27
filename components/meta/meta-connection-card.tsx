@@ -8,10 +8,11 @@
  *  - Graph API Reference: https://developers.facebook.com/docs/graph-api/reference
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Check, Link2, Building2 } from "lucide-react"
+import { Check, Link2, Building2, CreditCard } from "lucide-react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
+import { fbBusinessLoginWithSdk } from '@/lib/utils/facebook-sdk'
 
 interface MetaSummary {
   page?: { id: string; name: string }
@@ -29,31 +30,67 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
   const { campaign } = useCampaignContext()
   const [summary, setSummary] = useState<MetaSummary | null>(null)
   const [loading, setLoading] = useState(false)
+  const [paymentConnected, setPaymentConnected] = useState<boolean>(false)
 
   useEffect(() => {
-    const run = async () => {
+    const hydrate = async () => {
       if (!campaign?.id) return
       setLoading(true)
       try {
-        const res = await fetch(`/api/campaigns/${campaign.id}/state`)
+        const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
         if (!res.ok) return
-        const { state } = (await res.json()) as { state?: { meta_connect_data?: unknown } }
-        const data = (state?.meta_connect_data ?? null) as Record<string, unknown> | null
-        if (data && typeof data === "object") {
-          // Normalize from either structured summary or legacy flat fields
-          const page = (data.page as MetaSummary["page"]) || (typeof data.pageId === "string" ? { id: String(data.pageId), name: String((data as Record<string, unknown>).pageName ?? "Page") } : undefined)
-          const instagram = (data.instagram as MetaSummary["instagram"]) ?? (typeof (data as Record<string, unknown>).igUserId === "string" ? { id: String((data as Record<string, unknown>).igUserId), username: String((data as Record<string, unknown>).igUsername ?? "") } : null)
-          const adAccount = (data.adAccount as MetaSummary["adAccount"]) || (typeof (data as Record<string, unknown>).adAccountId === "string" ? { id: String((data as Record<string, unknown>).adAccountId), name: String((data as Record<string, unknown>).adAccountName ?? "Ad Account") } : undefined)
-          setSummary({ page, instagram, adAccount })
+        const j = await res.json() as {
+          status?: string
+          page?: { id: string; name: string }
+          instagram?: { id: string; username: string } | null
+          adAccount?: { id: string; name: string }
+          paymentConnected?: boolean
         }
+        setSummary({ page: j.page, instagram: j.instagram ?? null, adAccount: j.adAccount })
+        setPaymentConnected(Boolean(j.paymentConnected))
       } finally {
         setLoading(false)
       }
     }
-    run()
+
+    hydrate()
+
+    // Refresh when returning from Meta dialog (?meta=connected) and when tab becomes visible
+    const onVisibility = () => { if (document.visibilityState === 'visible') hydrate() }
+    const onPopstate = () => { hydrate() }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('popstate', onPopstate)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('popstate', onPopstate)
+    }
   }, [campaign?.id])
 
   const isConnected = useMemo(() => Boolean(summary?.page && (summary?.adAccount || !showAdAccount)), [summary, showAdAccount])
+
+  const openConnect = useCallback(() => {
+    const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID || '1352055236432179'
+    // Set cookie to bring the user back to the campaign page
+    if (campaign?.id) {
+      const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
+      document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
+    }
+    fbBusinessLoginWithSdk(configId)
+  }, [campaign?.id])
+
+  const connectPayment = useCallback(async () => {
+    if (!summary?.adAccount?.id) return
+    if (!window.FB) return
+    window.FB.ui({ method: 'ads_payment', account_id: summary.adAccount.id }, async (resp: unknown) => {
+      const ok = Boolean(resp)
+      if (!campaign?.id) return
+      await fetch('/api/meta/payment/mark', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: campaign.id, adAccountId: summary.adAccount?.id, connected: ok })
+      })
+      setPaymentConnected(ok)
+    })
+  }, [summary?.adAccount?.id, campaign?.id])
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
@@ -72,9 +109,7 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {onEdit && (
-            <Button variant="outline" size="sm" onClick={onEdit} className="h-7 px-3">{actionLabel || (isConnected ? 'Edit' : 'Connect with Meta')}</Button>
-          )}
+          <Button variant="outline" size="sm" onClick={onEdit ?? openConnect} className="h-7 px-3">{actionLabel || (isConnected ? 'Edit Connection' : 'Connect with Meta')}</Button>
         </div>
       </div>
 
@@ -121,6 +156,17 @@ export function MetaConnectionCard({ showAdAccount = false, onEdit, actionLabel 
                 </div>
                 <div>
                   <span className="text-muted-foreground">Ad Account:</span> <span className="font-medium">{summary.adAccount.name}</span> <span className="text-muted-foreground">({summary.adAccount.id})</span>
+                </div>
+              </div>
+            )}
+            {showAdAccount && summary?.adAccount && !paymentConnected && (
+              <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span>
+                  </div>
+                  <Button size="sm" onClick={connectPayment} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
                 </div>
               </div>
             )}

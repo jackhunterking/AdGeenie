@@ -113,3 +113,99 @@ export async function POST(req: NextRequest) {
 }
 
 
+// GET /api/meta/selection?campaignId=...
+// Returns a compact summary of the Meta connection for the given campaign.
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const campaignId = searchParams.get('campaignId')
+    if (!campaignId) {
+      return NextResponse.json({ error: 'campaignId is required' }, { status: 400 })
+    }
+
+    // Authenticate user
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Verify campaign ownership
+    const { data: campaign, error: campaignErr } = await supabaseServer
+      .from('campaigns')
+      .select('id, user_id')
+      .eq('id', campaignId)
+      .single()
+    if (campaignErr || !campaign || campaign.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Read connection selections and payment flag
+    const { data: conn } = await supabaseServer
+      .from('campaign_meta_connections')
+      .select(
+        [
+          'selected_business_id',
+          'selected_business_name',
+          'selected_page_id',
+          'selected_page_name',
+          'selected_ig_user_id',
+          'selected_ig_username',
+          'selected_ad_account_id',
+          'selected_ad_account_name',
+          'ad_account_payment_connected',
+        ].join(',')
+      )
+      .eq('campaign_id', campaignId)
+      .single()
+
+    // Read lightweight UI state for status
+    const { data: stateRow } = await supabaseServer
+      .from('campaign_states')
+      .select('meta_connect_data')
+      .eq('campaign_id', campaignId)
+      .single()
+
+    const meta = (stateRow?.meta_connect_data ?? null) as Record<string, unknown> | null
+
+    const page = conn?.selected_page_id
+      ? {
+          id: String(conn.selected_page_id),
+          name: String(conn.selected_page_name ?? conn.selected_page_id),
+        }
+      : undefined
+
+    const instagram = conn?.selected_ig_user_id
+      ? {
+          id: String(conn.selected_ig_user_id),
+          username: String(conn.selected_ig_username ?? ''),
+        }
+      : null
+
+    const adAccount = conn?.selected_ad_account_id
+      ? {
+          id: String(conn.selected_ad_account_id),
+          name: String(conn.selected_ad_account_name ?? conn.selected_ad_account_id),
+        }
+      : undefined
+
+    const business = conn?.selected_business_id
+      ? {
+          id: String(conn.selected_business_id),
+          name: String(conn.selected_business_name ?? conn.selected_business_id),
+        }
+      : undefined
+
+    return NextResponse.json({
+      status: meta && typeof meta === 'object' ? (meta.status as string | undefined) : undefined,
+      business,
+      page,
+      instagram,
+      adAccount,
+      paymentConnected: Boolean(conn?.ad_account_payment_connected),
+    })
+  } catch (err) {
+    console.error('[META] Selection GET exception', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
+
+
