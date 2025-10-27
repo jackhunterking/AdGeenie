@@ -18,11 +18,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'campaignId, businessId, pageId required' }, { status: 400 })
     }
 
+    // Authenticate user
     const supabase = await createServerClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Upsert selection
+    // Verify campaign ownership (defensive parity with other routes)
+    const { data: campaign, error: campaignErr } = await supabaseServer
+      .from('campaigns')
+      .select('id, user_id')
+      .eq('id', campaignId)
+      .single()
+    if (campaignErr || !campaign || campaign.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Upsert selection into campaign_meta_connections
     let baseUpdate: TablesInsert<'campaign_meta_connections'> = {
       campaign_id: campaignId,
       user_id: user.id,
@@ -44,11 +55,33 @@ export async function POST(req: NextRequest) {
     const upsertRes = await supabaseServer
       .from('campaign_meta_connections')
       .upsert(baseUpdate, { onConflict: 'campaign_id' })
+
     if (upsertRes.error) {
-      return NextResponse.json({ error: 'Failed to save selection', details: upsertRes.error.message }, { status: 500 })
+      // Return structured error for client logs
+      const message = upsertRes.error.message || 'Unknown error'
+      console.error('[META] selection upsert error:', upsertRes.error)
+      return NextResponse.json({ error: 'Failed to save selection', details: message }, { status: 500 })
     }
 
-    // Optionally, save a minimal meta_connect_data state to campaign_states for UI completion flags
+    // Ensure campaign_states row exists before update (some older campaigns may miss it)
+    const existing = await supabaseServer
+      .from('campaign_states')
+      .select('id')
+      .eq('campaign_id', campaignId)
+      .limit(1)
+
+    const hasRow = Array.isArray(existing.data) && existing.data.length > 0
+    if (!hasRow) {
+      const insertRes = await supabaseServer
+        .from('campaign_states')
+        .insert({ campaign_id: campaignId } as { campaign_id: string })
+      if (insertRes.error) {
+        console.error('[META] ensure campaign_states insert error:', insertRes.error)
+        // continue; state is optional for connection, but log for diagnosis
+      }
+    }
+
+    // Save minimal meta_connect_data state for UI completion flags
     const metaConnectData: Record<string, unknown> = adAccountId ? {
       status: 'connected',
       businessId,
@@ -62,14 +95,19 @@ export async function POST(req: NextRequest) {
       igUserId: igUserId || null,
     }
 
-    await supabaseServer
+    const updateStateRes = await supabaseServer
       .from('campaign_states')
       .update({ meta_connect_data: metaConnectData as Json })
       .eq('campaign_id', campaignId)
 
+    if (updateStateRes.error) {
+      console.warn('[META] meta_connect_data update warning:', updateStateRes.error)
+      // Non-fatal for selection persistence; client can still proceed
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('[META] Selection error', err)
+    console.error('[META] Selection exception', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
