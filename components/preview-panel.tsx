@@ -19,7 +19,7 @@ import { useAdCopy } from "@/lib/context/ad-copy-context"
 import { cn } from "@/lib/utils"
 import { newEditSession } from "@/lib/utils/edit-session"
 // Removed two-step Meta connect flow; using single summary card
-import { MetaConnectionCard } from "@/components/meta/meta-connection-card"
+import { MetaConnectCard } from "@/components/meta/MetaConnectCard"
 import { LocationSummaryCard } from "@/components/launch/location-summary-card"
 import { AudienceSummaryCard } from "@/components/launch/audience-summary-card"
 import { FormSummaryCard } from "@/components/launch/form-summary-card"
@@ -827,7 +827,7 @@ export function PreviewPanel() {
       content: (
         <div className="p-2">
           <div className="max-w-3xl mx-auto">
-            <MetaConnectionCard showAdAccount={true} />
+            <MetaConnectCard />
           </div>
         </div>
       ),

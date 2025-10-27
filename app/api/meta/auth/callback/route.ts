@@ -372,15 +372,15 @@ export async function GET(req: NextRequest) {
         .eq('campaign_id', cid)
     }
 
-    const redirect = NextResponse.redirect(`${origin}/${encodeURIComponent(cid)}?meta=connected`)
-    // Clear cookie
-    redirect.cookies.set('meta_cid', '', { path: '/', expires: new Date(0) })
-    // Notify opener for popup UX if present
-    redirect.headers.set('Content-Security-Policy', "frame-ancestors 'self' https://www.facebook.com https://web.facebook.com")
-    // Lightweight JS to postMessage back when opened in a popup
-    // Note: harmless when navigated as a top-level redirect
-    redirect.headers.set('Content-Type', 'text/html; charset=utf-8')
-    return redirect
+    // Serve small HTML to notify opener and close popup when possible; fallback to redirect
+    const html = `<!doctype html><meta charset="utf-8"><title>Connected</title>
+<script>
+try { if (window.opener && window.opener !== window) { window.opener.postMessage({type:'meta-connected'}, '${origin}'); window.close(); } else { window.location = '${origin}/${encodeURIComponent(cid)}?meta=connected'; } } catch(e) { window.location = '${origin}/${encodeURIComponent(cid)}?meta=connected'; }
+</script>
+<body style="font-family:system-ui;padding:16px">Connected. You can close this window.</body>`
+    const resp = new NextResponse(html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } })
+    resp.cookies.set('meta_cid', '', { path: '/', expires: new Date(0) })
+    return resp
   } catch (error) {
     const url = new URL(req.url)
     const origin = `${url.protocol}//${url.host}`
