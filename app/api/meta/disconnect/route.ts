@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import type { Json } from '@/lib/supabase/database.types'
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     // Reset lightweight state for UI
     await supabaseServer
       .from('campaign_states')
-      .update({ meta_connect_data: { status: 'disconnected' } as unknown })
+      .update({ meta_connect_data: { status: 'disconnected' } as Json })
       .eq('campaign_id', campaignId)
 
     return NextResponse.json({ ok: true })

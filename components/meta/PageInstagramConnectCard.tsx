@@ -260,14 +260,14 @@ export function PageInstagramConnectCard({ onComplete }: { onComplete?: (state: 
               Instagram Page
             </label>
             <div className="w-full max-w-sm">
-              <Select onValueChange={setSelectedIgUserId} value={selectedIgUserId} disabled={!selectedBusiness}>
+              <Select onValueChange={(v) => setSelectedIgUserId(v === 'none' ? '' : v)} value={selectedIgUserId || 'none'} disabled={!selectedBusiness}>
                 <SelectTrigger><SelectValue placeholder={igOptions.length ? 'Select Instagram' : 'No Instagram found'} /></SelectTrigger>
                 <SelectContent>
                   {igOptions.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground">No Instagram accounts detected</div>
                   ) : (
                     <>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {igOptions.map(ig => (
                         <SelectItem key={ig.id} value={ig.id}>{ig.username ? `@${ig.username}` : ig.id}</SelectItem>
                       ))}
