@@ -111,6 +111,7 @@ export function MetaConnectCard() {
       params: { method: 'ads_payment'; display?: 'popup'; account_id: string },
       cb?: (response: unknown) => void,
     ) => void
+    getLoginStatus?: (cb: (res: { status?: string }) => void, forceRefresh?: boolean) => void
   }
 
   const waitForFacebookSDK = useCallback(async (): Promise<FacebookSDK | null> => {
@@ -153,7 +154,23 @@ export function MetaConnectCard() {
     // Numeric id for FB.ui
     const numericId = summary.adAccount.id.replace(/^act_/i, '')
     try {
-      fb.ui({ method: 'ads_payment', display: 'popup', account_id: numericId })
+      // Best-effort: ensure user session is established before opening dialog
+      if (typeof fb.getLoginStatus === 'function') {
+        try {
+          fb.getLoginStatus(() => {}, true)
+        } catch {
+          // ignore
+        }
+      }
+
+      // Add diagnostic callback to surface SDK responses in console
+      fb.ui(
+        { method: 'ads_payment', display: 'popup', account_id: numericId },
+        (response: unknown) => {
+          // eslint-disable-next-line no-console
+          console.log('[FB.ui][ads_payment] callback response:', response)
+        },
+      )
     } catch {
       // If the SDK throws for any reason, fail softly
     }

@@ -1,13 +1,14 @@
 /**
- * Feature: Verify Ad Account Billing Status
- * Purpose: Check `funding_source` on the ad account using the stored user token; persist when connected
+ * Feature: Payment Status for Meta Ad Account
+ * Purpose: Check ad account funding source and persist flag on success.
  * References:
- *  - Meta blog (Ads Payments dialog): https://developers.facebook.com/ads/blog/post/v2/2018/10/02/ads-dialog-widget-payments/
- *  - Ad Account fields: https://developers.facebook.com/docs/marketing-api/reference/ad-account/
+ *  - Facebook Marketing API (AdAccount fields): https://developers.facebook.com/docs/marketing-api/reference/ad-account/
+ *  - Supabase Next.js Auth: https://supabase.com/docs/guides/auth/server/nextjs
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import { getGraphVersion } from '@/lib/meta/graph'
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,7 +28,9 @@ export async function GET(req: NextRequest) {
       .select('id,user_id')
       .eq('id', campaignId)
       .single()
-    if (!campaign || campaign.user_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!campaign || campaign.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const { data: conn } = await supabaseServer
       .from('campaign_meta_connections')
@@ -36,17 +39,17 @@ export async function GET(req: NextRequest) {
       .single()
 
     const token = (conn as { long_lived_user_token?: string } | null)?.long_lived_user_token
-    if (!token) return NextResponse.json({ connected: false, details: null })
+    if (!token) return NextResponse.json({ connected: false })
 
-    const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION || process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    const gv = getGraphVersion()
     const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`
-    const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(actId)}?fields=funding_source,funding_source_details`
-
+    const url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}?fields=funding_source,funding_source_details{credit_card,display_string}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
     const json: unknown = await res.json()
     const obj = (json && typeof json === 'object' && json !== null) ? (json as Record<string, unknown>) : {}
+
     const fundingSource = obj['funding_source']
-    const fundingSourceDetails = obj['funding_source_details']
+    const fundingSourceDetails = obj['funding_source_details'] as Record<string, unknown> | null | undefined
     const connected = Boolean(fundingSource || fundingSourceDetails)
 
     if (connected) {
@@ -56,8 +59,8 @@ export async function GET(req: NextRequest) {
         .eq('campaign_id', campaignId)
     }
 
-    return NextResponse.json({ connected, details: connected ? { funding_source: fundingSource ?? null } : null })
-  } catch (e) {
+    return NextResponse.json({ connected })
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
