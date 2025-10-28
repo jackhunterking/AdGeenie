@@ -177,8 +177,9 @@ export function MetaConnectCard() {
       return
     }
 
-    // Numeric id for FB.ui (must be numeric; strip act_ prefix)
+    // Normalize ad account identifiers for FB.ui and polling
     const numericId = summary.adAccount.id.replace(/^act_/i, '')
+    const canonicalId = summary.adAccount.id.startsWith('act_') ? summary.adAccount.id : `act_${numericId}`
 
     try {
       // Fire-and-forget; do not await anything before opening the dialog
@@ -190,7 +191,7 @@ export function MetaConnectCard() {
         {
           method: 'ads_payment',
           display: 'popup',
-          account_id: numericId,
+          account_id: canonicalId,
           fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`,
         },
         (response: unknown) => {
@@ -203,7 +204,7 @@ export function MetaConnectCard() {
     }
 
     // Begin background polling for payment connection status
-    const actId = summary.adAccount.id.startsWith('act_') ? summary.adAccount.id : `act_${numericId}`
+    const actId = canonicalId
     const pollOnce = async (): Promise<boolean> => {
       try {
         const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`
