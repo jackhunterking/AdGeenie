@@ -34,7 +34,7 @@ import {
 import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { useChat, type UIMessage } from "@ai-sdk/react";
 import { Response } from "@/components/ai-elements/response";
-import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X } from "lucide-react";
+import { ThumbsUpIcon, ThumbsDownIcon, CopyIcon, Sparkles, ChevronRight, MapPin, CheckCircle2, XCircle, Reply, X, Check } from "lucide-react";
 import {
   Source,
   Sources,
@@ -1635,29 +1635,25 @@ Make it conversational and easy to understand for a business owner.`,
                                         return (
                                           <div
                                             key={`${callId}-${idx}`}
-                                            className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
-                                              isExcluded 
-                                                ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" 
-                                                : "panel-surface hover:border-purple-500/50"
-                                            }`}
+                                            className="flex items-center justify-between p-3 rounded-lg border panel-surface cursor-pointer"
                                             onClick={() => {
                                               // Switch to the location targeting tab
                                               emitBrowserEvent('switchToTab', 'location');
                                             }}
                                           >
                                             <div className="flex items-center gap-2 min-w-0 flex-1">
-                                              <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                                isExcluded ? "bg-red-500/10 text-red-600" : "bg-purple-500/10 text-purple-600"
-                                              }`}>
-                                                <MapPin className="h-4 w-4" />
+                                              <div className="icon-tile-muted">
+                                                {isExcluded ? (
+                                                  <X className="h-4 w-4 text-red-600" />
+                                                ) : (
+                                                  <Check className="h-4 w-4 text-status-green" />
+                                                )}
                                               </div>
                                               <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5">
-                                                  <p className="font-medium text-xs truncate">{loc.name}</p>
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                  <p className="text-sm font-medium truncate">{loc.name}</p>
                                                   {isExcluded && (
-                                                    <span className="text-[10px] text-red-600 font-medium flex-shrink-0">
-                                                      Excluded
-                                                    </span>
+                                                    <span className="status-muted flex-shrink-0">Excluded</span>
                                                   )}
                                                 </div>
                                                 <p className="text-xs text-muted-foreground">{getLocationTypeLabel(loc)}</p>

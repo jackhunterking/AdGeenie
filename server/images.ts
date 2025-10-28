@@ -1,6 +1,7 @@
 "use server";
 
 import { generateText } from 'ai';
+import { buildImagePrompt } from '../lib/creative/prompt-builder';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { supabaseServer } from '@/lib/supabase/server';
@@ -79,49 +80,39 @@ if (goalType) {
   }
 }
 
-const baseEnhancement = `
-${userPrompt}${goalSpecificGuidance}
+    // Centralized PromptBuilder composes a qualitative, safe prompt (no numeric safe-zones or f-numbers)
+    return buildImagePrompt({ content: `${userPrompt}${goalSpecificGuidance}` });
+}
 
-HYPER-REALISTIC PHOTOGRAPHY REQUIREMENTS (MANDATORY):
-- Style: HYPER-REALISTIC photography ONLY - must look like real DSLR/mirrorless camera photo
-- NO illustrations, NO digital art, NO 3D renders, NO AI-looking imagery, NO stock photo aesthetics
-- Authenticity: Real textures, natural skin tones, genuine materials, true-to-life lighting
-- Camera: Shot with professional equipment (Canon/Sony/Nikon), shallow depth of field when appropriate
-- Lighting: Natural or professional studio lighting - authentic shadows, highlights, and reflections
-- People: Real human expressions, natural poses, authentic emotions (if people are in the scene)
-- Details: Sharp focus on subject, natural bokeh, realistic grain, proper color grading
-- Quality: Ultra high-resolution, professional-grade photography, editorial quality
-
-STRICT VISUAL GUARDRAILS:
-- Realism Level: Must be indistinguishable from a real photograph taken by a professional photographer
-- NO cartoon elements, NO illustrated components, NO graphic design overlays
-- NO unrealistic proportions, NO impossible lighting, NO fake-looking scenarios
-- Natural imperfections: Include subtle real-world details (slight texture variations, natural wear, etc.)
-- Believable environment: Real-world settings with authentic props and backgrounds
-
-META FEED AESTHETIC:
-- Native content style: Should look like organic user-generated content, not ads
-- Mobile-first: Optimized for small screens, high visual impact at thumbnail size
-- Scroll-stopping: Compelling composition that captures attention naturally
-- Authentic vibe: Real moments, genuine scenarios, relatable scenes
-
-COMPOSITION & FRAMING:
-- Format: 1:1 square aspect ratio (perfect for Instagram/Facebook Feed)
-- Safe zones: 10-12% padding on ALL edges (top, bottom, left, right) - CRITICAL for platform UI
-- Center-weighted: Key elements in central 80% to prevent cropping
-- Rule of thirds: Professional composition with balanced visual weight
-- Clear focal point: Subject should be immediately recognizable and engaging
-
-TECHNICAL SPECIFICATIONS:
-- NO text, NO logos, NO watermarks, NO graphic overlays, NO design elements
-- Clean backgrounds: Uncluttered, complementary to subject, not competing for attention
-- Professional color grading: Natural tones, proper white balance, magazine-quality finish
-- Sharp focus: Crystal clear on main subject, natural depth of field
-- Proper exposure: Well-lit, no blown highlights or crushed shadows
-
-The final image must pass as a professional photograph - indistinguishable from real camera photography.`;
-
-    return baseEnhancement;
+// Validate that the generated image does not include overlays, frames, or numeric labels
+async function validateImageForOverlays(imageBuffer: Buffer, mediaType: string): Promise<boolean> {
+    try {
+        const result = await generateText({
+            model: 'google/gemini-2.5-flash-image-preview',
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'text',
+                            text: 'Inspect this image. If it contains any text overlays, frames/borders, crop marks, guides, percentages, numbers, camera readouts (f/..), watermarks, or corner labels, reply only BAD. Otherwise reply only CLEAN.'
+                        },
+                        {
+                            type: 'file',
+                            mediaType,
+                            data: imageBuffer,
+                        }
+                    ]
+                }
+            ]
+        });
+        const verdictRaw = (result.text ?? '').trim().toUpperCase();
+        const verdict = verdictRaw.startsWith('CLEAN');
+        return verdict;
+    } catch {
+        // Fail-open if validation API fails
+        return true;
+    }
 }
 
 export async function generateImage(
@@ -142,32 +133,32 @@ export async function generateImage(
             { 
                 type: 'hero_shot', 
                 category: 'Classic & Professional',
-                suffix: 'Hero shot: Clean, professional composition with subject centered. Balanced lighting, neutral tones, editorial magazine style. Shot with 50mm lens at f/2.8. Perfect for professional, trustworthy brand image.'
+                suffix: 'Hero shot: Clean, professional composition with subject centered. Balanced lighting, neutral tones, editorial magazine style. Subtle shallow depth of field as appropriate. Perfect for professional, trustworthy brand image.'
             },
             { 
                 type: 'lifestyle_authentic', 
                 category: 'Lifestyle & Authentic',
-                suffix: 'Lifestyle photography: Natural, candid moment captured in real environment. Warm, inviting golden hour lighting. Shot with 35mm lens at f/1.8. Authentic, relatable, human-centric feel - perfect for emotional connection.'
+                suffix: 'Lifestyle photography: Natural, candid moment captured in real environment. Warm, inviting golden hour lighting. Gentle background blur; authentic, relatable, human-centric feel - perfect for emotional connection.'
             },
             { 
                 type: 'editorial_dramatic', 
                 category: 'Editorial & Bold',
-                suffix: 'Editorial style: High-contrast, dramatic lighting with bold shadows. Cinematic color grading, moody atmosphere. Shot with 85mm lens at f/1.4. Eye-catching, sophisticated, premium brand positioning.'
+                suffix: 'Editorial style: High-contrast, dramatic lighting with bold shadows. Cinematic color grading, moody atmosphere. Compressed-perspective look; eye-catching, sophisticated, premium brand positioning.'
             },
             { 
                 type: 'bright_modern', 
                 category: 'Bright & Contemporary',
-                suffix: 'Modern commercial: Bright, airy, clean aesthetic with soft shadows. Cool color temperature, fresh look. Shot with 24-70mm lens at f/4. Contemporary, optimistic, energetic vibe - perfect for modern brands.'
+                suffix: 'Modern commercial: Bright, airy, clean aesthetic with soft shadows. Cool color temperature, fresh look. Deep focus for clarity; contemporary, optimistic, energetic vibe - perfect for modern brands.'
             },
             { 
                 type: 'detail_closeup', 
                 category: 'Detail & Intimate',
-                suffix: 'Macro detail shot: Intimate close-up showcasing textures and details. Shallow depth of field, beautiful bokeh. Shot with 100mm macro lens at f/2. Emphasizes quality, craftsmanship, sensory appeal.'
+                suffix: 'Macro detail shot: Intimate close-up showcasing textures and details. Shallow depth of field with beautiful bokeh. Emphasizes quality, craftsmanship, sensory appeal.'
             },
             { 
                 type: 'action_dynamic', 
                 category: 'Dynamic & Energetic',
-                suffix: 'Action photography: Dynamic angle capturing movement and energy. Sharp subject with motion blur in background. Shot with 24mm wide lens at f/5.6. Exciting, engaging, active lifestyle appeal.'
+                suffix: 'Action photography: Dynamic angle capturing movement and energy. Sharp subject with motion blur in background. Wide-angle sense of motion; exciting, engaging, active lifestyle appeal.'
             }
         ];
 
@@ -198,7 +189,25 @@ export async function generateImage(
                     if (file.mediaType.startsWith('image/')) {
                         const timestamp = Date.now();
                         const fileName = `generated-${variation.type}-${timestamp}-${index}.png`;
-                        const imageBuffer = Buffer.from(file.uint8Array);
+                        let imageBuffer = Buffer.from(file.uint8Array);
+
+                        // Validate the image does not contain overlays/labels; if it does, regenerate once with stronger negatives
+                        const isClean = await validateImageForOverlays(imageBuffer, file.mediaType);
+                        if (!isClean) {
+                            console.warn(`  ⚠️  Overlay/label detected in variation ${index + 1}. Regenerating with stronger negatives...`);
+                            const stronger = `${enhancedPrompt}\n\nABSOLUTE BAN: Do not add any frames, borders, guides, crop marks, rulers, numbers, percentages, camera readouts (e.g., f/2.8), EXIF text, watermarks, captions, or labels of any kind.`;
+                            const retry = await generateText({
+                                model: 'google/gemini-2.5-flash-image-preview',
+                                prompt: stronger,
+                                providerOptions: { google: { responseModalities: ['TEXT', 'IMAGE'] } },
+                            });
+                            for (const f2 of retry.files) {
+                                if (f2.mediaType.startsWith('image/')) {
+                                    imageBuffer = Buffer.from(f2.uint8Array);
+                                    break;
+                                }
+                            }
+                        }
 
                         // Upload to Supabase Storage with variation metadata
                         const publicUrl = await uploadToSupabase(
@@ -301,7 +310,7 @@ export async function editImage(imageUrl: string, editPrompt: string, campaignId
                             type: 'text',
                             text: `Edit this image with the following instructions: ${enhancedEditPrompt}
 
-IMPORTANT: Maintain Meta's native ad aesthetic - natural, realistic, mobile-optimized with proper safe zones.`,
+IMPORTANT: Maintain Meta's native ad aesthetic — natural, realistic, and mobile-optimized. Keep edges clean and NEVER add frames, borders, guides, crop marks, labels, text, or numbers.`,
                         },
                         {
                             type: 'file',

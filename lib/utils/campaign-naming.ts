@@ -13,6 +13,9 @@ const STOP_WORDS = new Set<string>([
   'is','are','was','were','be','been','being',
   'this','that','these','those','it','its','as','about','than','then','too','very',
   'your','you','we','our','us','they','them','their','i','me','my',
+  // Generic/filler verbs from natural prompts
+  'would','like','want','wants','please','help','need','generate','create','make','setup','set','up',
+  // Advertising/meta words we never want in names
   'new','ad','ads','campaign','facebook','instagram','meta'
 ])
 
@@ -56,7 +59,24 @@ export function extractKeywords(prompt: string, limit: number = 10): string[] {
  * Generate candidate names (3 -> 2 -> 1 tokens) from keywords.
  */
 export function generateNameCandidates(prompt: string): string[] {
-  const keywords = extractKeywords(prompt)
+  // Apply light domain-specific shortening before generating windows
+  const shorten = (word: string): string => {
+    switch (word) {
+      case 'renovation':
+      case 'renovations':
+        return 'reno'
+      case 'generation':
+      case 'generate':
+      case 'generating':
+        return 'leads'
+      case 'toronto':
+        return 'toronto' // keep city names as-is for clarity
+      default:
+        return word
+    }
+  }
+
+  const keywords = extractKeywords(prompt).map(shorten)
   const candidates: string[] = []
   // 3-word windows
   for (let i = 0; i <= Math.max(0, keywords.length - 3); i++) {

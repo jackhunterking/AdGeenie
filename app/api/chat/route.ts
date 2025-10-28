@@ -174,7 +174,7 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (planRow?.id) {
       planId = planRow.id as string;
-      planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Reflow overlays within 10–12% safe zones. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
+      planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Keep edges clean and reflow overlays within edge-safe areas; never draw frames or labels. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
     } else if (effectiveGoal) {
       // Auto-orchestrate plan when missing
       // Try to read offer from campaign_states.ad_copy_data.offerText
@@ -222,7 +222,7 @@ export async function POST(req: Request) {
             .single();
           if (!error && inserted?.id) {
             planId = inserted.id as string;
-            planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Reflow overlays within 10–12% safe zones. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
+            planContext = `\n[CREATIVE PLAN ACTIVE]\nPlan ID: ${planId}\nFollow plan coverage and constraints. Generate square and vertical with vertical reusing the same base square image via extended canvas (blur/gradient/solid). Keep edges clean and reflow overlays within edge-safe areas; never draw frames or labels. Respect copy limits: primary ≤125, headline ≤40, description ≤30.`;
           }
 
           // Persist offerText to memory
@@ -772,7 +772,7 @@ When a tool is cancelled by the user (tool result contains "cancelled: true"):
 Follow the CreativePlan (formats, overlays, and constraints) when available. Defaults below apply only if no plan exists.
 **Format:** 1080×1080 square by default; also produce 1080×1920 vertical by extending the same square base image with blur/gradient/solid fill; reflow overlays.
 **Style:** Professional, platform-native visuals. Avoid AI-looking artifacts. Use people/no-people and text density based on plan.
-**Safe Zones:** 10–12% margins on all sides to avoid UI overlap.
+**Edge Safety:** Keep edges clean; avoid placing critical content near edges. Do not draw frames, borders, crop marks, or labels.
 **Defaults when no plan:** Provide diverse styles and include at least one text-only typographic option and one no-people image when offers exist. Respect copy limits (primary ≤125, headline ≤40, description ≤30).
 **Variations:** Generate 6 unique variations with distinct styles/angles.
 
