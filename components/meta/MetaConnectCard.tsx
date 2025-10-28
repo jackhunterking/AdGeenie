@@ -164,8 +164,16 @@ export function MetaConnectCard() {
       }
 
       // Add diagnostic callback to surface SDK responses in console
+      // Provide a fallback redirect so that if Meta navigates instead of rendering
+      // in their popup UI, we can signal completion back to the opener.
+      // Note: FB.ui ignores unknown params; some versions accept fallback_redirect_uri.
       fb.ui(
-        { method: 'ads_payment', display: 'popup', account_id: numericId },
+        {
+          method: 'ads_payment',
+          display: 'popup',
+          account_id: numericId,
+          fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`,
+        },
         (response: unknown) => {
           // eslint-disable-next-line no-console
           console.log('[FB.ui][ads_payment] callback response:', response)
