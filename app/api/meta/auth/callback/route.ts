@@ -390,10 +390,31 @@ export async function GET(req: NextRequest) {
         .eq('campaign_id', cid)
     }
 
-    // Serve small HTML to notify opener and close popup when possible; fallback to redirect
+    // Compute lightweight connection status for UI messaging
+    const stateRes = await supabaseServer
+      .from('campaign_states')
+      .select('meta_connect_data')
+      .eq('campaign_id', cid)
+      .single()
+
+    let metaStatus: string = 'token_ready'
+    try {
+      const metaRow = (stateRes && 'data' in stateRes ? stateRes.data : null) as { meta_connect_data?: unknown } | null
+      const raw = (metaRow?.meta_connect_data ?? null) as Record<string, unknown> | null
+      const maybe = raw && typeof raw === 'object' ? (raw.status as unknown) : undefined
+      if (typeof maybe === 'string') metaStatus = maybe
+    } catch {}
+
+    // Serve small HTML to notify opener; do not auto-close. If no opener, redirect.
     const html = `<!doctype html><meta charset="utf-8"><title>Connected</title>
 <script>
-try { if (window.opener && window.opener !== window) { window.opener.postMessage({type:'meta-connected'}, '${origin}'); window.close(); } else { window.location = '${origin}/${encodeURIComponent(cid)}?meta=connected'; } } catch(e) { window.location = '${origin}/${encodeURIComponent(cid)}?meta=connected'; }
+try {
+  if (window.opener && window.opener !== window) {
+    window.opener.postMessage({type:'meta-connected', status:${JSON.stringify(metaStatus)}}, '${origin}');
+  } else {
+    window.location = '${origin}/${encodeURIComponent(cid)}?meta=connected';
+  }
+} catch(e) { /* no-op */ }
 </script>
 <body style="font-family:system-ui;padding:16px">Connected. You can close this window.</body>`
     const resp = new NextResponse(html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } })

@@ -56,10 +56,17 @@ export function MetaConnectCard() {
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      if (e?.data && typeof e.data === 'object' && (e.data as { type?: string }).type === 'meta-connected') {
+      // Accept only same-origin messages
+      if (typeof window !== 'undefined' && e.origin !== window.location.origin) return
+      const data = (e && typeof e.data === 'object' && e.data !== null) ? (e.data as { type?: string; status?: string }) : null
+      if (data?.type === 'meta-connected') {
+        // eslint-disable-next-line no-console
+        console.info('[MetaConnect] message received', { status: data.status })
         setStatus('finalizing')
         void hydrate()
         if (timeoutId) { window.clearTimeout(timeoutId); setTimeoutId(null) }
+        // eslint-disable-next-line no-console
+        console.info('[MetaConnect] closing popup')
         try { popupRef && !popupRef.closed && popupRef.close() } catch {}
       }
     }
@@ -82,6 +89,8 @@ export function MetaConnectCard() {
   const onConnect = useCallback(() => {
     if (!campaign?.id) return
     setStatus('authorizing')
+    // eslint-disable-next-line no-console
+    console.info('[MetaConnect] opening login dialog')
     const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID || '1352055236432179'
     const appId = process.env.NEXT_PUBLIC_FB_APP_ID
     const gv = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
