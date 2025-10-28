@@ -30,6 +30,7 @@ export function MetaConnectCard() {
   const [loading, setLoading] = useState(false)
   const [popupRef, setPopupRef] = useState<Window | null>(null)
   const [timeoutId, setTimeoutId] = useState<number | null>(null)
+  const [sdkReady, setSdkReady] = useState(false)
 
   const hydrate = useCallback(async () => {
     if (!campaign?.id) return
@@ -149,31 +150,42 @@ export function MetaConnectCard() {
     })
   }, [])
 
-  const onAddPayment = useCallback(async () => {
+  // Detect FB SDK readiness early and keep a boolean flag so the click handler
+  // can synchronously open the popup, preserving the user gesture context per
+  // Meta's dialog requirements.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const getFB = (): FacebookSDK | null => {
+      const maybe = (window as unknown as { FB?: unknown }).FB
+      if (maybe && typeof maybe === 'object' && maybe !== null && typeof (maybe as { ui?: unknown }).ui === 'function') {
+        return maybe as FacebookSDK
+      }
+      return null
+    }
+    if (getFB()) { setSdkReady(true); return }
+    const iv = window.setInterval(() => {
+      if (getFB()) { setSdkReady(true); window.clearInterval(iv) }
+    }, 200)
+    return () => { window.clearInterval(iv) }
+  }, [])
+
+  const onAddPayment = useCallback(() => {
     if (!campaign?.id || !summary?.adAccount?.id) return
-    const fb = await waitForFacebookSDK()
-    if (!fb) {
-      // Provide a light feedback without throwing
-      window.alert('Facebook SDK did not load. Please refresh and try again.')
+    const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as FacebookSDK | null
+    if (!fb || typeof fb.ui !== 'function') {
+      window.alert('Facebook SDK is not ready yet. Please wait a moment and try again.')
       return
     }
 
-    // Numeric id for FB.ui (restore simple behavior)
+    // Numeric id for FB.ui (must be numeric; strip act_ prefix)
     const numericId = summary.adAccount.id.replace(/^act_/i, '')
+
     try {
-      // Best-effort: ensure user session is established before opening dialog
+      // Fire-and-forget; do not await anything before opening the dialog
       if (typeof fb.getLoginStatus === 'function') {
-        try {
-          fb.getLoginStatus(() => {}, true)
-        } catch {
-          // ignore
-        }
+        try { fb.getLoginStatus(() => {}, true) } catch {}
       }
 
-      // Add diagnostic callback to surface SDK responses in console
-      // Provide a fallback redirect so that if Meta navigates instead of rendering
-      // in their popup UI, we can signal completion back to the opener.
-      // Note: FB.ui ignores unknown params; some versions accept fallback_redirect_uri.
       fb.ui(
         {
           method: 'ads_payment',
@@ -187,10 +199,10 @@ export function MetaConnectCard() {
         },
       )
     } catch {
-      // If the SDK throws for any reason, fail softly
+      // swallow SDK hiccups
     }
 
-    // Poll server for funding_source and persist when connected; surface subtle inline hint
+    // Begin background polling for payment connection status
     const actId = summary.adAccount.id.startsWith('act_') ? summary.adAccount.id : `act_${numericId}`
     const pollOnce = async (): Promise<boolean> => {
       try {
@@ -199,28 +211,20 @@ export function MetaConnectCard() {
         if (!res.ok) return false
         const json: unknown = await res.json()
         const connected = Boolean((json as { connected?: boolean } | null)?.connected)
-        if (connected) {
-          await hydrate()
-          return true
-        }
-      } catch {
-        // ignore and continue polling
-      }
+        if (connected) { await hydrate(); return true }
+      } catch {}
       return false
     }
-
     void (async () => {
       if (await pollOnce()) return
       let attempts = 0
       const iv = window.setInterval(async () => {
         attempts += 1
         const ok = await pollOnce()
-        if (ok || attempts >= 15) {
-          window.clearInterval(iv)
-        }
+        if (ok || attempts >= 15) { window.clearInterval(iv) }
       }, 2000)
     })()
-  }, [campaign?.id, hydrate, summary?.adAccount?.id, waitForFacebookSDK])
+  }, [campaign?.id, hydrate, summary?.adAccount?.id])
 
   const disconnect = useCallback(async () => {
     if (!campaign?.id) return
@@ -313,7 +317,7 @@ export function MetaConnectCard() {
             <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" /><span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span></div>
-                <Button size="sm" onClick={onAddPayment} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
+                <Button size="sm" onClick={onAddPayment} disabled={!sdkReady} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
               </div>
             </div>
           )}
