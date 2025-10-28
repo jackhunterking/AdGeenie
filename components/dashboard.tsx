@@ -22,7 +22,7 @@ import { UIMessage } from "ai"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { SaveIndicator } from "./save-indicator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { generateNameCandidates } from "@/lib/utils/campaign-naming"
+// Removed local heuristic name suggestion; naming is AI-driven on server
 
 interface DashboardProps {
   messages?: UIMessage[]  // AI SDK v5 prop name
@@ -53,11 +53,9 @@ export function Dashboard({
 
   const openRename = () => {
     const current = campaign?.name ?? ""
-    // If name is untitled or empty, propose an AI-generated suggestion from prompt
+    // If name is untitled or empty, simply prefill empty input; server enforces naming rules
     if (!current || /untitled/i.test(current)) {
-      const prompt = campaignMetadata?.initialPrompt || (campaign?.metadata as { initialPrompt?: string } | null)?.initialPrompt || ""
-      const suggestion = generateNameCandidates(prompt)[0] || "Campaign"
-      setRenameName(suggestion.slice(0, MAX_LEN))
+      setRenameName("")
     } else {
       setRenameName(current.slice(0, MAX_LEN))
     }

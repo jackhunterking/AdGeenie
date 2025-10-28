@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 import type { Tables } from '@/lib/supabase/database.types'
 import { conversationManager } from '@/lib/services/conversation-manager'
-import { generateNameCandidates, pickUniqueFromCandidates } from '@/lib/utils/campaign-naming'
+import { generateCampaignNameAI } from '@/lib/ai/campaign-namer'
 
 // GET /api/campaigns - List user's campaigns
 export async function GET() {
@@ -104,73 +104,121 @@ export async function POST(request: NextRequest) {
     // Create campaign metadata with initial prompt if provided
     const metadata = initialPrompt ? { initialPrompt } : null
 
-    // Determine campaign name
+    // Determine campaign name (AI-generated, globally unique)
     let finalName = requestedName ?? null
     if (!finalName) {
-      const source = initialPrompt ?? prompt ?? ''
-      const candidates = generateNameCandidates(source)
-      // Load existing names for user (case-insensitive)
-      const { data: existing, error: existingError } = await supabaseServer
-        .from('campaigns')
-        .select('name')
-        .eq('user_id', user.id)
-      if (existingError) {
-        console.error('Error loading existing campaign names:', existingError)
+      const source = (initialPrompt ?? prompt ?? '').slice(0, 500)
+      const avoid: string[] = []
+      // Try up to 3 times to avoid global conflicts
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const proposed = await generateCampaignNameAI({ prompt: source, goalType: initialGoal || undefined, avoid })
+        const nameToTry = proposed && proposed.trim().length > 0 ? proposed : 'Campaign'
+
+        // Attempt insert immediately to leverage DB unique index globally
+        const insert = await supabaseServer
+          .from('campaigns')
+          .insert({
+            user_id: user.id,
+            name: nameToTry,
+            status: 'draft',
+            current_step: 1,
+            total_steps: 6,
+            metadata,
+            initial_goal: initialGoal || null,
+          })
+          .select()
+          .single()
+
+        if (!insert.error) {
+          const campaign: Tables<'campaigns'> | null = insert.data as Tables<'campaigns'> | null
+          // Create campaign state with initial goal if provided
+          const initialGoalData = initialGoal 
+            ? { selectedGoal: initialGoal, status: 'idle', formData: null }
+            : null
+          const { error: stateError } = await supabaseServer
+            .from('campaign_states')
+            .insert({
+              campaign_id: campaign!.id,
+              goal_data: initialGoalData,
+              location_data: null,
+              audience_data: null,
+              ad_copy_data: null,
+              ad_preview_data: null,
+              budget_data: null,
+            })
+          if (stateError) {
+            console.error('Error creating campaign state:', stateError)
+            await supabaseServer.from('campaigns').delete().eq('id', campaign!.id)
+            return NextResponse.json({ error: 'Failed to initialize campaign state' }, { status: 500 })
+          }
+
+          // Conversation init
+          try {
+            const conversation = await conversationManager.createConversation(
+              user.id,
+              campaign!.id,
+              {
+                title: `Chat: ${campaign?.name ?? nameToTry}`,
+                metadata: {
+                  campaign_name: campaign?.name ?? nameToTry,
+                  initial_prompt: initialPrompt,
+                  current_goal: initialGoal || null,
+                },
+              }
+            )
+            console.log(`Created conversation ${conversation.id} for campaign ${campaign!.id} with goal: ${initialGoal || 'none'}`)
+          } catch (convError) {
+            console.error('Error creating conversation:', convError)
+          }
+
+          return NextResponse.json({ campaign }, { status: 201 })
+        }
+
+        const code = (insert.error as unknown as { code?: string }).code
+        if (code === '23505') {
+          // unique violation → add to avoid list and retry
+          avoid.push(nameToTry)
+          continue
+        }
+
+        console.error('Error creating campaign:', insert.error)
+        return NextResponse.json({ error: insert.error.message }, { status: 500 })
       }
-      const existingSet = new Set<string>((existing || []).map(r => r.name.toLowerCase()))
-      finalName = pickUniqueFromCandidates(candidates, existingSet)
+
+      // If all attempts failed due to uniqueness churn
+      return NextResponse.json({ error: 'Could not generate a unique campaign name. Please try again.' }, { status: 409 })
     }
 
-    // Create campaign (retry on collision once with next candidate set)
-    const tryInsert = async (proposedName: string) => {
-      return await supabaseServer
-        .from('campaigns')
-        .insert({
-          user_id: user.id,
-          name: proposedName,
-          status: 'draft',
-          current_step: 1,
-          total_steps: 6,
-          metadata,
-          initial_goal: initialGoal || null,
-        })
-        .select()
-        .single()
-    }
+    // If a manual name is provided, fall through to single insert path
+    const { data: manualCampaign, error: manualErr } = await supabaseServer
+      .from('campaigns')
+      .insert({
+        user_id: user.id,
+        name: finalName!,
+        status: 'draft',
+        current_step: 1,
+        total_steps: 6,
+        metadata,
+        initial_goal: initialGoal || null,
+      })
+      .select()
+      .single()
 
-    let insertResult = await tryInsert(finalName!)
-    if (insertResult.error) {
-      // On unique constraint violation, pick next candidate and retry once
-      console.warn('Initial campaign insert failed, retrying with another name:', insertResult.error)
-      if (!requestedName) {
-        const candidates = generateNameCandidates(initialPrompt ?? prompt ?? '')
-        const exclude = new Set<string>([(finalName || '').toLowerCase()])
-        const next = pickUniqueFromCandidates(candidates, exclude)
-        insertResult = await tryInsert(next)
-      }
-    }
-    const campaign: Tables<'campaigns'> | null = insertResult.data as Tables<'campaigns'> | null
-    const campaignError = insertResult.error
-
-    if (campaignError || !campaign) {
-      const message = campaignError?.message ?? 'Failed to create campaign'
-      console.error('Error creating campaign:', campaignError)
-      return NextResponse.json(
-        { error: message },
-        { status: 500 }
-      )
+    if (manualErr) {
+      const status = (manualErr as unknown as { code?: string }).code === '23505' ? 409 : 500
+      return NextResponse.json({ error: manualErr.message }, { status })
     }
 
     // Create campaign state with initial goal if provided
-    const initialGoalData = initialGoal 
+    const manualGoalData = initialGoal 
       ? { selectedGoal: initialGoal, status: 'idle', formData: null }
       : null
 
-    const { error: stateError } = await supabaseServer
+    const { error: manualStateErr } = await supabaseServer
       .from('campaign_states')
       .insert({
-        campaign_id: campaign.id,
-        goal_data: initialGoalData,
+        campaign_id: (manualCampaign as Tables<'campaigns'>).id,
+        goal_data: manualGoalData,
         location_data: null,
         audience_data: null,
         ad_copy_data: null,
@@ -178,37 +226,31 @@ export async function POST(request: NextRequest) {
         budget_data: null,
       })
 
-    if (stateError) {
-      console.error('Error creating campaign state:', stateError)
-      // Rollback campaign creation
-      await supabaseServer.from('campaigns').delete().eq('id', campaign.id)
-      return NextResponse.json(
-        { error: 'Failed to initialize campaign state' },
-        { status: 500 }
-      )
+    if (manualStateErr) {
+      console.error('Error creating campaign state:', manualStateErr)
+      await supabaseServer.from('campaigns').delete().eq('id', (manualCampaign as Tables<'campaigns'>).id)
+      return NextResponse.json({ error: 'Failed to initialize campaign state' }, { status: 500 })
     }
 
-    // Create conversation for this campaign (AI SDK pattern)
     try {
       const conversation = await conversationManager.createConversation(
         user.id,
-        campaign.id,
+        (manualCampaign as Tables<'campaigns'>).id,
         {
-          title: `Chat: ${campaign?.name ?? finalName}`,
+          title: `Chat: ${(manualCampaign as Tables<'campaigns'>).name}`,
           metadata: {
-            campaign_name: campaign?.name ?? finalName,
+            campaign_name: (manualCampaign as Tables<'campaigns'>).name,
             initial_prompt: initialPrompt,
-            current_goal: initialGoal || null, // Store goal at conversation level
+            current_goal: initialGoal || null,
           },
         }
       )
-      console.log(`Created conversation ${conversation.id} for campaign ${campaign.id} with goal: ${initialGoal || 'none'}`)
+      console.log(`Created conversation ${conversation.id} for campaign ${(manualCampaign as Tables<'campaigns'>).id} with goal: ${initialGoal || 'none'}`)
     } catch (convError) {
       console.error('Error creating conversation:', convError)
-      // Don't fail campaign creation if conversation fails - it can be created later
     }
 
-    return NextResponse.json({ campaign }, { status: 201 })
+    return NextResponse.json({ campaign: manualCampaign }, { status: 201 })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(
