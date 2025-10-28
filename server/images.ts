@@ -219,19 +219,33 @@ export async function generateImage(
                     }
                 }
 
-                throw new Error(`No image generated for variation ${index + 1}`);
+                // No image artifact returned for this variation
+                console.warn(`  ⚠️  No image generated for variation ${index + 1} (${variation.type})`);
+                return null;
             } catch (error) {
                 console.error(`Error generating variation ${index + 1} (${variation.type}):`, error);
-                throw error;
+                // Return null to allow other variations to continue
+                return null;
             }
         });
 
-        // Wait for all variations to complete
-        const imageUrls = await Promise.all(generationPromises);
-        
-        console.log(`✅ Successfully generated ${imageUrls.length} AI variations!`);
+        // Wait for all variations to complete (tolerate partial failures)
+        const settled = await Promise.allSettled(generationPromises);
+        const imageUrls = settled
+            .filter((r): r is PromiseFulfilledResult<string | null> => r.status === 'fulfilled')
+            .map(r => r.value)
+            .filter((u): u is string => typeof u === 'string' && u.length > 0);
+
+        const failures = settled.filter(r => r.status === 'rejected').length
+            + settled.filter(r => r.status === 'fulfilled' && (r.value === null)).length;
+
+        if (imageUrls.length === 0) {
+            throw new Error(`All ${numberOfImages} variations failed to generate an image`);
+        }
+
+        console.log(`✅ Generated ${imageUrls.length}/${numberOfImages} variations. Failures: ${failures}`);
         console.log(`   Batch ID: ${batchId}`);
-        
+
         return imageUrls;
     } catch (error) {
         console.error('Error generating images:', error);
