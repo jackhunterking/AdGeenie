@@ -250,27 +250,31 @@ export function MetaConnectCard() {
       </div>
 
       {!isConnected && !isSelectedAssets && (
-        <div className="group relative flex flex-col items-center p-8 rounded-2xl border-2 border-border">
+        <div className="space-y-3 rounded-lg border panel-surface p-3">
           {(status === 'authorizing' || status === 'finalizing') && loading ? (
-            <>
-              <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
-                <Loader2 className="h-10 w-10 animate-spin" />
+            <div className="flex items-center gap-3">
+              <div className="icon-tile-muted rounded-md flex items-center justify-center shrink-0">
+                <Loader2 className="h-4 w-4 animate-spin" />
               </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-semibold">Finalizing your Meta assets…</h3>
-                <p className="text-sm text-muted-foreground">This usually takes a few seconds.</p>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Finalizing your Meta assets…</p>
+                <p className="text-xs text-muted-foreground">This usually takes a few seconds.</p>
               </div>
-            </>
+            </div>
           ) : (
             <>
-              <div className="icon-tile-muted rounded-2xl h-20 w-20 flex items-center justify-center mb-4">
-                <Link2 className="h-10 w-10" />
+              <div className="flex items-center gap-3">
+                <div className="icon-tile-muted rounded-md flex items-center justify-center shrink-0">
+                  <Link2 className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Connect Facebook & Instagram</p>
+                  <p className="text-xs text-muted-foreground">Authenticate to pick your Business and Page</p>
+                </div>
               </div>
-              <div className="text-center space-y-2 mb-4">
-                <h3 className="text-xl font-semibold">Connect Facebook & Instagram</h3>
-                <p className="text-sm text-muted-foreground">Authenticate to pick your Business and Page</p>
-              </div>
-              <Button size="lg" onClick={onConnect} className="bg-blue-600 hover:bg-blue-700 text-white px-8">Connect with Meta</Button>
+              <Button size="sm" onClick={onConnect} className="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white w-full">
+                Connect with Meta
+              </Button>
             </>
           )}
         </div>
