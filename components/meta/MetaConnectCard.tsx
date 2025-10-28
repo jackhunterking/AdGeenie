@@ -65,9 +65,6 @@ export function MetaConnectCard() {
         setStatus('finalizing')
         void hydrate()
         if (timeoutId) { window.clearTimeout(timeoutId); setTimeoutId(null) }
-        // eslint-disable-next-line no-console
-        console.info('[MetaConnect] closing popup')
-        try { popupRef && !popupRef.closed && popupRef.close() } catch {}
       }
     }
     window.addEventListener('message', onMessage)
@@ -107,11 +104,6 @@ export function MetaConnectCard() {
     const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2)
     const win = window.open(url.toString(), 'fb-login', `popup=yes,width=${w},height=${h},left=${left},top=${top}`)
     setPopupRef(win || null)
-    const id = window.setTimeout(() => {
-      setStatus('idle')
-      try { win && !win.closed && win.close() } catch {}
-    }, 20000)
-    setTimeoutId(id)
   }, [campaign?.id])
 
   // Minimal FB SDK surface used here

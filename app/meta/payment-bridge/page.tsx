@@ -17,11 +17,8 @@ export default function PaymentBridgePage() {
       if (opener && typeof opener.postMessage === 'function') {
         opener.postMessage({ type: 'meta-connected' }, '*')
       }
-      // Give the message a moment to propagate, then close
-      const id = window.setTimeout(() => {
-        try { window.close() } catch {}
-      }, 200)
-      return () => window.clearTimeout(id)
+      // No auto-close; allow user to close manually
+      return () => {}
     } catch {
       // swallow
     }
