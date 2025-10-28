@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: 'How AdPilot collects, uses, and protects your information.',
 }
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@example.com'
+const SUPPORT_EMAIL = 'hello@adpilot.studio'
 
 export default function PrivacyPolicyPage() {
   return (

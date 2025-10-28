@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: 'The terms and conditions governing your use of AdPilot.',
 }
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@example.com'
+const SUPPORT_EMAIL = 'hello@adpilot.studio'
 
 export default function TermsOfUsePage() {
   return (
