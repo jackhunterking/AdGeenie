@@ -157,32 +157,8 @@ export function MetaConnectCard() {
       return
     }
 
-    // Numeric id for FB.ui (guard for malformed values)
-    const idMatch = /\d+/.exec(summary.adAccount.id)
-    const numericId = idMatch ? idMatch[0] : ''
-    if (!numericId) {
-      window.alert('Selected ad account id is invalid. Please reselect your ad account.')
-      return
-    }
-
-    // Preflight: eligibility check to avoid FB dialog white-screen on bad accounts
-    try {
-      const eligUrl = `/api/meta/payment/eligibility?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(summary.adAccount.id)}`
-      const eligRes = await fetch(eligUrl, { cache: 'no-store' })
-      const eligJson: unknown = await eligRes.json()
-      const eligible = Boolean((eligJson as { eligible?: boolean } | null)?.eligible)
-      if (!eligible) {
-        const reason = (eligJson as { reason?: string } | null)?.reason || 'Ad account is not eligible for payments yet.'
-        // eslint-disable-next-line no-console
-        console.info('[payments][eligibility] blocked:', eligJson)
-        window.alert(reason)
-        return
-      }
-    } catch {
-      // If preflight fails, proceed but log
-      // eslint-disable-next-line no-console
-      console.info('[payments][eligibility] preflight failed; proceeding to FB.ui')
-    }
+    // Numeric id for FB.ui (restore simple behavior)
+    const numericId = summary.adAccount.id.replace(/^act_/i, '')
     try {
       // Best-effort: ensure user session is established before opening dialog
       if (typeof fb.getLoginStatus === 'function') {
@@ -332,26 +308,7 @@ export function MetaConnectCard() {
             <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" /><span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span></div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={onAddPayment} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
-                  {/* Direct open fallback in case FB SDK popup fails */}
-                  <a
-                    className="text-xs underline text-blue-700 dark:text-blue-300"
-                    href={(() => {
-                      const gv = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
-                      const appId = process.env.NEXT_PUBLIC_FB_APP_ID || ''
-                      const idMatch = summary.adAccount?.id ? /\d+/.exec(summary.adAccount.id) : null
-                      const numericId = idMatch ? idMatch[0] : ''
-                      const url = new URL(`https://www.facebook.com/${gv}/dialog/ads_payment`)
-                      if (numericId) url.searchParams.set('account_id', numericId)
-                      if (appId) url.searchParams.set('app_id', String(appId))
-                      url.searchParams.set('display', 'popup')
-                      url.searchParams.set('fallback_redirect_uri', `${typeof window !== 'undefined' ? window.location.origin : ''}/meta/payment-bridge`)
-                      return url.toString()
-                    })()}
-                    target="_blank" rel="noreferrer"
-                  >Open in Facebook</a>
-                </div>
+                <Button size="sm" onClick={onAddPayment} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
               </div>
             </div>
           )}
