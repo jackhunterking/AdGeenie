@@ -43,9 +43,27 @@ export async function GET(req: NextRequest) {
       .single()
 
     const token = (conn as { long_lived_user_token?: string } | null)?.long_lived_user_token || ''
-    const selectedBusinessId = (conn as { selected_business_id?: string } | null)?.selected_business_id || null
+    let selectedBusinessId = (conn as { selected_business_id?: string } | null)?.selected_business_id || null
     const adAccountId = (conn as { selected_ad_account_id?: string } | null)?.selected_ad_account_id || null
     let fbUserId = (conn as { fb_user_id?: string | null } | null)?.fb_user_id || null
+
+    // Fallback: campaign_states.meta_connect_data.businessId
+    if (!selectedBusinessId) {
+      try {
+        const { data: stateRow } = await supabaseServer
+          .from('campaign_states')
+          .select('meta_connect_data')
+          .eq('campaign_id', campaignId)
+          .single()
+        const meta = (stateRow?.meta_connect_data ?? null) as Record<string, unknown> | null
+        const bid = meta && typeof meta === 'object' && typeof (meta as { businessId?: unknown }).businessId === 'string'
+          ? (meta as { businessId: string }).businessId
+          : null
+        if (bid) selectedBusinessId = bid
+      } catch {
+        // ignore
+      }
+    }
 
     if (!token || !selectedBusinessId || !adAccountId) {
       const missing: string[] = []

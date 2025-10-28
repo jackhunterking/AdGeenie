@@ -308,7 +308,7 @@ export function MetaConnectCard() {
                 <Button
                   size="sm"
                   onClick={onAddPayment}
-                  disabled={Boolean(roleCheck && roleCheck.ok === false)}
+                  disabled={Boolean(roleCheck && roleCheck.ok === false && roleCheck.appInBusiness === true && roleCheck.isBusinessAdmin === true && roleCheck.isAssignedToAdAccount === false)}
                   className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
                 >
                   Add Payment
