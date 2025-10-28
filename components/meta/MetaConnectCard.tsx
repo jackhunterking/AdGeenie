@@ -106,9 +106,15 @@ export function MetaConnectCard() {
   }, [campaign?.id])
 
   // Minimal FB SDK surface used here
+  type AdsPaymentParams = {
+    method: 'ads_payment'
+    display?: 'popup'
+    account_id: string
+  } & Record<string, unknown>
+
   type FacebookSDK = {
     ui: (
-      params: { method: 'ads_payment'; display?: 'popup'; account_id: string },
+      params: AdsPaymentParams,
       cb?: (response: unknown) => void,
     ) => void
     getLoginStatus?: (cb: (res: { status?: string }) => void, forceRefresh?: boolean) => void
