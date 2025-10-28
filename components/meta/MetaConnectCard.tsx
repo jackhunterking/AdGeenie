@@ -238,19 +238,21 @@ export function MetaConnectCard() {
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="icon-tile-muted">
-            <Link2 className="h-4 w-4" />
+      {(isConnected || isSelectedAssets) && (
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="icon-tile-muted">
+              <Link2 className="h-4 w-4" />
+            </div>
+            <h3 className="font-semibold">Meta Connection</h3>
+            {isConnected && <span className="inline-flex items-center gap-1 text-status-green ml-2"><Check className="h-4 w-4" />Connected</span>}
           </div>
-          <h3 className="font-semibold">Meta Connection</h3>
-          {isConnected && <span className="inline-flex items-center gap-1 text-status-green ml-2"><Check className="h-4 w-4" />Connected</span>}
+          {isConnected && <Button variant="ghost" size="sm" onClick={disconnect} className="h-7 px-3">Disconnect</Button>}
         </div>
-        {isConnected && <Button variant="ghost" size="sm" onClick={disconnect} className="h-7 px-3">Disconnect</Button>}
-      </div>
+      )}
 
       {!isConnected && !isSelectedAssets && (
-        <div className="space-y-3 rounded-lg border panel-surface p-3">
+        <div className="rounded-lg border panel-surface p-3">
           {(status === 'authorizing' || status === 'finalizing') && loading ? (
             <div className="flex items-center gap-3">
               <div className="icon-tile-muted rounded-md flex items-center justify-center shrink-0">
@@ -262,20 +264,18 @@ export function MetaConnectCard() {
               </div>
             </div>
           ) : (
-            <>
-              <div className="flex items-center gap-3">
-                <div className="icon-tile-muted rounded-md flex items-center justify-center shrink-0">
-                  <Link2 className="h-4 w-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Connect Facebook & Instagram</p>
-                  <p className="text-xs text-muted-foreground">Authenticate to pick your Business and Page</p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="icon-tile-muted rounded-md flex items-center justify-center shrink-0">
+                <Link2 className="h-4 w-4" />
               </div>
-              <Button size="sm" onClick={onConnect} className="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white w-full">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Connect Facebook & Instagram</p>
+                <p className="text-xs text-muted-foreground">Authenticate to pick your Business and Page</p>
+              </div>
+              <Button size="sm" onClick={onConnect} className="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white shrink-0">
                 Connect with Meta
               </Button>
-            </>
+            </div>
           )}
         </div>
       )}
