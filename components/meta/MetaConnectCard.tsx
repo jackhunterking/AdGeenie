@@ -5,14 +5,18 @@
  * Purpose: Deterministic popup flow → persist in callback → hydrate once → show assets
  * References:
  *  - Facebook Business Login: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
+ *  - FB.ui Documentation: https://developers.facebook.com/docs/javascript/reference/FB.ui/
+ *  - JavaScript Ads Dialog for Payments: https://developers.facebook.com/docs/marketing-apis/guides/javascript-ads-dialog-for-payments/
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Link2, Check, Building2, CreditCard, Loader2 } from "lucide-react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
+import type { AdsPaymentParams, AdsPaymentResponse, FBLoginStatusResponse } from "@/lib/types/facebook"
 
 type Status = 'idle' | 'authorizing' | 'finalizing' | 'connected' | 'error'
+type PaymentStatus = 'idle' | 'opening' | 'processing' | 'success' | 'error'
 
 interface Summary {
   business?: { id: string; name: string }
@@ -31,6 +35,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const [popupRef, setPopupRef] = useState<Window | null>(null)
   const [timeoutId, setTimeoutId] = useState<number | null>(null)
   const [sdkReady, setSdkReady] = useState(false)
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle')
+  const [fbLoginStatus, setFbLoginStatus] = useState<'connected' | 'not_authorized' | 'unknown' | null>(null)
 
   const hydrate = useCallback(async () => {
     if (!campaign?.id) return
@@ -41,10 +47,14 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       const j = await res.json() as Summary
       setSummary(j)
       if (j?.status === 'connected') setStatus('connected')
+      // Reset payment status after successful hydration
+      if (paymentStatus === 'success' && j?.paymentConnected) {
+        setPaymentStatus('idle')
+      }
     } finally {
       setLoading(false)
     }
-  }, [campaign?.id])
+  }, [campaign?.id, paymentStatus])
 
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => {
@@ -57,14 +67,24 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      // Accept only same-origin messages
+      // Accept only same-origin messages for security
       if (typeof window !== 'undefined' && e.origin !== window.location.origin) return
       const data = (e && typeof e.data === 'object' && e.data !== null) ? (e.data as { type?: string; status?: string }) : null
       if (data?.type === 'meta-connected') {
         // eslint-disable-next-line no-console
         console.info('[MetaConnect] message received', { status: data.status })
-        setStatus('finalizing')
-        void hydrate()
+        
+        // Handle payment bridge messages
+        if (data.status === 'payment-added') {
+          setPaymentStatus('success')
+          setStatus('finalizing')
+          void hydrate()
+        } else {
+          // Handle other meta-connected messages (e.g., login completion)
+          setStatus('finalizing')
+          void hydrate()
+        }
+        
         if (timeoutId) { window.clearTimeout(timeoutId); setTimeoutId(null) }
       }
     }
@@ -107,19 +127,13 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     setPopupRef(win || null)
   }, [campaign?.id])
 
-  // Minimal FB SDK surface used here
-  type AdsPaymentParams = {
-    method: 'ads_payment'
-    display?: 'popup'
-    account_id: string
-  } & Record<string, unknown>
-
+  // Facebook SDK type for payment dialog
   type FacebookSDK = {
     ui: (
       params: AdsPaymentParams,
-      cb?: (response: unknown) => void,
+      cb?: (response: AdsPaymentResponse) => void,
     ) => void
-    getLoginStatus?: (cb: (res: { status?: string }) => void, forceRefresh?: boolean) => void
+    getLoginStatus?: (cb: (res: FBLoginStatusResponse) => void, forceRefresh?: boolean) => void
   }
 
   const waitForFacebookSDK = useCallback(async (): Promise<FacebookSDK | null> => {
@@ -150,9 +164,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     })
   }, [])
 
-  // Detect FB SDK readiness early and keep a boolean flag so the click handler
-  // can synchronously open the popup, preserving the user gesture context per
-  // Meta's dialog requirements.
+  // Detect FB SDK readiness early and check user login status
+  // This ensures proper session handling for FB.ui dialogs
   useEffect(() => {
     if (typeof window === 'undefined') return
     const getFB = (): FacebookSDK | null => {
@@ -162,90 +175,184 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       }
       return null
     }
-    if (getFB()) { setSdkReady(true); return }
+    const checkSDK = () => {
+      const fb = getFB()
+      if (fb) {
+        setSdkReady(true)
+        // Check user login status for proper session handling
+        if (typeof fb.getLoginStatus === 'function') {
+          try {
+            fb.getLoginStatus((response: FBLoginStatusResponse) => {
+              setFbLoginStatus(response.status)
+            }, false)
+          } catch {
+            // SDK ready but getLoginStatus failed, that's ok
+          }
+        }
+        return true
+      }
+      return false
+    }
+    if (checkSDK()) return
     const iv = window.setInterval(() => {
-      if (getFB()) { setSdkReady(true); window.clearInterval(iv) }
+      if (checkSDK()) { window.clearInterval(iv) }
     }, 200)
     return () => { window.clearInterval(iv) }
   }, [])
 
+  /**
+   * Open Facebook payment dialog using native FB.ui() method
+   * This ensures proper session handling and follows Facebook's recommended approach
+   * References: https://developers.facebook.com/docs/javascript/reference/FB.ui/
+   */
   const onAddPayment = useCallback(() => {
     if (!campaign?.id || !summary?.adAccount?.id) return
+
+    // Get Facebook SDK instance
     const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as FacebookSDK | null
+    
+    // Validate SDK is ready
     if (!fb || typeof fb.ui !== 'function') {
       window.alert('Facebook SDK is not ready yet. Please wait a moment and try again.')
       return
     }
 
-    // Numeric id for FB.ui (must be numeric; strip act_ prefix)
-    const numericId = summary.adAccount.id.replace(/^act_/i, '')
-
-    try {
-      // Open a real popup window immediately on user gesture. This avoids
-      // Facebook showing "This dialog must be displayed as a popup" when a
-      // navigation happens outside a user-initiated popup.
-      const w = 720, h = 800
-      const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2)
-      const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2)
-      const popup = window.open('about:blank', 'fb-ads-payment', `popup=yes,width=${w},height=${h},left=${left},top=${top}`)
-
-      const gv = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
-      const appId = process.env.NEXT_PUBLIC_FB_APP_ID
-      const url = new URL(`https://www.facebook.com/${gv}/dialog/ads_payment`)
-      url.searchParams.set('account_id', numericId)
-      if (appId) url.searchParams.set('app_id', String(appId))
-      url.searchParams.set('display', 'popup')
-      // Bridge page will notify opener and the polling below will finalize
-      url.searchParams.set('redirect_uri', `${window.location.origin}/meta/payment-bridge`)
-
-      if (popup) {
-        setPopupRef(popup)
-        try { popup.location.replace(url.toString()) } catch { popup.location.href = url.toString() }
-      } else {
-        // Fallback to FB.ui if the browser blocks window.open for any reason
-        // Fire-and-forget; do not await anything before opening the dialog
-        if (typeof fb.getLoginStatus === 'function') {
-          try { fb.getLoginStatus(() => {}, true) } catch {}
-        }
-        fb.ui(
-          {
-            method: 'ads_payment',
-            display: 'popup',
-            account_id: numericId,
-            fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`,
-          },
-          (response: unknown) => {
-            // eslint-disable-next-line no-console
-            console.log('[FB.ui][ads_payment] callback response:', response)
-          },
-        )
-      }
-    } catch {
-      // swallow SDK hiccups
+    // Validate account ID and extract numeric ID (FB.ui requires numeric ID without 'act_' prefix)
+    const accountIdStr = summary.adAccount.id
+    const numericId = accountIdStr.replace(/^act_/i, '')
+    if (!numericId || !/^\d+$/.test(numericId)) {
+      window.alert('Invalid ad account ID. Please select a valid ad account.')
+      return
     }
 
-    // Begin background polling for payment connection status
-    const actId = summary.adAccount.id.startsWith('act_') ? summary.adAccount.id : `act_${numericId}`
-    const pollOnce = async (): Promise<boolean> => {
+    // Set loading state
+    setPaymentStatus('opening')
+
+    // Ensure user is logged into Facebook before opening dialog
+    // FB.ui requires an active Facebook session for proper authentication
+    if (typeof fb.getLoginStatus === 'function') {
       try {
-        const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`
-        const res = await fetch(url, { cache: 'no-store' })
-        if (!res.ok) return false
-        const json: unknown = await res.json()
-        const connected = Boolean((json as { connected?: boolean } | null)?.connected)
-        if (connected) { await hydrate(); return true }
-      } catch {}
-      return false
+        fb.getLoginStatus((loginResponse: FBLoginStatusResponse) => {
+          if (loginResponse.status !== 'connected') {
+            setPaymentStatus('error')
+            window.alert('Please log into Facebook first. The payment dialog requires an active Facebook session.')
+            return
+          }
+          openPaymentDialog(fb, numericId)
+        }, true) // Force refresh to get current status
+      } catch (error) {
+        // If getLoginStatus fails, try opening dialog anyway (user might be logged in)
+        console.warn('[MetaConnect] Failed to check login status, proceeding:', error)
+        openPaymentDialog(fb, numericId)
+      }
+    } else {
+      // If getLoginStatus not available, proceed with dialog
+      openPaymentDialog(fb, numericId)
     }
-    void (async () => {
-      if (await pollOnce()) return
-      let attempts = 0
-      const iv = window.setInterval(async () => {
-        attempts += 1
-        const ok = await pollOnce()
-        if (ok || attempts >= 15) { window.clearInterval(iv) }
-      }, 2000)
-    })()
+
+    function openPaymentDialog(sdk: FacebookSDK, accountId: string) {
+      try {
+        setPaymentStatus('opening')
+        
+        const appId = process.env.NEXT_PUBLIC_FB_APP_ID
+        const fallbackUri = `${window.location.origin}/meta/payment-bridge`
+
+        // Prepare FB.ui parameters per Facebook documentation
+        const params: AdsPaymentParams = {
+          method: 'ads_payment',
+          account_id: accountId,
+          display: 'popup',
+          fallback_redirect_uri: fallbackUri,
+        }
+        
+        // Add app_id if available (recommended by Facebook)
+        if (appId) {
+          params.app_id = appId
+        }
+
+        // Open payment dialog using native FB.ui method
+        // This ensures proper session handling and authentication
+        sdk.ui(params, (response: AdsPaymentResponse) => {
+          setPaymentStatus('processing')
+          
+          // Handle response from Facebook dialog
+          if (response?.error_message) {
+            // Dialog returned an error
+            setPaymentStatus('error')
+            console.error('[FB.ui][ads_payment] Error:', response.error_message, response.error_code)
+            
+            // Provide user-friendly error message
+            const errorMsg = response.error_message.includes('popup')
+              ? 'Popup was blocked. Please allow popups for this site and try again.'
+              : response.error_message.includes('login') || response.error_message.includes('session')
+              ? 'Please ensure you are logged into Facebook and try again.'
+              : `Failed to open payment dialog: ${response.error_message}`
+            
+            window.alert(errorMsg)
+            return
+          }
+
+          // Success or user completed dialog (dialog may redirect to fallback_redirect_uri)
+          // Note: FB.ui callback may fire before or after redirect depending on complete flow
+          if (response?.status === 'connected' || !response?.error_message) {
+            setPaymentStatus('success')
+            // Start polling for payment status immediately
+            startPaymentStatusPolling()
+          } else {
+            // User cancelled or dialog closed without completion
+            setPaymentStatus('idle')
+            console.info('[FB.ui][ads_payment] Dialog closed without completion')
+          }
+        })
+      } catch (error) {
+        setPaymentStatus('error')
+        console.error('[FB.ui][ads_payment] Exception:', error)
+        window.alert('Failed to open payment dialog. Please try again or add payment method directly in Facebook Ads Manager.')
+      }
+    }
+
+    // Poll for payment connection status after dialog interaction
+    function startPaymentStatusPolling() {
+      const actId = summary.adAccount.id.startsWith('act_') ? summary.adAccount.id : `act_${numericId}`
+      
+      const pollOnce = async (): Promise<boolean> => {
+        try {
+          const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`
+          const res = await fetch(url, { cache: 'no-store' })
+          if (!res.ok) return false
+          const json: unknown = await res.json()
+          const connected = Boolean((json as { connected?: boolean } | null)?.connected)
+          if (connected) {
+            setPaymentStatus('success')
+            await hydrate()
+            return true
+          }
+        } catch (error) {
+          console.warn('[MetaConnect] Payment status poll error:', error)
+        }
+        return false
+      }
+
+      // Start polling immediately with faster initial check
+      void (async () => {
+        // Immediate check
+        if (await pollOnce()) return
+        
+        // Then poll every 1s (faster than before) up to 15 attempts (15s total)
+        let attempts = 0
+        const iv = window.setInterval(async () => {
+          attempts += 1
+          const ok = await pollOnce()
+          if (ok || attempts >= 15) {
+            window.clearInterval(iv)
+            if (!ok) {
+              setPaymentStatus('idle')
+              console.warn('[MetaConnect] Payment status polling timed out')
+            }
+          }
+        }, 1000)
+      })()
+    }
   }, [campaign?.id, hydrate, summary?.adAccount?.id])
 
   const _disconnect = useCallback(async () => {
@@ -358,8 +465,31 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
           {summary.adAccount && !summary.paymentConnected && (
             <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" /><span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span></div>
-                <Button size="sm" onClick={onAddPayment} disabled={!sdkReady} className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white">Add Payment</Button>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs text-blue-900 dark:text-blue-200">
+                    {paymentStatus === 'opening' || paymentStatus === 'processing'
+                      ? 'Opening payment dialog...'
+                      : paymentStatus === 'success'
+                      ? 'Payment method added successfully'
+                      : 'Payment method required'}
+                  </span>
+                </div>
+                <Button 
+                  size="sm" 
+                  onClick={onAddPayment} 
+                  disabled={!sdkReady || paymentStatus === 'opening' || paymentStatus === 'processing'} 
+                  className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {paymentStatus === 'opening' || paymentStatus === 'processing' ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Processing...
+                    </span>
+                  ) : (
+                    'Add Payment'
+                  )}
+                </Button>
               </div>
             </div>
           )}
