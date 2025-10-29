@@ -274,7 +274,16 @@ export function MetaConnectCard() {
             <h3 className="font-semibold">Meta Connection</h3>
             {isConnected && <span className="inline-flex items-center gap-1 text-status-green ml-2"><Check className="h-4 w-4" />Connected</span>}
           </div>
-          {isConnected && <Button variant="ghost" size="sm" onClick={onConnect} className="h-7 px-3">Edit</Button>}
+          {isConnected && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
+              className="h-7 px-3"
+            >
+              Edit
+            </Button>
+          )}
         </div>
       )}
 
