@@ -134,6 +134,34 @@ export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
     return () => window.removeEventListener('gotoStep', handler as EventListener)
   }, [steps, currentStepIndex])
 
+  // Handle legacy switchToTab events to navigate to a step by id (e.g., from AI chat tool UI)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<string | { id?: string }>
+      const detail = custom.detail
+      const stepId = typeof detail === 'string' ? detail : (detail && typeof detail === 'object' ? (detail as { id?: string }).id : undefined)
+      if (!stepId) return
+
+      const targetIndex = steps.findIndex((s) => s.id === stepId)
+      if (targetIndex < 0) return
+
+      const firstIncomplete = steps.findIndex((s) => !s.completed)
+      const maxForwardIndex = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete
+
+      const clampedIndex = targetIndex <= currentStepIndex
+        ? targetIndex
+        : Math.min(targetIndex, maxForwardIndex)
+
+      if (clampedIndex === currentStepIndex) return
+
+      setDirection(clampedIndex > currentStepIndex ? 'forward' : 'backward')
+      setCurrentStepIndex(clampedIndex)
+    }
+
+    window.addEventListener('switchToTab', handler as EventListener)
+    return () => window.removeEventListener('switchToTab', handler as EventListener)
+  }, [steps, currentStepIndex])
+
   const currentStep = steps[currentStepIndex]
   const isFirstStep = currentStepIndex === 0
   const isLastStep = currentStepIndex >= steps.length - 1
