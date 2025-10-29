@@ -10,21 +10,44 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const { campaign } = useCampaignContext()
   const [adAccountId, setAdAccountId] = useState<string | null>(null)
   const [addingPayment, setAddingPayment] = useState(false)
+  const [loading, setLoading] = useState(false)
+  type Summary = {
+    business?: { id: string; name?: string }
+    page?: { id: string; name?: string }
+    instagram?: { id: string; username?: string } | null
+    adAccount?: { id: string; name?: string }
+    paymentConnected?: boolean
+    status?: string
+  }
+  const [summary, setSummary] = useState<Summary | null>(null)
+
+  const hydrate = useCallback(async () => {
+    if (!enabled || !campaign?.id) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const j: Summary = await res.json()
+      setSummary(j)
+      setAdAccountId(j?.adAccount?.id ?? null)
+    } finally {
+      setLoading(false)
+    }
+  }, [enabled, campaign?.id])
+
+  useEffect(() => { void hydrate() }, [hydrate])
 
   useEffect(() => {
-    if (!enabled || !campaign?.id) return
-    void (async () => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('meta') === 'connected') {
+      void hydrate()
       try {
-        const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
-        if (!res.ok) return
-        const j: unknown = await res.json()
-        const aid = (j && typeof j === 'object' && j !== null && (j as { adAccount?: { id?: string } }).adAccount?.id)
-          ? String((j as { adAccount?: { id?: string } }).adAccount!.id)
-          : null
-        setAdAccountId(aid)
+        url.searchParams.delete('meta')
+        window.history.replaceState(null, '', url.toString())
       } catch {}
-    })()
-  }, [enabled, campaign?.id])
+    }
+  }, [hydrate])
 
   const onConnect = useCallback(() => {
     if (!enabled) return
@@ -62,7 +85,13 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
           <div className="flex-1">
             <p className="text-sm font-medium">Connect Facebook & Instagram</p>
             <p className="text-xs text-muted-foreground">
-              {enabled ? 'Click to start Business Login (disabled until rebuild completes).' : 'This feature is currently disabled.'}
+              {!enabled
+                ? 'This feature is currently disabled.'
+                : loading
+                ? 'Loading your Meta assets…'
+                : (summary?.status === 'connected' || summary?.status === 'selected_assets')
+                ? `Business: ${summary?.business?.name ?? '—'} · Page: ${summary?.page?.name ?? '—'} · Ad Account: ${summary?.adAccount?.id ?? '—'}`
+                : 'Click to start Business Login (disabled until rebuild completes).'}
             </p>
           </div>
           <Button size="sm" type="button" disabled={!enabled} onClick={onConnect} className="h-8 px-4">
@@ -73,7 +102,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         <div className="flex items-center justify-between rounded-md border p-3">
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            <span className="text-xs">Payment method</span>
+            <span className="text-xs">Payment method{summary?.paymentConnected ? ' · Connected' : ''}</span>
           </div>
           <Button size="sm" type="button" disabled={!enabled || !adAccountId} onClick={() => {
             if (!enabled || !adAccountId) return
