@@ -215,6 +215,28 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const onAddPayment = useCallback(() => {
     if (!campaign?.id || !summary?.adAccount?.id) return
 
+    // Proactively clear any legacy client-side state that might force a direct ads_payment URL open
+    // instead of FB.ui dialog. This keeps the flow clean per Facebook's documentation.
+    try {
+      if (typeof window !== 'undefined') {
+        const tryRemove = (store: Storage, key: string) => {
+          try { store.removeItem(key) } catch {}
+        }
+        // Known or likely legacy keys from earlier experiments
+        const legacyKeys = [
+          'fb_access_token',
+          'facebook_access_token',
+          'meta_access_token',
+          'meta_payment_url',
+          'meta_ads_payment_url',
+        ]
+        legacyKeys.forEach((k) => {
+          tryRemove(window.localStorage, k)
+          tryRemove(window.sessionStorage, k)
+        })
+      }
+    } catch {}
+
     // Get Facebook SDK instance
     const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as FacebookSDK | null
     
@@ -223,6 +245,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       window.alert('Facebook SDK is not ready yet. Please wait a moment and try again.')
       return
     }
+
+    setPaymentStatus('opening')
 
     // Validate account ID and extract numeric ID (FB.ui requires numeric ID without 'act_' prefix)
     const accountIdStr = summary.adAccount.id
