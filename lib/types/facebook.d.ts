@@ -52,7 +52,7 @@ interface FBNamespace {
   init: (opts: { appId?: string; version?: string; cookie?: boolean; xfbml?: boolean }) => void
   login: (
     cb: (res: FBLoginStatusResponse) => void,
-    opts?: { scope?: string; auth_type?: string; return_scopes?: boolean }
+    opts?: { scope?: string; auth_type?: string; return_scopes?: boolean; rerequest_declined_permissions?: boolean }
   ) => void
   getLoginStatus: (cb: (res: FBLoginStatusResponse) => void, forceRefresh?: boolean) => void
   api: (path: string, callback: (res: unknown) => void) => void
