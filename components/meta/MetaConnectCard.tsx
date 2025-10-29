@@ -75,30 +75,12 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
             <CreditCard className="h-4 w-4" />
             <span className="text-xs">Payment method</span>
           </div>
-          <Button size="sm" type="button" disabled={!enabled || !adAccountId || addingPayment} onClick={() => {
-            if (!enabled || !adAccountId || !campaign?.id) return
-            const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as { ui?: (params: Record<string, unknown>, cb?: (r: unknown)=>void) => void } | null
+          <Button size="sm" type="button" disabled={!enabled || !adAccountId} onClick={() => {
+            if (!enabled || !adAccountId) return
+            const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as { ui?: (params: Record<string, unknown>) => void } | null
             if (!fb || typeof fb.ui !== 'function') { window.alert('Facebook SDK not ready'); return }
             const numericId = adAccountId.replace(/^act_/i, '')
-            const params = { method: 'ads_payment', account_id: numericId, display: 'popup', fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge` }
-            setAddingPayment(true)
-            fb.ui(params, async () => {
-              // poll status
-              const act = adAccountId.startsWith('act_') ? adAccountId : `act_${numericId}`
-              let attempts = 0
-              const poll = async (): Promise<boolean> => {
-                const r = await fetch(`/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(act)}`, { cache: 'no-store' })
-                if (!r.ok) return false
-                const j = await r.json() as { connected?: boolean }
-                return Boolean(j.connected)
-              }
-              if (await poll()) { setAddingPayment(false); return }
-              const iv = window.setInterval(async () => {
-                attempts += 1
-                const ok = await poll()
-                if (ok || attempts >= 15) { window.clearInterval(iv); setAddingPayment(false) }
-              }, 1000)
-            })
+            fb.ui({ method: 'ads_payment', account_id: numericId, display: 'popup' })
           }}>
             Add Payment
           </Button>
