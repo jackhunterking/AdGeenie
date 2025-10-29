@@ -237,9 +237,6 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     const adAccountId = summary.adAccount.id
     const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${numericId}`
 
-    // Set loading state
-    setPaymentStatus('opening')
-
     // Open payment dialog directly using FB.ui()
     // The Business Login (config_id flow) already authenticated the user with required permissions
     // Do NOT call FB.login() as it creates conflicts and loses user gesture context
