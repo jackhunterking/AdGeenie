@@ -181,23 +181,45 @@ export function MetaConnectCard() {
     const numericId = summary.adAccount.id.replace(/^act_/i, '')
 
     try {
-      // Fire-and-forget; do not await anything before opening the dialog
-      if (typeof fb.getLoginStatus === 'function') {
-        try { fb.getLoginStatus(() => {}, true) } catch {}
-      }
+      // Open a real popup window immediately on user gesture. This avoids
+      // Facebook showing "This dialog must be displayed as a popup" when a
+      // navigation happens outside a user-initiated popup.
+      const w = 720, h = 800
+      const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2)
+      const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2)
+      const popup = window.open('about:blank', 'fb-ads-payment', `popup=yes,width=${w},height=${h},left=${left},top=${top}`)
 
-      fb.ui(
-        {
-          method: 'ads_payment',
-          display: 'popup',
-          account_id: numericId,
-          fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`,
-        },
-        (response: unknown) => {
-          // eslint-disable-next-line no-console
-          console.log('[FB.ui][ads_payment] callback response:', response)
-        },
-      )
+      const gv = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+      const appId = process.env.NEXT_PUBLIC_FB_APP_ID
+      const url = new URL(`https://www.facebook.com/${gv}/dialog/ads_payment`)
+      url.searchParams.set('account_id', numericId)
+      if (appId) url.searchParams.set('app_id', String(appId))
+      url.searchParams.set('display', 'popup')
+      // Bridge page will notify opener and the polling below will finalize
+      url.searchParams.set('redirect_uri', `${window.location.origin}/meta/payment-bridge`)
+
+      if (popup) {
+        setPopupRef(popup)
+        try { popup.location.replace(url.toString()) } catch { popup.location.href = url.toString() }
+      } else {
+        // Fallback to FB.ui if the browser blocks window.open for any reason
+        // Fire-and-forget; do not await anything before opening the dialog
+        if (typeof fb.getLoginStatus === 'function') {
+          try { fb.getLoginStatus(() => {}, true) } catch {}
+        }
+        fb.ui(
+          {
+            method: 'ads_payment',
+            display: 'popup',
+            account_id: numericId,
+            fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`,
+          },
+          (response: unknown) => {
+            // eslint-disable-next-line no-console
+            console.log('[FB.ui][ads_payment] callback response:', response)
+          },
+        )
+      }
     } catch {
       // swallow SDK hiccups
     }
