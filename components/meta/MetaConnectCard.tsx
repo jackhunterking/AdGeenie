@@ -60,20 +60,21 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       window.alert('Facebook SDK is not ready yet. Please wait and try again.')
       return
     }
-    // Set short-lived cookie for callback to associate campaign
-    const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
-    document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
     const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID
     if (!configId) {
       window.alert('Missing NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID')
       return
     }
+    // Invoke SDK immediately on user gesture (per Facebook docs)
     fb.login(() => {}, {
       config_id: configId,
       response_type: 'code',
       override_default_response_type: true,
       return_scopes: true,
     } as unknown as Record<string, unknown>)
+    // Perform side-effects after calling the SDK
+    const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
+    document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
   }, [enabled, campaign?.id])
 
   return (
