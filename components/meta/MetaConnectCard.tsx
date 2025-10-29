@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Link2, Check, Building2, CreditCard, Loader2 } from "lucide-react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
-import type { AdsPaymentParams, AdsPaymentResponse, FBLoginStatusResponse } from "@/lib/types/facebook"
+import type { AdsPaymentParams, AdsPaymentResponse } from "@/lib/types/facebook"
 
 type Status = 'idle' | 'authorizing' | 'finalizing' | 'connected' | 'error'
 type PaymentStatus = 'idle' | 'opening' | 'processing' | 'success' | 'error'
@@ -36,7 +36,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const [timeoutId, setTimeoutId] = useState<number | null>(null)
   const [sdkReady, setSdkReady] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle')
-  const [fbLoginStatus, setFbLoginStatus] = useState<'connected' | 'not_authorized' | 'unknown' | null>(null)
+  // Minimal state focused on payment and connection only
 
   const hydrate = useCallback(async () => {
     if (!campaign?.id) return
@@ -127,49 +127,15 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     setPopupRef(win || null)
   }, [campaign?.id])
 
-  // Facebook SDK type for payment dialog
+  // Facebook SDK type for payment dialog (minimal)
   type FacebookSDK = {
     ui: (
       params: AdsPaymentParams,
       cb?: (response: AdsPaymentResponse) => void,
     ) => void
-    getLoginStatus?: (cb: (res: FBLoginStatusResponse) => void, forceRefresh?: boolean) => void
-    login?: (
-      cb: (res: FBLoginStatusResponse) => void,
-      opts?: { scope?: string; return_scopes?: boolean }
-    ) => void
   }
 
-  const waitForFacebookSDK = useCallback(async (): Promise<FacebookSDK | null> => {
-    if (typeof window === 'undefined') return null
-    const getFB = (): FacebookSDK | null => {
-      const maybe = (window as unknown as { FB?: unknown }).FB
-      if (maybe && typeof maybe === 'object' && maybe !== null && typeof (maybe as { ui?: unknown }).ui === 'function') {
-        return maybe as FacebookSDK
-      }
-      return null
-    }
-    const existing = getFB()
-    if (existing) return existing
-    // Poll up to ~5s for SDK readiness
-    return await new Promise<FacebookSDK | null>((resolve) => {
-      let attempts = 0
-      const iv = window.setInterval(() => {
-        attempts += 1
-        const fb = getFB()
-        if (fb) {
-          window.clearInterval(iv)
-          resolve(fb)
-        } else if (attempts >= 25) {
-          window.clearInterval(iv)
-          resolve(null)
-        }
-      }, 200)
-    })
-  }, [])
-
-  // Detect FB SDK readiness early and check user login status
-  // This ensures proper session handling for FB.ui dialogs
+  // Detect FB SDK readiness early for proper FB.ui handling
   useEffect(() => {
     if (typeof window === 'undefined') return
     const getFB = (): FacebookSDK | null => {
@@ -183,16 +149,6 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       const fb = getFB()
       if (fb) {
         setSdkReady(true)
-        // Check user login status for proper session handling
-        if (typeof fb.getLoginStatus === 'function') {
-          try {
-            fb.getLoginStatus((response: FBLoginStatusResponse) => {
-              setFbLoginStatus(response.status)
-            }, false)
-          } catch {
-            // SDK ready but getLoginStatus failed, that's ok
-          }
-        }
         return true
       }
       return false
