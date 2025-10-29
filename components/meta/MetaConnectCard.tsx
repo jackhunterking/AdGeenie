@@ -483,6 +483,30 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
                   )}
                 </Button>
               </div>
+              {/* Popup help and Ads Manager fallback per Facebook native guidance */}
+              <div className="mt-2 text-[11px] leading-relaxed text-blue-900/80 dark:text-blue-200/80">
+                <p>
+                  If the popup doesn’t appear, allow popups for this site and facebook.com, then try again.
+                </p>
+                {summary?.adAccount?.id && (
+                  <p className="mt-1">
+                    Or add it directly in Ads Manager: {(() => {
+                      const actId = summary.adAccount.id
+                      const url = `https://business.facebook.com/settings/ad_accounts/${encodeURIComponent(actId)}/payment_methods`
+                      return (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline text-blue-700 dark:text-blue-300 hover:text-blue-900"
+                        >
+                          Open payment methods
+                        </a>
+                      )
+                    })()}
+                  </p>
+                )}
+              </div>
             </div>
           )}
           {!summary.adAccount && (
