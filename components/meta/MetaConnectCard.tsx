@@ -206,14 +206,10 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
   /**
    * Open Facebook payment dialog using native FB.ui() method
-   * 
-   * On-demand authentication: FB.login() called only when user clicks "Add Payment"
-   * This spreads authentication across natural user journey for better UX
+   * Uses existing Business Login session (config_id flow) - no additional FB.login() needed
    * 
    * References: 
    *  - FB.ui: https://developers.facebook.com/docs/javascript/reference/FB.ui/
-   *  - FB.login: https://developers.facebook.com/docs/javascript/reference/FB.login
-   *  - FB.getLoginStatus: https://developers.facebook.com/docs/javascript/reference/FB.getLoginStatus
    *  - Ads Payment Dialog: https://developers.facebook.com/docs/marketing-apis/guides/javascript-ads-dialog-for-payments/
    */
   const onAddPayment = useCallback(() => {
@@ -222,9 +218,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     // Get Facebook SDK instance
     const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as FacebookSDK | null
     
-    // Validate SDK is ready with all required methods
-    if (!fb || typeof fb.ui !== 'function' || typeof fb.getLoginStatus !== 'function' || typeof fb.login !== 'function') {
-      setPaymentStatus('error')
+    // Validate SDK is ready
+    if (!fb || typeof fb.ui !== 'function') {
       window.alert('Facebook SDK is not ready yet. Please wait a moment and try again.')
       return
     }
@@ -233,7 +228,6 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     const accountIdStr = summary.adAccount.id
     const numericId = accountIdStr.replace(/^act_/i, '')
     if (!numericId || !/^\d+$/.test(numericId)) {
-      setPaymentStatus('error')
       window.alert('Invalid ad account ID. Please select a valid ad account.')
       return
     }
@@ -246,136 +240,76 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     // Set loading state
     setPaymentStatus('opening')
 
-    console.info('[MetaConnect] Add Payment clicked, checking session status')
+    // Open payment dialog directly using FB.ui()
+    // The Business Login (config_id flow) already authenticated the user with required permissions
+    // Do NOT call FB.login() as it creates conflicts and loses user gesture context
+    try {
+      const appId = process.env.NEXT_PUBLIC_FB_APP_ID
+      const fallbackUri = `${window.location.origin}/meta/payment-bridge`
 
-    // Step 1: Check if user has an active FB.login() session with required permissions
-    // This is separate from Business Login and required for FB.ui() dialogs
-    fb.getLoginStatus((statusResponse: FBLoginStatusResponse) => {
-      console.info('[MetaConnect] FB.getLoginStatus result:', statusResponse)
-      
-      const isConnected = statusResponse.status === 'connected' && statusResponse.authResponse
-      const grantedScopes = statusResponse.authResponse?.grantedScopes
-      const requiredScopes = ['ads_management', 'business_management']
-      
-      // Check if user has the required permissions
-      let hasRequiredPermissions = false
-      if (grantedScopes) {
-        const scopesArray = grantedScopes.split(',').map(s => s.trim())
-        hasRequiredPermissions = requiredScopes.every(scope => scopesArray.includes(scope))
-        console.info('[MetaConnect] Permission check:', { grantedScopes, hasRequiredPermissions })
+      // Prepare FB.ui parameters per Facebook documentation
+      // IMPORTANT: Do NOT include access_token - FB.ui uses session cookies automatically
+      const params: AdsPaymentParams = {
+        method: 'ads_payment',
+        account_id: numericId,
+        display: 'popup',
       }
       
-      if (isConnected && hasRequiredPermissions) {
-        // Session exists with required permissions - open payment dialog directly
-        console.info('[MetaConnect] Valid session found, opening payment dialog')
-        openPaymentDialog(fb, numericId, campaignId, actId)
-      } else {
-        // No session or missing permissions - authenticate first, then open dialog
-        console.info('[MetaConnect] No valid session, requesting FB.login')
-        authenticateAndOpenDialog(fb, numericId, campaignId, actId)
-      }
-    }, true) // Force refresh to get current status
-
-    /**
-     * Authenticate via FB.login() then automatically open payment dialog
-     * FB.login() preserves user gesture context for FB.ui() in callback
-     */
-    function authenticateAndOpenDialog(sdk: FacebookSDK, accountId: string, cid: string, actIdVal: string) {
-      if (!sdk.login) {
-        setPaymentStatus('error')
-        window.alert('Facebook login is not available. Please refresh the page.')
-        return
+      // Only add fallback_redirect_uri for error/cancel handling, not app_id
+      // app_id is set via FB.init() and should not be passed again to avoid token conflicts
+      if (fallbackUri) {
+        params.fallback_redirect_uri = fallbackUri
       }
 
-      console.info('[MetaConnect] Triggering FB.login with ads_management permissions')
+      console.info('[MetaConnect] Opening payment dialog with params:', { account_id: numericId, app_id: appId })
 
-      // Request Facebook login with required permissions
-      // When user completes login, automatically open payment dialog
-      sdk.login(
-        (loginResponse: FBLoginStatusResponse) => {
-          console.info('[MetaConnect] FB.login callback:', loginResponse)
+      // Open payment dialog using native FB.ui method
+      // This uses the existing Business Login session automatically
+      fb.ui(params, (response: AdsPaymentResponse) => {
+        setPaymentStatus('processing')
+        
+        console.info('[FB.ui][ads_payment] Callback response:', response)
+        
+        // Handle response from Facebook dialog
+        if (response?.error_message) {
+          // Dialog returned an error
+          setPaymentStatus('error')
+          console.error('[FB.ui][ads_payment] Error:', response.error_message, response.error_code)
           
-          if (loginResponse.status === 'connected' && loginResponse.authResponse) {
-            // Successfully authenticated - open payment dialog automatically
-            console.info('[MetaConnect] Login successful, opening payment dialog')
-            openPaymentDialog(sdk, accountId, cid, actIdVal)
-          } else if (loginResponse.status === 'not_authorized') {
-            // User didn't authorize the app
-            setPaymentStatus('error')
-            console.warn('[MetaConnect] User did not authorize app')
-            window.alert('Please authorize the app to manage ad accounts in order to add payment methods.')
-          } else {
-            // User cancelled login
-            setPaymentStatus('idle')
-            console.info('[MetaConnect] User cancelled login')
-          }
-        },
-        {
-          scope: 'ads_management,business_management',
-          return_scopes: true,
-        }
-      )
-    }
-
-    /**
-     * Open the payment dialog using FB.ui()
-     * Requires active FB.login() session with ads_management permission
-     */
-    function openPaymentDialog(sdk: FacebookSDK, accountId: string, cid: string, actIdVal: string) {
-      try {
-        const fallbackUri = `${window.location.origin}/meta/payment-bridge`
-
-        // Prepare FB.ui parameters per Facebook documentation
-        const params: AdsPaymentParams = {
-          method: 'ads_payment',
-          account_id: accountId,
-          display: 'popup',
-          fallback_redirect_uri: fallbackUri,
+          // Provide user-friendly error message
+          const errorMsg = response.error_message.includes('popup')
+            ? 'Popup was blocked. Please allow popups for this site and try again.'
+            : response.error_message.includes('login') || response.error_message.includes('session')
+            ? 'Please ensure you are logged into Facebook and try again.'
+            : `Failed to open payment dialog: ${response.error_message}`
+          
+          window.alert(errorMsg)
+          return
         }
 
-        console.info('[MetaConnect] Opening FB.ui payment dialog:', params)
-
-        // Open payment dialog using native FB.ui method
-        sdk.ui(params, (response: AdsPaymentResponse) => {
-          console.info('[FB.ui][ads_payment] Dialog callback:', response)
-          
-          setPaymentStatus('processing')
-          
-          // Handle response from Facebook dialog
-          if (response?.error_message) {
-            // Dialog returned an error
-            setPaymentStatus('error')
-            console.error('[FB.ui][ads_payment] Error:', response.error_message, response.error_code)
-            window.alert(`Payment dialog error: ${response.error_message}`)
-            return
-          }
-
-          // Success or user completed dialog
-          if (response?.status === 'connected' || !response?.error_message) {
-            console.info('[FB.ui][ads_payment] Dialog completed successfully')
-            setPaymentStatus('success')
-            // Start polling for payment status
-            startPaymentStatusPolling(cid, actIdVal)
-          } else {
-            // User cancelled or closed dialog
-            setPaymentStatus('idle')
-            console.info('[FB.ui][ads_payment] Dialog closed without completion')
-          }
-        })
-      } catch (error) {
-        setPaymentStatus('error')
-        console.error('[FB.ui][ads_payment] Exception:', error)
-        window.alert('Failed to open payment dialog. Please try again.')
-      }
+        // Success or user completed dialog (dialog may redirect to fallback_redirect_uri)
+        // Note: FB.ui callback may fire before or after redirect depending on dialog flow
+        if (response?.status === 'connected' || !response?.error_message) {
+          setPaymentStatus('success')
+          // Start polling for payment status immediately
+          startPaymentStatusPolling()
+        } else {
+          // User cancelled or dialog closed without completion
+          setPaymentStatus('idle')
+          console.info('[FB.ui][ads_payment] Dialog closed without completion')
+        }
+      })
+    } catch (error) {
+      setPaymentStatus('error')
+      console.error('[FB.ui][ads_payment] Exception:', error)
+      window.alert('Failed to open payment dialog. Please try again or add payment method directly in Facebook Ads Manager.')
     }
 
-    /**
-     * Poll for payment status after dialog completion
-     */
-    function startPaymentStatusPolling(cid: string, actIdVal: string) {
+    // Poll for payment connection status after dialog interaction
+    function startPaymentStatusPolling() {
       const pollOnce = async (): Promise<boolean> => {
         try {
-          const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(cid)}&adAccountId=${encodeURIComponent(actIdVal)}`
+          const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaignId)}&adAccountId=${encodeURIComponent(actId)}`
           const res = await fetch(url, { cache: 'no-store' })
           if (!res.ok) return false
           const json: unknown = await res.json()
@@ -396,7 +330,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         // Immediate check
         if (await pollOnce()) return
         
-        // Then poll every 1s up to 15 attempts (15s total)
+        // Then poll every 1s (faster than before) up to 15 attempts (15s total)
         let attempts = 0
         const iv = window.setInterval(async () => {
           attempts += 1
