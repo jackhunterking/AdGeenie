@@ -225,6 +225,12 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       return
     }
 
+    // Capture values needed for nested functions to avoid TypeScript null issues
+    // TypeScript requires these to be captured since nested functions don't preserve null checks
+    const campaignId = campaign.id
+    const adAccountId = summary.adAccount.id
+    const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${numericId}`
+
     // Set loading state
     setPaymentStatus('opening')
 
@@ -313,11 +319,9 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
     // Poll for payment connection status after dialog interaction
     function startPaymentStatusPolling() {
-      const actId = summary.adAccount.id.startsWith('act_') ? summary.adAccount.id : `act_${numericId}`
-      
       const pollOnce = async (): Promise<boolean> => {
         try {
-          const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`
+          const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaignId)}&adAccountId=${encodeURIComponent(actId)}`
           const res = await fetch(url, { cache: 'no-store' })
           if (!res.ok) return false
           const json: unknown = await res.json()
