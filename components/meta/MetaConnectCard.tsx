@@ -248,7 +248,7 @@ export function MetaConnectCard() {
     })()
   }, [campaign?.id, hydrate, summary?.adAccount?.id])
 
-  const disconnect = useCallback(async () => {
+  const _disconnect = useCallback(async () => {
     if (!campaign?.id) return
     const ok = window.confirm('Disconnect Meta from this campaign?')
     if (!ok) return
@@ -274,7 +274,7 @@ export function MetaConnectCard() {
             <h3 className="font-semibold">Meta Connection</h3>
             {isConnected && <span className="inline-flex items-center gap-1 text-status-green ml-2"><Check className="h-4 w-4" />Connected</span>}
           </div>
-          {isConnected && <Button variant="ghost" size="sm" onClick={disconnect} className="h-7 px-3">Disconnect</Button>}
+          {isConnected && <Button variant="ghost" size="sm" onClick={onConnect} className="h-7 px-3">Edit</Button>}
         </div>
       )}
 
