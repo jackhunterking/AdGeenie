@@ -164,6 +164,13 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
     const numericId = adAccountId.replace(/^act_/i, '')
 
+    // Verify we have the minimum required data
+    if (!numericId || !/^\d+$/.test(numericId)) {
+      console.error('[MetaConnect] Invalid account ID format:', numericId)
+      window.alert('Invalid ad account ID format. Please reconnect your Meta account.')
+      return
+    }
+
     // Log comprehensive debug info
     console.info('[MetaConnect] Opening payment dialog:', {
       accountId: numericId,
@@ -175,13 +182,30 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       sdkReady,
     })
 
+    // Log pre-flight check
+    console.info('[MetaConnect] Pre-flight check passed:', {
+      accountId: numericId,
+      accountActive: accountValidation?.isActive,
+      accountStatus: accountValidation?.status,
+      hasBusiness: accountValidation?.hasBusiness,
+      sdkReady,
+      campaignId: campaign.id,
+    })
+
     setPaymentStatus('opening')
 
     const params = {
       method: 'ads_payment',
       account_id: numericId,
-      display: 'popup'
+      display: 'popup',
+      fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`
     }
+
+    // Log params for verification
+    console.info('[MetaConnect] FB.ui params:', {
+      ...params,
+      fallback_redirect_uri: params.fallback_redirect_uri
+    })
 
     fb.ui(params, (response: AdsPaymentResponse) => {
       setPaymentStatus('processing')
