@@ -16,6 +16,8 @@ interface FBAuthResponse {
   userID: string
   data_access_expiration_time?: number
   graphDomain?: string
+  // Scopes granted by the user (returned when return_scopes: true in FB.login)
+  grantedScopes?: string // Comma-separated list of granted permissions
 }
 
 interface FBLoginStatusResponse {
