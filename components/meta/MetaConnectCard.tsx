@@ -23,7 +23,7 @@ interface Summary {
   status?: string
 }
 
-export function MetaConnectCard() {
+export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' }) {
   const { campaign } = useCampaignContext()
   const [status, setStatus] = useState<Status>('idle')
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -275,14 +275,25 @@ export function MetaConnectCard() {
             {isConnected && <span className="inline-flex items-center gap-1 text-status-green ml-2"><Check className="h-4 w-4" />Connected</span>}
           </div>
           {isConnected && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
-              className="h-7 px-3"
-            >
-              Edit
-            </Button>
+            mode === 'launch' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.dispatchEvent(new CustomEvent('gotoStep', { detail: { id: 'meta-connect' } }))}
+                className="h-7 px-3"
+              >
+                Edit
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={_disconnect}
+                className="h-7 px-3"
+              >
+                Disconnect
+              </Button>
+            )
           )}
         </div>
       )}

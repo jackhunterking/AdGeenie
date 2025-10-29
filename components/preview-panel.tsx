@@ -827,7 +827,7 @@ export function PreviewPanel() {
       content: (
         <div className="p-2">
           <div className="max-w-3xl mx-auto">
-            <MetaConnectCard />
+            <MetaConnectCard mode="step" />
           </div>
         </div>
       ),
