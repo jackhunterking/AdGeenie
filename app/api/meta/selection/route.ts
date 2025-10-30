@@ -54,7 +54,14 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    const status = (state as { meta_connect_data?: { status?: string } } | null)?.meta_connect_data?.status || 'disconnected'
+    // Prefer connection-derived status; fall back to state
+    const stateStatus = (state as { meta_connect_data?: { status?: string } } | null)?.meta_connect_data?.status || null
+    let status = 'disconnected'
+    if (conn) {
+      status = conn.ad_account_payment_connected ? 'payment_linked' : 'connected'
+    } else if (stateStatus) {
+      status = stateStatus
+    }
 
     console.log('[MetaSelection] Returning selection data:', {
       campaignId,
