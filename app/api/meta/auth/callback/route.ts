@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
       })
       .eq('campaign_id', campaignId)
 
-    return NextResponse.redirect(`${origin}/?meta=connected`)
+    return NextResponse.redirect(`${origin}/${campaignId}?meta=connected`)
   } catch (error) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
