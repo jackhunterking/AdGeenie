@@ -19,9 +19,14 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams, origin } = new URL(req.url)
     const code = searchParams.get('code')
+    const state = searchParams.get('state')
 
     if (!code) {
-      console.error('[MetaCallback] Missing code parameter')
+      // For implicit/token flow, access_token would be in URL fragment (#), which the server cannot read.
+      // Log available query params to aid debugging when response_type is wrong.
+      const paramsLog: Record<string, string> = {}
+      searchParams.forEach((v, k) => { paramsLog[k] = v })
+      console.error('[MetaCallback] Missing code parameter - likely wrong response_type (expected code grant).', { queryParams: paramsLog, state })
       return NextResponse.redirect(`${origin}/?meta=missing_code`)
     }
 
@@ -109,9 +114,13 @@ export async function GET(req: NextRequest) {
       // non-fatal
     }
 
-    console.log('[MetaCallback] Successfully saved connection, redirecting to bridge:', `${origin}/meta/oauth/bridge?campaignId=${campaignId}&meta=connected`)
+    const bridgeUrl = new URL(`${origin}/meta/oauth/bridge`)
+    bridgeUrl.searchParams.set('campaignId', campaignId)
+    bridgeUrl.searchParams.set('meta', 'connected')
+    if (state) bridgeUrl.searchParams.set('st', state)
+    console.log('[MetaCallback] Successfully saved connection, redirecting to bridge:', bridgeUrl.toString())
 
-    return NextResponse.redirect(`${origin}/meta/oauth/bridge?campaignId=${campaignId}&meta=connected`)
+    return NextResponse.redirect(bridgeUrl.toString())
   } catch (error) {
     console.error('[MetaCallback] Unhandled error:', error)
     const origin = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').origin
