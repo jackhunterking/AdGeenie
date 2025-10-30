@@ -412,7 +412,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
                 : 'Connect to start advertising on Facebook & Instagram'}
             </p>
           </div>
-          {(summary?.status === 'connected' || summary?.status === 'selected_assets' || summary?.business?.id) ? (
+          {(summary?.status === 'connected' || summary?.status === 'selected_assets' || summary?.business?.id || summary?.page?.id || summary?.adAccount?.id) ? (
             <Button 
               size="sm" 
               type="button" 
