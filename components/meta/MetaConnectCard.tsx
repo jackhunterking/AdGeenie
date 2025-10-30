@@ -195,10 +195,9 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     }
     
     const redirectUri = `${window.location.origin}/api/meta/auth/callback`
+    // Business Login Config already defines response_type - do not override
     const loginParams = {
       config_id: configId,
-      // Use code flow; FB will redirect popup to redirect_uri natively
-      response_type: 'code',
       return_scopes: true,
       redirect_uri: redirectUri,
     }
