@@ -138,22 +138,9 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const onAddPayment = useCallback(() => {
     if (!enabled || !adAccountId || !campaign?.id) return
 
-    const numericId = adAccountId.replace(/^act_/i, '')
-    const campaignId = campaign.id
-    const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${numericId}`
-
-    // Validate account ID
-    if (!numericId || !/^\d+$/.test(numericId)) {
-      window.alert('Invalid ad account ID format. Please reconnect your Meta account.')
-      return
-    }
-
-    // Get Facebook SDK
-    const FB = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as { 
-      ui?: (params: Record<string, unknown>, cb: (response: AdsPaymentResponse) => void) => void 
-    } | null
-
-    if (!FB || typeof FB.ui !== 'function') {
+    // Check SDK readiness
+    const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as { ui?: (params: Record<string, unknown>, cb: (response: AdsPaymentResponse) => void) => void } | null
+    if (!fb || typeof fb.ui !== 'function') {
       window.alert('Facebook SDK is not ready yet. Please wait and try again.')
       return
     }
@@ -163,99 +150,133 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       return
     }
 
-    console.info('[MetaConnect] Opening payment dialog for account:', numericId)
+    // Log account validation status
+    console.info('[MetaConnect] Account validation before payment:', accountValidation)
+
+    // Warn if account validation failed or shows issues
+    if (accountValidation && !accountValidation.isActive) {
+      const reason = accountValidation.disableReason || 'unknown reason'
+      const confirmMsg = `Warning: Ad account appears to be inactive (status: ${accountValidation.status}, reason: ${reason}).\n\nThis may cause the payment dialog to fail. Do you want to try anyway?`
+      if (!window.confirm(confirmMsg)) {
+        return
+      }
+    }
+
+    const numericId = adAccountId.replace(/^act_/i, '')
+
+    // Verify we have the minimum required data
+    if (!numericId || !/^\d+$/.test(numericId)) {
+      console.error('[MetaConnect] Invalid account ID format:', numericId)
+      window.alert('Invalid ad account ID format. Please reconnect your Meta account.')
+      return
+    }
+
+    // Log comprehensive debug info
+    console.info('[MetaConnect] Opening payment dialog:', {
+      accountId: numericId,
+      accountStatus: accountValidation?.status,
+      isActive: accountValidation?.isActive,
+      hasFunding: accountValidation?.hasFunding,
+      hasBusiness: accountValidation?.hasBusiness,
+      capabilities: accountValidation?.capabilities,
+      sdkReady,
+    })
+
+    // Log pre-flight check
+    console.info('[MetaConnect] Pre-flight check passed:', {
+      accountId: numericId,
+      accountActive: accountValidation?.isActive,
+      accountStatus: accountValidation?.status,
+      hasBusiness: accountValidation?.hasBusiness,
+      sdkReady,
+      campaignId: campaign.id,
+    })
+
     setPaymentStatus('opening')
 
-    // CRITICAL: Use ONLY these 3 parameters per Facebook's official 2018 blog post
-    // Reference: https://developers.facebook.com/blog/post/2018/05/24/add-payment-methods-with-facebook-javascript-sdk/
-    // Adding extra parameters (like fallback_redirect_uri) forces redirect mode instead of popup mode
     const params = {
       method: 'ads_payment',
       account_id: numericId,
-      display: 'popup'
+      display: 'popup',
+      fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`
     }
 
-    console.info('[MetaConnect] FB.ui params (minimal):', params)
-
-    // Call FB.ui with minimal parameters to ensure popup mode
-    FB.ui(params, function(response: AdsPaymentResponse) {
-      console.info('[FB.ui][ads_payment] Response:', response)
-
-      // Handle no response (dialog closed or blocked)
-      if (!response) {
-        console.error('[FB.ui][ads_payment] No response received')
-        setPaymentStatus('error')
-
-        const adsManagerUrl = `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
-        window.alert(
-          'Payment dialog was closed or blocked.\n\n' +
-          'Please ensure popups are enabled, then try again.\n\n' +
-          'Alternative: Add payment directly at:\n' + adsManagerUrl
-        )
-        return
-      }
-
-      // Handle error response
-      if (response.error_code || response.error_message) {
-        console.error('[FB.ui][ads_payment] Error:', response.error_code, response.error_message)
-        setPaymentStatus('error')
-
-        const adsManagerUrl = `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
-        window.alert(
-          `Payment setup error: ${response.error_message || 'Unknown error'}\n\n` +
-          'Add payment directly at:\n' + adsManagerUrl
-        )
-        return
-      }
-
-      // Success - start polling for payment
-      console.info('[FB.ui][ads_payment] Success, polling for payment...')
-      setPaymentStatus('processing')
-
-      // Poll for payment status
-      pollForPayment()
+    // Log params for verification
+    console.info('[MetaConnect] FB.ui params:', {
+      ...params,
+      fallback_redirect_uri: params.fallback_redirect_uri
     })
 
-    // Polling function
-    function pollForPayment() {
-      const poll = async (): Promise<boolean> => {
-        try {
-          const url = `/api/meta/payment/status?campaignId=${encodeURIComponent(campaignId)}&adAccountId=${encodeURIComponent(actId)}`
-          const res = await fetch(url, { cache: 'no-store' })
-          if (!res.ok) return false
+    fb.ui(params, (response: AdsPaymentResponse) => {
+      setPaymentStatus('processing')
 
-          const json = await res.json()
-          if (json.connected) {
-            setPaymentStatus('success')
-            await hydrate()
-            return true
-          }
-        } catch (err) {
-          console.warn('[MetaConnect] Poll error:', err)
-        }
-        return false
+      // Log full response for debugging
+      console.info('[FB.ui][ads_payment] Raw callback response:', JSON.stringify(response, null, 2))
+
+      // Check if response is undefined/null (indicates dialog internal error)
+      if (response === undefined || response === null) {
+        setPaymentStatus('error')
+        console.error('[FB.ui][ads_payment] Response is null/undefined - dialog failed to load')
+        window.alert(
+          'Facebook payment dialog failed to load properly.\n\n' +
+          'Possible reasons:\n' +
+          '• Ad account may not be fully accessible\n' +
+          '• Browser popup blocker\n' +
+          '• Missing Facebook permissions\n\n' +
+          'Please add payment method directly in Facebook Ads Manager:\n' +
+          `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
+        )
+        return
       }
 
-      // Poll immediately
-      void (async () => {
-        if (await poll()) return
+      // Check for error in response
+      if (response?.error_message) {
+        setPaymentStatus('error')
+        console.error('[FB.ui][ads_payment] Error response:', {
+          error_message: response.error_message,
+          error_code: response.error_code,
+          accountId: numericId,
+          accountValidation: accountValidation,
+        })
+        window.alert(
+          `Facebook payment setup failed:\n${response.error_message}\n\n` +
+          `Please add payment method directly in Facebook Ads Manager:\n` +
+          `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
+        )
+        return
+      }
 
-        // Then poll every 3 seconds for up to 2 minutes
-        let attempts = 0
-        const interval = setInterval(async () => {
-          attempts++
-          const success = await poll()
+      // Success - poll for payment status
+      console.info('[FB.ui][ads_payment] Dialog completed, polling for payment status...')
+      setPaymentStatus('success')
 
-          if (success || attempts >= 40) {
-            clearInterval(interval)
-            if (!success) {
-              setPaymentStatus('idle')
+      // Poll payment status
+      const pollPaymentStatus = async () => {
+        try {
+          const statusRes = await fetch(
+            `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(adAccountId)}`,
+            { cache: 'no-store' }
+          )
+          if (statusRes.ok) {
+            const statusData = await statusRes.json()
+            if (statusData.connected) {
+              console.info('[MetaConnect] Payment connected successfully')
+              void hydrate() // Refresh summary
             }
           }
-        }, 3000)
-      })()
-    }
-  }, [enabled, adAccountId, campaign?.id, sdkReady, hydrate])
+        } catch (error) {
+          console.error('[MetaConnect] Error polling payment status:', error)
+        } finally {
+          setPaymentStatus('idle')
+        }
+      }
+
+      // Poll after a short delay
+      setTimeout(() => {
+        void pollPaymentStatus()
+      }, 2000)
+    })
+  }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
 
   return (
     <div className="rounded-lg border panel-surface p-3 space-y-3">
