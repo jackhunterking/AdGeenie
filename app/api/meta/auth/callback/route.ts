@@ -21,7 +21,13 @@ export async function GET(req: NextRequest) {
     const code = searchParams.get('code')
 
     if (!code) {
-      console.error('[MetaCallback] Missing code parameter')
+      // For implicit/token flow, access_token would be in URL fragment (#), which the server cannot read.
+      // Log available query params to aid debugging when response_type is wrong.
+      const paramsLog: Record<string, string> = {}
+      searchParams.forEach((v, k) => { paramsLog[k] = v })
+      console.error('[MetaCallback] Missing code parameter - likely wrong response_type (expected code grant).', {
+        queryParams: paramsLog,
+      })
       return NextResponse.redirect(`${origin}/?meta=missing_code`)
     }
 

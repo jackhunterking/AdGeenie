@@ -200,6 +200,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     const loginParams = {
       config_id: configId,
       response_type: 'code',
+      // force SDK to honor code grant even if configuration has defaults
+      override_default_response_type: true,
       return_scopes: true,
       redirect_uri: redirectUri,
     }
@@ -209,6 +211,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       redirectUri,
       campaignId: campaign.id,
       response_type: loginParams.response_type,
+      override_default_response_type: (loginParams as { override_default_response_type?: boolean }).override_default_response_type,
       loginParams,
     })
     
