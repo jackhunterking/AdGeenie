@@ -354,32 +354,58 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
     setPaymentStatus('opening')
 
-    // Hard-code v3.0 dialog URL (manual open) as a test for dialog availability
+    // Trial A: Follow docs exactly — use FB.ui with minimal params and swap SDK version temporarily
     try {
-      const dialogVersion = 'v3.0'
-      const appId = process.env.NEXT_PUBLIC_FB_APP_ID || ''
-      const bridge = `${window.location.origin}/meta/payment-bridge`
-      const url = new URL(`https://www.facebook.com/${dialogVersion}/dialog/ads_payment`)
-      url.searchParams.set('account_id', actId)
-      if (appId) url.searchParams.set('app_id', appId)
-      url.searchParams.set('display', 'popup')
-      url.searchParams.set('fallback_redirect_uri', bridge)
-      url.searchParams.set('locale', 'en_US')
-
-      console.info('[MetaConnect] Opening manual ads_payment dialog:', {
-        dialogVersion,
-        accountId: idNoPrefix,
-        url: url.toString().replace(/(app_id=)[^&]+/, '$1***'),
-      })
-
-      try {
-        window.open(url.toString(), 'fb_ads_payment', 'width=720,height=760')
-      } catch (e) {
-        // If popup blocked, navigate current window
-        window.location.href = url.toString()
+      type FBInitCfg = { appId: string; cookie: boolean; xfbml: boolean; version: string }
+      type FBLike = { init?: (cfg: FBInitCfg) => void; ui?: (params: Record<string, unknown>, cb: (resp: AdsPaymentResponse) => void) => void }
+      const fbObj = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : undefined) as unknown as FBLike | undefined
+      if (!fbObj || typeof fbObj.ui !== 'function' || typeof fbObj.init !== 'function') {
+        window.alert('Facebook SDK is not ready. Please wait and try again.')
+        setPaymentStatus('error')
+        return
       }
+
+      const appId = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
+      const originalVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+      const dialogVersion = 'v3.1' // Doc example version; we will try others if needed
+
+      const initSafe = (version: string) => {
+        try {
+          if (!appId) return
+          fbObj.init({ appId, cookie: true, xfbml: true, version })
+        } catch {/* ignore init errors */}
+      }
+
+      console.info('[MetaConnect] FB.ui ads_payment: temporary init for dialog', { dialogVersion, originalVersion, accountId: idNoPrefix })
+      initSafe(dialogVersion)
+
+      const params = { method: 'ads_payment', account_id: actId, display: 'popup' } as Record<string, unknown>
+
+      fbObj.ui(params, (response: AdsPaymentResponse) => {
+        setPaymentStatus('processing')
+        console.info('[FB.ui][ads_payment] Raw callback response:', JSON.stringify(response, null, 2))
+
+        // Always restore SDK version after the dialog attempt
+        initSafe(originalVersion)
+
+        if (response === undefined || response === null) {
+          setPaymentStatus('error')
+          console.error('[FB.ui][ads_payment] Response is null/undefined - dialog failed to load')
+          return
+        }
+        if (response?.error_message) {
+          setPaymentStatus('error')
+          console.error('[FB.ui][ads_payment] Error response:', {
+            error_message: response.error_message,
+            error_code: response.error_code,
+            accountId: idNoPrefix,
+          })
+          return
+        }
+        // Do not mark connected here; rely on server verification below
+      })
     } catch (e) {
-      console.error('[MetaConnect] Failed to construct manual ads_payment URL:', e)
+      console.error('[MetaConnect] FB.ui trial failed to execute:', e)
       setPaymentStatus('error')
       return
     }
