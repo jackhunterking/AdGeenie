@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Link2, CreditCard, AlertTriangle } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
+import { buildBusinessLoginUrl, generateRandomState } from "@/lib/meta/login"
 
 export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' }) {
   const enabled = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_ENABLE_META === 'true' : false
@@ -181,12 +182,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       window.alert('Missing campaign id')
       return
     }
-    const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as { login?: (cb: (r: unknown)=>void, opts: Record<string, unknown>) => void } | null
-    if (!fb || typeof fb.login !== 'function') {
-      console.error('[MetaConnectCard] Facebook SDK not ready:', { hasFB: !!fb, hasLogin: !!(fb && typeof fb.login === 'function') })
-      window.alert('Facebook SDK is not ready yet. Please wait and try again.')
-      return
-    }
+    // We no longer depend on FB.login for Business Login; we build and open the URL manually
     const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID
     if (!configId) {
       console.error('[MetaConnectCard] Missing Facebook config ID')
@@ -195,30 +191,42 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     }
     
     const redirectUri = `${window.location.origin}/api/meta/auth/callback`
-    // Explicitly set response_type to 'code' for Business Login authorization code flow
-    // The SDK may default to 'token' (implicit flow) which is not supported for Business Login
-    const loginParams = {
-      config_id: configId,
-      response_type: 'code',
-      // force SDK to honor code grant even if configuration has defaults
-      override_default_response_type: true,
-      return_scopes: true,
-      redirect_uri: redirectUri,
+    const appId = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
+    const graphVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    if (!appId) {
+      console.error('[MetaConnectCard] Missing NEXT_PUBLIC_FB_APP_ID')
+      window.alert('Missing Facebook App ID')
+      return
     }
-    
-    console.log('[MetaConnectCard] Initiating Meta login:', {
+
+    const state = generateRandomState(32)
+    try { sessionStorage.setItem('meta_oauth_state', state) } catch {}
+
+    const url = buildBusinessLoginUrl({
+      appId,
       configId,
       redirectUri,
-      campaignId: campaign.id,
-      response_type: loginParams.response_type,
-      override_default_response_type: (loginParams as { override_default_response_type?: boolean }).override_default_response_type,
-      loginParams,
+      graphVersion,
+      state,
     })
-    
-    // Invoke SDK immediately on user gesture (per Facebook docs)
-    fb.login((response: unknown) => {
-      console.log('[MetaConnectCard] FB.login callback response:', response)
-    }, loginParams as unknown as Record<string, unknown>)
+
+    console.log('[MetaConnectCard] Initiating Meta login (manual URL):', {
+      configId,
+      graphVersion,
+      redirectUri,
+      campaignId: campaign.id,
+      response_type: 'code',
+      state_length: state.length,
+      // Avoid logging full URL; show a redacted preview for diagnostics
+      preview: url.replace(/state=[^&]+/, 'state=***'),
+    })
+
+    try {
+      window.open(url, 'fb_biz_login', 'width=720,height=760')
+    } catch (e) {
+      console.error('[MetaConnectCard] Failed to open login popup:', e)
+      window.location.href = url
+    }
 
     // Perform side-effects after calling the SDK
     const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()

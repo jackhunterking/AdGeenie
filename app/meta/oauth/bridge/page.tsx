@@ -17,9 +17,18 @@ export default function MetaOAuthBridgePage() {
       const url = new URL(window.location.href)
       const campaignId = url.searchParams.get("campaignId") || undefined
       const status = url.searchParams.get("meta") || "connected"
+      const st = url.searchParams.get('st') || undefined
 
       const opener = window.opener
       const origin = window.location.origin
+
+      // Optional CSRF state check (client-side only)
+      try {
+        const expected = sessionStorage.getItem('meta_oauth_state') || undefined
+        if (st && expected && st !== expected) {
+          console.warn('[MetaOAuthBridge] State mismatch', { st, expected })
+        }
+      } catch { /* ignore */ }
 
       if (opener && typeof opener.postMessage === "function") {
         opener.postMessage(
