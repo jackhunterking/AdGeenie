@@ -195,9 +195,11 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     }
     
     const redirectUri = `${window.location.origin}/api/meta/auth/callback`
-    // Business Login Config already defines response_type - do not override
+    // Explicitly set response_type to 'code' for Business Login authorization code flow
+    // The SDK may default to 'token' (implicit flow) which is not supported for Business Login
     const loginParams = {
       config_id: configId,
+      response_type: 'code',
       return_scopes: true,
       redirect_uri: redirectUri,
     }
@@ -206,6 +208,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       configId,
       redirectUri,
       campaignId: campaign.id,
+      response_type: loginParams.response_type,
+      loginParams,
     })
     
     // Invoke SDK immediately on user gesture (per Facebook docs)
