@@ -129,6 +129,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       response_type: 'code',
       override_default_response_type: true,
       return_scopes: true,
+      redirect_uri: `${window.location.origin}/api/meta/auth/callback`,
     } as unknown as Record<string, unknown>)
     // Perform side-effects after calling the SDK
     const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
