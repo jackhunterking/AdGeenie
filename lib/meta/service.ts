@@ -127,7 +127,8 @@ export async function persistConnection(args: {
   longToken: string
   assets: MetaAssets
 }): Promise<void> {
-  const tokenExpiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
+  // System-user tokens with "Never" expiration - set far future date
+  const tokenExpiresAt = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString()
   const payload: CampaignMetaConnectionPayload = {
     campaign_id: args.campaignId,
     user_id: args.userId,
