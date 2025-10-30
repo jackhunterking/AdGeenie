@@ -354,86 +354,37 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
     setPaymentStatus('opening')
 
-    const params = {
-      method: 'ads_payment',
-      account_id: actId,
-      app_id: process.env.NEXT_PUBLIC_FB_APP_ID,
-      display: 'popup',
-      fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`,
-    } as Record<string, unknown>
+    // Hard-code v3.0 dialog URL (manual open) as a test for dialog availability
+    try {
+      const dialogVersion = 'v3.0'
+      const appId = process.env.NEXT_PUBLIC_FB_APP_ID || ''
+      const bridge = `${window.location.origin}/meta/payment-bridge`
+      const url = new URL(`https://www.facebook.com/${dialogVersion}/dialog/ads_payment`)
+      url.searchParams.set('account_id', actId)
+      if (appId) url.searchParams.set('app_id', appId)
+      url.searchParams.set('display', 'popup')
+      url.searchParams.set('fallback_redirect_uri', bridge)
+      url.searchParams.set('locale', 'en_US')
 
-    // Log params for verification
-    console.info('[MetaConnect] FB.ui params:', {
-      ...params,
-      fallback_redirect_uri: params.fallback_redirect_uri
-    })
+      console.info('[MetaConnect] Opening manual ads_payment dialog:', {
+        dialogVersion,
+        accountId: idNoPrefix,
+        url: url.toString().replace(/(app_id=)[^&]+/, '$1***'),
+      })
 
-    fb.ui(params, (response: AdsPaymentResponse) => {
-      setPaymentStatus('processing')
-
-      // Log full response for debugging
-      console.info('[FB.ui][ads_payment] Raw callback response:', JSON.stringify(response, null, 2))
-
-      // Check if response is undefined/null (indicates dialog internal error)
-      if (response === undefined || response === null) {
-        setPaymentStatus('error')
-        console.error('[FB.ui][ads_payment] Response is null/undefined - dialog failed to load')
-        window.alert(
-          'Facebook payment dialog failed to load properly.\n\n' +
-          'Possible reasons:\n' +
-          '• Ad account may not be fully accessible\n' +
-          '• Browser popup blocker\n' +
-          '• Missing Facebook permissions\n\n' +
-          'Please add payment method directly in Facebook Ads Manager:\n' +
-          `https://business.facebook.com/settings/ad-accounts/${idNoPrefix}/payment_methods`
-        )
-        return
+      try {
+        window.open(url.toString(), 'fb_ads_payment', 'width=720,height=760')
+      } catch (e) {
+        // If popup blocked, navigate current window
+        window.location.href = url.toString()
       }
+    } catch (e) {
+      console.error('[MetaConnect] Failed to construct manual ads_payment URL:', e)
+      setPaymentStatus('error')
+      return
+    }
 
-      // Check for error in response
-      if (response?.error_message) {
-        setPaymentStatus('error')
-        console.error('[FB.ui][ads_payment] Error response:', {
-          error_message: response.error_message,
-          error_code: response.error_code,
-          accountId: idNoPrefix,
-          accountValidation: accountValidation,
-        })
-        window.alert(
-          `Facebook payment setup failed:\n${response.error_message}\n\n` +
-          `Please add payment method directly in Facebook Ads Manager:\n` +
-          `https://business.facebook.com/settings/ad-accounts/${idNoPrefix}/payment_methods`
-        )
-        return
-      }
-
-      // Success - mark payment connected in backend and refresh
-      console.info('[FB.ui][ads_payment] Dialog completed, marking payment connected...')
-      setPaymentStatus('success')
-
-      void (async () => {
-        try {
-          const res = await fetch('/api/meta/payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ campaignId: campaign.id }),
-          })
-          if (!res.ok) {
-            const text = await res.text()
-            console.error('[MetaConnect] Failed to mark payment connected:', res.status, text)
-          } else {
-            console.info('[MetaConnect] Payment marked connected; hydrating summary')
-            void hydrate()
-          }
-        } catch (err) {
-          console.error('[MetaConnect] Error marking payment connected:', err)
-        } finally {
-          setPaymentStatus('idle')
-        }
-      })()
-    })
-
-    // Server-side verification fallback (works even if callback is empty)
+    // Server-side verification fallback (works even without FB.ui callback)
     void (async () => {
       try {
         // give FB a moment to process
