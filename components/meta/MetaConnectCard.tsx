@@ -197,8 +197,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     const redirectUri = `${window.location.origin}/api/meta/auth/callback`
     const loginParams = {
       config_id: configId,
+      // Use code flow; FB will redirect popup to redirect_uri natively
       response_type: 'code',
-      override_default_response_type: true,
       return_scopes: true,
       redirect_uri: redirectUri,
     }
