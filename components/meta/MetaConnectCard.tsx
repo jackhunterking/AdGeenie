@@ -412,23 +412,26 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       console.info('[FB.ui][ads_payment] Dialog completed, marking payment connected...')
       setPaymentStatus('success')
 
-      try {
-        const res = await fetch('/api/meta/payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ campaignId: campaign.id }),
-        })
-        if (!res.ok) {
-          console.error('[MetaConnect] Failed to mark payment connected:', res.status, await res.text())
-        } else {
-          console.info('[MetaConnect] Payment marked connected; hydrating summary')
-          void hydrate()
+      void (async () => {
+        try {
+          const res = await fetch('/api/meta/payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ campaignId: campaign.id }),
+          })
+          if (!res.ok) {
+            const text = await res.text()
+            console.error('[MetaConnect] Failed to mark payment connected:', res.status, text)
+          } else {
+            console.info('[MetaConnect] Payment marked connected; hydrating summary')
+            void hydrate()
+          }
+        } catch (err) {
+          console.error('[MetaConnect] Error marking payment connected:', err)
+        } finally {
+          setPaymentStatus('idle')
         }
-      } catch (err) {
-        console.error('[MetaConnect] Error marking payment connected:', err)
-      } finally {
-        setPaymentStatus('idle')
-      }
+      })()
     })
   }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
 
