@@ -207,13 +207,49 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       fallback_redirect_uri: params.fallback_redirect_uri
     })
 
-    // Prepare fallback URL and polling function
-    const adsManagerUrl = `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
-
-    const startPaymentStatusPolling = () => {
+    fb.ui(params, (response: AdsPaymentResponse) => {
       setPaymentStatus('processing')
-      console.info('[MetaConnect] Starting payment status polling (fallback mode)...')
-      
+
+      // Log full response for debugging
+      console.info('[FB.ui][ads_payment] Raw callback response:', JSON.stringify(response, null, 2))
+
+      // Check if response is undefined/null (indicates dialog internal error)
+      if (response === undefined || response === null) {
+        setPaymentStatus('error')
+        console.error('[FB.ui][ads_payment] Response is null/undefined - dialog failed to load')
+        window.alert(
+          'Facebook payment dialog failed to load properly.\n\n' +
+          'Possible reasons:\n' +
+          '• Ad account may not be fully accessible\n' +
+          '• Browser popup blocker\n' +
+          '• Missing Facebook permissions\n\n' +
+          'Please add payment method directly in Facebook Ads Manager:\n' +
+          `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
+        )
+        return
+      }
+
+      // Check for error in response
+      if (response?.error_message) {
+        setPaymentStatus('error')
+        console.error('[FB.ui][ads_payment] Error response:', {
+          error_message: response.error_message,
+          error_code: response.error_code,
+          accountId: numericId,
+          accountValidation: accountValidation,
+        })
+        window.alert(
+          `Facebook payment setup failed:\n${response.error_message}\n\n` +
+          `Please add payment method directly in Facebook Ads Manager:\n` +
+          `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
+        )
+        return
+      }
+
+      // Success - poll for payment status
+      console.info('[FB.ui][ads_payment] Dialog completed, polling for payment status...')
+      setPaymentStatus('success')
+
       // Poll payment status
       const pollPaymentStatus = async () => {
         try {
@@ -239,42 +275,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       setTimeout(() => {
         void pollPaymentStatus()
       }, 2000)
-    }
-
-    // Try FB.ui first, fallback to direct link if it fails
-    try {
-      fb.ui(params, (response: AdsPaymentResponse) => {
-        // Log full response for debugging
-        console.info('[FB.ui][ads_payment] Raw callback response:', JSON.stringify(response, null, 2))
-
-        // Check if response indicates failure (null, undefined, or error)
-        if (!response || response.error_message) {
-          console.warn('[MetaConnect] FB.ui dialog failed or returned error, using direct link fallback', response)
-          setPaymentStatus('error')
-          window.alert(
-            'Opening Facebook Ads Manager to add payment method.\n\n' +
-            'After adding your payment method, this page will automatically refresh.'
-          )
-          window.open(adsManagerUrl, '_blank')
-          startPaymentStatusPolling()
-          return
-        }
-
-        // Success - poll for payment status
-        console.info('[FB.ui][ads_payment] Dialog completed successfully, polling for payment status...')
-        setPaymentStatus('success')
-        startPaymentStatusPolling()
-      })
-    } catch (error) {
-      // FB.ui exception, use direct link
-      console.error('[MetaConnect] FB.ui threw exception:', error)
-      window.alert(
-        'Opening Facebook Ads Manager to add payment method.\n\n' +
-        'After adding your payment method, this page will automatically refresh.'
-      )
-      window.open(adsManagerUrl, '_blank')
-      startPaymentStatusPolling()
-    }
+    })
   }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
 
   return (
