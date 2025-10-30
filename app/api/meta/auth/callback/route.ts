@@ -88,6 +88,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}/?meta=unauthorized`)
     }
 
+    // Check if connection already exists
+    const { data: existingConn } = await supabaseServer
+      .from('campaign_meta_connections')
+      .select('id,selected_business_id')
+      .eq('campaign_id', campaignId)
+      .single()
+
+    const isReconnection = !!existingConn
+    console.log(`[MetaCallback] ${isReconnection ? 'Replacing' : 'Creating'} connection for campaign ${campaignId}`, {
+      oldBusinessId: existingConn?.selected_business_id,
+      newBusinessId: firstBiz?.id,
+    })
+
     await supabaseServer
       .from('campaign_meta_connections')
       .upsert({
@@ -102,6 +115,7 @@ export async function GET(req: NextRequest) {
         selected_ig_username: firstPage?.instagram_business_account?.username || null,
         selected_ad_account_id: firstAd?.id || null,
         selected_ad_account_name: firstAd?.name || null,
+        ad_account_payment_connected: false, // Reset payment connection on reconnect
       }, { onConflict: 'campaign_id' })
 
     await supabaseServer

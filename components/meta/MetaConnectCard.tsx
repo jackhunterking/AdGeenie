@@ -135,6 +135,49 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
   }, [enabled, campaign?.id])
 
+  const onDisconnect = useCallback(async () => {
+    if (!enabled || !campaign?.id) return
+
+    const confirmed = window.confirm(
+      'Are you sure you want to disconnect your Meta account?\n\n' +
+      'This will remove all connected business, page, and ad account information. ' +
+      'You will need to reconnect to continue using Meta integration.'
+    )
+
+    if (!confirmed) return
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/meta/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: campaign.id }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        window.alert(`Failed to disconnect: ${error.error || 'Unknown error'}`)
+        return
+      }
+
+      // Clear local state
+      setSummary(null)
+      setAdAccountId(null)
+      setAccountValidation(null)
+      setPaymentStatus('idle')
+
+      console.log('[MetaConnect] Successfully disconnected Meta account')
+
+      // Refresh to get updated state
+      await hydrate()
+    } catch (error) {
+      console.error('[MetaConnect] Error disconnecting:', error)
+      window.alert('Failed to disconnect Meta account. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [enabled, campaign?.id, hydrate])
+
   const onAddPayment = useCallback(() => {
     if (!enabled || !adAccountId || !campaign?.id) return
 
@@ -292,14 +335,76 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
                 : loading
                 ? 'Loading your Meta assets…'
                 : (summary?.status === 'connected' || summary?.status === 'selected_assets')
-                ? `Business: ${summary?.business?.name ?? '—'} · Page: ${summary?.page?.name ?? '—'} · Ad Account: ${summary?.adAccount?.id ?? '—'}`
-                : 'Click to start Business Login (disabled until rebuild completes).'}
+                ? 'Connected - manage your connection below'
+                : 'Connect to start advertising on Facebook & Instagram'}
             </p>
           </div>
-          <Button size="sm" type="button" disabled={!enabled} onClick={onConnect} className="h-8 px-4">
-            Connect with Meta
-          </Button>
+          {(summary?.status === 'connected' || summary?.status === 'selected_assets' || summary?.business?.id) ? (
+            <Button 
+              size="sm" 
+              type="button" 
+              disabled={!enabled || loading} 
+              onClick={onDisconnect} 
+              variant="outline"
+              className="h-8 px-4"
+            >
+              Disconnect
+            </Button>
+          ) : (
+            <Button 
+              size="sm" 
+              type="button" 
+              disabled={!enabled || loading} 
+              onClick={onConnect} 
+              className="h-8 px-4"
+            >
+              Connect with Meta
+            </Button>
+          )}
         </div>
+
+        {/* Business Details Card */}
+        {(summary?.business?.id || summary?.page?.id || summary?.adAccount?.id) && (
+          <div className="rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 p-3 space-y-2">
+            <div className="text-xs font-medium text-green-900 dark:text-green-200">
+              Connected Accounts
+            </div>
+            <div className="space-y-1.5">
+              {summary.business?.id && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Business:</span>
+                  <span className="font-medium text-green-700 dark:text-green-300">
+                    {summary.business.name || summary.business.id}
+                  </span>
+                </div>
+              )}
+              {summary.page?.id && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Page:</span>
+                  <span className="font-medium text-green-700 dark:text-green-300">
+                    {summary.page.name || summary.page.id}
+                  </span>
+                </div>
+              )}
+              {summary.instagram?.id && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Instagram:</span>
+                  <span className="font-medium text-green-700 dark:text-green-300">
+                    @{summary.instagram.username || summary.instagram.id}
+                  </span>
+                </div>
+              )}
+              {summary.adAccount?.id && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Ad Account:</span>
+                  <span className="font-medium text-green-700 dark:text-green-300">
+                    {summary.adAccount.name || summary.adAccount.id}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {summary?.adAccount && !summary?.paymentConnected ? (
           <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 p-3 space-y-3">
