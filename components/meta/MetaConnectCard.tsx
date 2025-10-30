@@ -323,6 +323,9 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     // Normalize to act_ form (FB accepts this directly in FB.ui)
     const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`
     const idNoPrefix = actId.replace(/^act_/i, '')
+    
+    // TRIAL: Test numeric-only account_id for FB.ui ads_payment (ROLLBACK if no improvement)
+    const dialogAccountId = idNoPrefix // numeric only, no act_ prefix
 
     // Verify we have the minimum required data
     if (!idNoPrefix || !/^\d+$/.test(idNoPrefix)) {
@@ -379,7 +382,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       console.info('[MetaConnect] FB.ui ads_payment: temporary init for dialog', { dialogVersion, originalVersion, accountId: idNoPrefix })
       initSafe(dialogVersion)
 
-      const params = { method: 'ads_payment', account_id: actId, display: 'popup' } as Record<string, unknown>
+      // TRIAL: Use numeric-only account_id (ROLLBACK if no improvement)
+      const params = { method: 'ads_payment', account_id: dialogAccountId, display: 'popup' } as Record<string, unknown>
 
       fbObj.ui(params, (response: AdsPaymentResponse) => {
         setPaymentStatus('processing')
