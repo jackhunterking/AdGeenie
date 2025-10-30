@@ -142,6 +142,25 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     }
   }, [hydrate])
 
+  // Listen for popup → parent postMessage from bridge page
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (event: MessageEvent) => {
+      try {
+        if (event.origin !== window.location.origin) return
+        const data = event.data as unknown
+        if (data && typeof data === 'object' && data !== null && (data as { type?: string }).type === 'META_CONNECTED') {
+          console.log('[MetaConnectCard] Received META_CONNECTED message; hydrating')
+          void hydrate()
+        }
+      } catch {
+        // ignore
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [hydrate])
+
   const onConnect = useCallback(() => {
     console.log('[MetaConnectCard] Connect button clicked')
     if (!enabled) {
@@ -190,6 +209,33 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
     document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
     console.log('[MetaConnectCard] Cookie set:', { campaignId: campaign.id, expires })
+
+    // Start optimistic polling for selection as a fallback in case postMessage is blocked
+    let cancelled = false
+    const start = Date.now()
+    const poll = async () => {
+      if (cancelled) return
+      try {
+        const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
+        if (res.ok) {
+          const j = await res.json() as Summary
+          const hasAssets = Boolean(j?.business?.id || j?.page?.id || j?.adAccount?.id || j?.instagram?.id)
+          const connectedish = j?.status === 'connected' || j?.status === 'selected_assets'
+          if (hasAssets || connectedish) {
+            console.log('[MetaConnectCard] Poll detected updated selection; hydrating')
+            await hydrate()
+            cancelled = true
+            return
+          }
+        }
+      } catch {
+        // ignore
+      }
+      if (!cancelled && Date.now() - start < 30_000) {
+        setTimeout(poll, 1000)
+      }
+    }
+    setTimeout(poll, 1000)
   }, [enabled, campaign?.id])
 
   const onDisconnect = useCallback(async () => {

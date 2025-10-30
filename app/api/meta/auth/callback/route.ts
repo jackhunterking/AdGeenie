@@ -256,10 +256,29 @@ export async function GET(req: NextRequest) {
       metaConnectData,
     })
     
-    const { error: stateError } = await supabaseServer
+    // Try update first; if no rows affected, insert a new state row.
+    const { data: updatedRows, error: stateError } = await supabaseServer
       .from('campaign_states')
       .update({ meta_connect_data: metaConnectData })
       .eq('campaign_id', campaignId)
+      .select('campaign_id')
+
+    if (stateError || !updatedRows || updatedRows.length === 0) {
+      if (!stateError && (!updatedRows || updatedRows.length === 0)) {
+        console.warn('[MetaCallback] No campaign_state row updated; attempting insert')
+      }
+      const { error: insertError } = await supabaseServer
+        .from('campaign_states')
+        .insert({ campaign_id: campaignId, meta_connect_data: metaConnectData })
+
+      if (insertError) {
+        console.error('[MetaCallback] Failed to insert campaign state:', {
+          error: insertError,
+          campaignId,
+          metaConnectData,
+        })
+      }
+    }
 
     if (stateError) {
       console.error('[MetaCallback] Failed to update campaign state:', {
@@ -268,13 +287,13 @@ export async function GET(req: NextRequest) {
         metaConnectData,
       })
       // Don't fail completely, connection is saved
-    } else {
+    } else if (updatedRows && updatedRows.length > 0) {
       console.log('[MetaCallback] Campaign state updated successfully')
     }
 
-    console.log('[MetaCallback] Successfully saved connection, redirecting to:', `${origin}/${campaignId}?meta=connected`)
+    console.log('[MetaCallback] Successfully saved connection, redirecting to bridge:', `${origin}/meta/oauth/bridge?campaignId=${campaignId}&meta=connected`)
 
-    return NextResponse.redirect(`${origin}/${campaignId}?meta=connected`)
+    return NextResponse.redirect(`${origin}/meta/oauth/bridge?campaignId=${campaignId}&meta=connected`)
   } catch (error) {
     console.error('[MetaCallback] Unhandled error:', error)
     const origin = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').origin
