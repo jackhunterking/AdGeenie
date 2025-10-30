@@ -372,7 +372,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       const initSafe = (version: string) => {
         try {
           if (!appId) return
-          fbObj.init({ appId, cookie: true, xfbml: true, version })
+          fbObj?.init?.({ appId, cookie: true, xfbml: true, version })
         } catch {/* ignore init errors */}
       }
 
