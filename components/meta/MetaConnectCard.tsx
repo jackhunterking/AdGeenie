@@ -47,9 +47,25 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     if (!enabled || !campaign?.id) return
     setLoading(true)
     try {
+      console.log('[MetaConnectCard] Hydrating meta connection for campaign:', campaign.id)
       const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
-      if (!res.ok) return
+      if (!res.ok) {
+        console.error('[MetaConnectCard] Failed to fetch selection:', {
+          status: res.status,
+          statusText: res.statusText,
+          campaignId: campaign.id,
+        })
+        return
+      }
       const j: Summary = await res.json()
+      console.log('[MetaConnectCard] Selection data received:', {
+        hasBusinessId: !!j?.business?.id,
+        hasPageId: !!j?.page?.id,
+        hasAdAccountId: !!j?.adAccount?.id,
+        hasInstagram: !!j?.instagram?.id,
+        paymentConnected: j?.paymentConnected,
+        status: j?.status,
+      })
       setSummary(j)
       setAdAccountId(j?.adAccount?.id ?? null)
 
@@ -57,6 +73,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       if (j?.adAccount?.id) {
         setValidatingAccount(true)
         try {
+          console.log('[MetaConnectCard] Validating ad account:', j.adAccount.id)
           const statusRes = await fetch(
             `/api/meta/adaccount/status?campaignId=${encodeURIComponent(campaign.id)}&accountId=${encodeURIComponent(j.adAccount.id)}`,
             { cache: 'no-store' }
@@ -64,16 +81,34 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
           if (statusRes.ok) {
             const statusData = await statusRes.json()
             setAccountValidation(statusData)
-            console.log('[MetaConnect] Account validation:', statusData)
+            console.log('[MetaConnectCard] Account validation result:', {
+              isActive: statusData.isActive,
+              status: statusData.status,
+              disableReason: statusData.disableReason,
+              hasFunding: statusData.hasFunding,
+            })
           } else {
-            console.warn('[MetaConnect] Failed to validate account status')
+            console.error('[MetaConnectCard] Account validation failed:', {
+              status: statusRes.status,
+              statusText: statusRes.statusText,
+              accountId: j.adAccount.id,
+            })
           }
         } catch (error) {
-          console.error('[MetaConnect] Account validation error:', error)
+          console.error('[MetaConnectCard] Account validation error:', {
+            error: error instanceof Error ? error.message : String(error),
+            accountId: j.adAccount.id,
+          })
         } finally {
           setValidatingAccount(false)
         }
       }
+    } catch (error) {
+      console.error('[MetaConnectCard] Hydration error:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        campaignId: campaign.id,
+      })
     } finally {
       setLoading(false)
     }
@@ -108,36 +143,61 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   }, [hydrate])
 
   const onConnect = useCallback(() => {
-    if (!enabled) return
+    console.log('[MetaConnectCard] Connect button clicked')
+    if (!enabled) {
+      console.error('[MetaConnectCard] Meta integration is disabled')
+      return
+    }
     if (!campaign?.id) {
+      console.error('[MetaConnectCard] Missing campaign ID')
       window.alert('Missing campaign id')
       return
     }
     const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as { login?: (cb: (r: unknown)=>void, opts: Record<string, unknown>) => void } | null
     if (!fb || typeof fb.login !== 'function') {
+      console.error('[MetaConnectCard] Facebook SDK not ready:', { hasFB: !!fb, hasLogin: !!(fb && typeof fb.login === 'function') })
       window.alert('Facebook SDK is not ready yet. Please wait and try again.')
       return
     }
     const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID
     if (!configId) {
+      console.error('[MetaConnectCard] Missing Facebook config ID')
       window.alert('Missing NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID')
       return
     }
-    // Invoke SDK immediately on user gesture (per Facebook docs)
-    fb.login(() => {}, {
+    
+    const redirectUri = `${window.location.origin}/api/meta/auth/callback`
+    const loginParams = {
       config_id: configId,
       response_type: 'code',
       override_default_response_type: true,
       return_scopes: true,
-      redirect_uri: `${window.location.origin}/api/meta/auth/callback`,
-    } as unknown as Record<string, unknown>)
+      redirect_uri: redirectUri,
+    }
+    
+    console.log('[MetaConnectCard] Initiating Meta login:', {
+      configId,
+      redirectUri,
+      campaignId: campaign.id,
+    })
+    
+    // Invoke SDK immediately on user gesture (per Facebook docs)
+    fb.login((response: unknown) => {
+      console.log('[MetaConnectCard] FB.login callback response:', response)
+    }, loginParams as unknown as Record<string, unknown>)
+    
     // Perform side-effects after calling the SDK
     const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
     document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
+    console.log('[MetaConnectCard] Cookie set:', { campaignId: campaign.id, expires })
   }, [enabled, campaign?.id])
 
   const onDisconnect = useCallback(async () => {
-    if (!enabled || !campaign?.id) return
+    console.log('[MetaConnectCard] Disconnect button clicked')
+    if (!enabled || !campaign?.id) {
+      console.error('[MetaConnectCard] Cannot disconnect - meta disabled or no campaign ID')
+      return
+    }
 
     const confirmed = window.confirm(
       'Are you sure you want to disconnect your Meta account?\n\n' +
@@ -145,8 +205,12 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       'You will need to reconnect to continue using Meta integration.'
     )
 
-    if (!confirmed) return
+    if (!confirmed) {
+      console.log('[MetaConnectCard] Disconnect cancelled by user')
+      return
+    }
 
+    console.log('[MetaConnectCard] Disconnecting campaign:', campaign.id)
     setLoading(true)
     try {
       const res = await fetch('/api/meta/disconnect', {
@@ -157,6 +221,11 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
       if (!res.ok) {
         const error = await res.json()
+        console.error('[MetaConnectCard] Disconnect failed:', {
+          status: res.status,
+          error: error.error,
+          campaignId: campaign.id,
+        })
         window.alert(`Failed to disconnect: ${error.error || 'Unknown error'}`)
         return
       }
@@ -167,12 +236,15 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       setAccountValidation(null)
       setPaymentStatus('idle')
 
-      console.log('[MetaConnect] Successfully disconnected Meta account')
+      console.log('[MetaConnectCard] Successfully disconnected Meta account')
 
       // Refresh to get updated state
       await hydrate()
     } catch (error) {
-      console.error('[MetaConnect] Error disconnecting:', error)
+      console.error('[MetaConnectCard] Error disconnecting:', {
+        error: error instanceof Error ? error.message : String(error),
+        campaignId: campaign.id,
+      })
       window.alert('Failed to disconnect Meta account. Please try again.')
     } finally {
       setLoading(false)

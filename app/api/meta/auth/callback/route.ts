@@ -78,29 +78,70 @@ export async function GET(req: NextRequest) {
 
     // 3) Fetch assets with the long-lived token
     async function safeJson<T = unknown>(res: Response): Promise<T | null> {
-      try { return (await res.json()) as T } catch { return null }
+      try { return (await res.json()) as T } catch (err) {
+        console.error('[MetaCallback] Failed to parse JSON:', err)
+        return null
+      }
     }
 
     console.log('[MetaCallback] Fetching Meta assets')
+    
+    // Fetch businesses
     const meBizRes = await fetch(`https://graph.facebook.com/${gv}/me/businesses?fields=id,name&limit=100`, { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' })
+    if (!meBizRes.ok) {
+      console.error('[MetaCallback] Failed to fetch businesses:', {
+        status: meBizRes.status,
+        statusText: meBizRes.statusText,
+        text: await meBizRes.text(),
+      })
+    }
     const meBiz: any = await safeJson(meBizRes)
     const firstBiz: { id: string; name?: string } | null = Array.isArray(meBiz?.data) && meBiz.data.length > 0 ? meBiz.data[0] : null
+    console.log('[MetaCallback] Businesses:', { count: meBiz?.data?.length || 0, firstBiz })
 
+    // Fetch pages
     const pagesRes = await fetch(`https://graph.facebook.com/${gv}/me/accounts?fields=id,name,instagram_business_account{username}&limit=500`, { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' })
+    if (!pagesRes.ok) {
+      console.error('[MetaCallback] Failed to fetch pages:', {
+        status: pagesRes.status,
+        statusText: pagesRes.statusText,
+        text: await pagesRes.text(),
+      })
+    }
     const pages: any = await safeJson(pagesRes)
     const firstPage: { id: string; name?: string; instagram_business_account?: { id?: string; username?: string } } | null = Array.isArray(pages?.data) && pages.data.length > 0 ? pages.data[0] : null
+    console.log('[MetaCallback] Pages:', { count: pages?.data?.length || 0, firstPage })
 
+    // Fetch ad accounts
     const actsRes = await fetch(`https://graph.facebook.com/${gv}/me/adaccounts?fields=id,name,account_status,currency&limit=500`, { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' })
+    if (!actsRes.ok) {
+      console.error('[MetaCallback] Failed to fetch ad accounts:', {
+        status: actsRes.status,
+        statusText: actsRes.statusText,
+        text: await actsRes.text(),
+      })
+    }
     const acts: any = await safeJson(actsRes)
-    const firstAd: { id: string; name?: string; account_status?: number } | null = Array.isArray(acts?.data) && acts.data.length > 0 ? (acts.data.find((a: any) => a?.account_status === 1) || acts.data[0]) : null
+    const allAccounts = Array.isArray(acts?.data) ? acts.data : []
+    const activeAccounts = allAccounts.filter((a: any) => a?.account_status === 1)
+    const firstAd: { id: string; name?: string; account_status?: number } | null = activeAccounts.length > 0 ? activeAccounts[0] : (allAccounts.length > 0 ? allAccounts[0] : null)
+    console.log('[MetaCallback] Ad Accounts:', {
+      totalCount: allAccounts.length,
+      activeCount: activeAccounts.length,
+      firstAd,
+      allAccountsStatuses: allAccounts.map((a: any) => ({ id: a?.id, status: a?.account_status })),
+    })
 
-    console.log('[MetaCallback] Fetched assets:', {
+    console.log('[MetaCallback] Fetched assets summary:', {
       businessId: firstBiz?.id,
       businessName: firstBiz?.name,
       pageId: firstPage?.id,
       pageName: firstPage?.name,
+      igUserId: firstPage?.instagram_business_account?.id,
+      igUsername: firstPage?.instagram_business_account?.username,
       adAccountId: firstAd?.id,
       adAccountName: firstAd?.name,
+      adAccountStatus: firstAd?.account_status,
     })
 
     // 4) Persist
@@ -123,49 +164,78 @@ export async function GET(req: NextRequest) {
       newBusinessId: firstBiz?.id,
     })
 
-    console.log('[MetaCallback] Upserting connection to database')
+    const connectionData = {
+      campaign_id: campaignId,
+      user_id: user.id,
+      long_lived_user_token: longToken,
+      selected_business_id: firstBiz?.id || null,
+      selected_business_name: firstBiz?.name || null,
+      selected_page_id: firstPage?.id || null,
+      selected_page_name: firstPage?.name || null,
+      selected_ig_user_id: firstPage?.instagram_business_account?.id || null,
+      selected_ig_username: firstPage?.instagram_business_account?.username || null,
+      selected_ad_account_id: firstAd?.id || null,
+      selected_ad_account_name: firstAd?.name || null,
+      ad_account_payment_connected: false, // Reset payment connection on reconnect
+    }
+
+    console.log('[MetaCallback] Upserting connection to database:', {
+      campaignId,
+      userId: user.id,
+      hasBusinessId: !!connectionData.selected_business_id,
+      hasPageId: !!connectionData.selected_page_id,
+      hasAdAccountId: !!connectionData.selected_ad_account_id,
+      hasIgUserId: !!connectionData.selected_ig_user_id,
+      hasToken: !!longToken,
+    })
+    
     const { error: upsertError } = await supabaseServer
       .from('campaign_meta_connections')
-      .upsert({
-        campaign_id: campaignId,
-        user_id: user.id,
-        long_lived_user_token: longToken,
-        selected_business_id: firstBiz?.id || null,
-        selected_business_name: firstBiz?.name || null,
-        selected_page_id: firstPage?.id || null,
-        selected_page_name: firstPage?.name || null,
-        selected_ig_user_id: firstPage?.instagram_business_account?.id || null,
-        selected_ig_username: firstPage?.instagram_business_account?.username || null,
-        selected_ad_account_id: firstAd?.id || null,
-        selected_ad_account_name: firstAd?.name || null,
-        ad_account_payment_connected: false, // Reset payment connection on reconnect
-      }, { onConflict: 'campaign_id' })
+      .upsert(connectionData, { onConflict: 'campaign_id' })
 
     if (upsertError) {
-      console.error('[MetaCallback] Failed to upsert connection:', upsertError)
+      console.error('[MetaCallback] Failed to upsert connection:', {
+        error: upsertError,
+        campaignId,
+        userId: user.id,
+        connectionData: {
+          ...connectionData,
+          long_lived_user_token: '[REDACTED]',
+        },
+      })
       return NextResponse.redirect(`${origin}/${campaignId}?meta=connection_failed&error=${encodeURIComponent(upsertError.message)}`)
     }
 
     console.log('[MetaCallback] Connection upserted successfully')
 
-    console.log('[MetaCallback] Updating campaign state')
+    const metaConnectData = {
+      status: firstAd?.id ? 'connected' : 'selected_assets',
+      businessId: firstBiz?.id || null,
+      pageId: firstPage?.id || null,
+      igUserId: firstPage?.instagram_business_account?.id || null,
+      adAccountId: firstAd?.id || null,
+      connectedAt: new Date().toISOString(),
+    }
+
+    console.log('[MetaCallback] Updating campaign state:', {
+      campaignId,
+      metaConnectData,
+    })
+    
     const { error: stateError } = await supabaseServer
       .from('campaign_states')
-      .update({
-        meta_connect_data: {
-          status: firstAd?.id ? 'connected' : 'selected_assets',
-          businessId: firstBiz?.id || null,
-          pageId: firstPage?.id || null,
-          igUserId: firstPage?.instagram_business_account?.id || null,
-          adAccountId: firstAd?.id || null,
-          connectedAt: new Date().toISOString(),
-        }
-      })
+      .update({ meta_connect_data: metaConnectData })
       .eq('campaign_id', campaignId)
 
     if (stateError) {
-      console.error('[MetaCallback] Failed to update campaign state:', stateError)
+      console.error('[MetaCallback] Failed to update campaign state:', {
+        error: stateError,
+        campaignId,
+        metaConnectData,
+      })
       // Don't fail completely, connection is saved
+    } else {
+      console.log('[MetaCallback] Campaign state updated successfully')
     }
 
     console.log('[MetaCallback] Successfully saved connection, redirecting to:', `${origin}/${campaignId}?meta=connected`)
