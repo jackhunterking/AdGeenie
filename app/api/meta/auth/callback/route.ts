@@ -86,6 +86,22 @@ export async function GET(req: NextRequest) {
 
     console.log('[MetaCallback] Fetching Meta assets')
     
+    // Fetch Facebook user ID
+    console.log('[MetaCallback] Fetching Facebook user info')
+    const userInfoRes = await fetch(
+      `https://graph.facebook.com/${gv}/me?fields=id`,
+      { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' }
+    )
+    if (!userInfoRes.ok) {
+      console.error('[MetaCallback] Failed to fetch user info:', {
+        status: userInfoRes.status,
+        statusText: userInfoRes.statusText,
+      })
+    }
+    const userInfo: any = await safeJson(userInfoRes)
+    const fbUserId = userInfo?.id || null
+    console.log('[MetaCallback] Facebook user ID:', fbUserId)
+    
     // Fetch businesses
     const meBizRes = await fetch(`https://graph.facebook.com/${gv}/me/businesses?fields=id,name&limit=100`, { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' })
     if (!meBizRes.ok) {
@@ -99,8 +115,8 @@ export async function GET(req: NextRequest) {
     const firstBiz: { id: string; name?: string } | null = Array.isArray(meBiz?.data) && meBiz.data.length > 0 ? meBiz.data[0] : null
     console.log('[MetaCallback] Businesses:', { count: meBiz?.data?.length || 0, firstBiz })
 
-    // Fetch pages
-    const pagesRes = await fetch(`https://graph.facebook.com/${gv}/me/accounts?fields=id,name,instagram_business_account{username}&limit=500`, { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' })
+    // Fetch pages with access_token field
+    const pagesRes = await fetch(`https://graph.facebook.com/${gv}/me/accounts?fields=id,name,access_token,instagram_business_account{username}&limit=500`, { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' })
     if (!pagesRes.ok) {
       console.error('[MetaCallback] Failed to fetch pages:', {
         status: pagesRes.status,
@@ -109,8 +125,15 @@ export async function GET(req: NextRequest) {
       })
     }
     const pages: any = await safeJson(pagesRes)
-    const firstPage: { id: string; name?: string; instagram_business_account?: { id?: string; username?: string } } | null = Array.isArray(pages?.data) && pages.data.length > 0 ? pages.data[0] : null
-    console.log('[MetaCallback] Pages:', { count: pages?.data?.length || 0, firstPage })
+    const firstPage: { id: string; name?: string; access_token?: string; instagram_business_account?: { id?: string; username?: string } } | null = Array.isArray(pages?.data) && pages.data.length > 0 ? pages.data[0] : null
+    console.log('[MetaCallback] Pages:', { 
+      count: pages?.data?.length || 0, 
+      firstPage: firstPage ? { 
+        id: firstPage.id, 
+        name: firstPage.name, 
+        hasToken: !!firstPage.access_token 
+      } : null 
+    })
 
     // Fetch ad accounts
     const actsRes = await fetch(`https://graph.facebook.com/${gv}/me/adaccounts?fields=id,name,account_status,currency&limit=500`, { headers: { Authorization: `Bearer ${longToken}` }, cache: 'no-store' })
@@ -133,10 +156,12 @@ export async function GET(req: NextRequest) {
     })
 
     console.log('[MetaCallback] Fetched assets summary:', {
+      fbUserId,
       businessId: firstBiz?.id,
       businessName: firstBiz?.name,
       pageId: firstPage?.id,
       pageName: firstPage?.name,
+      pageHasToken: !!firstPage?.access_token,
       igUserId: firstPage?.instagram_business_account?.id,
       igUsername: firstPage?.instagram_business_account?.username,
       adAccountId: firstAd?.id,
@@ -156,7 +181,7 @@ export async function GET(req: NextRequest) {
       .from('campaign_meta_connections')
       .select('id,selected_business_id')
       .eq('campaign_id', campaignId)
-      .single()
+      .maybeSingle()
 
     const isReconnection = !!existingConn
     console.log(`[MetaCallback] ${isReconnection ? 'Replacing' : 'Creating'} connection for campaign ${campaignId}`, {
@@ -164,14 +189,20 @@ export async function GET(req: NextRequest) {
       newBusinessId: firstBiz?.id,
     })
 
+    // Calculate token expiration (long-lived tokens are valid for 60 days)
+    const tokenExpiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+
     const connectionData = {
       campaign_id: campaignId,
       user_id: user.id,
+      fb_user_id: fbUserId,
       long_lived_user_token: longToken,
+      token_expires_at: tokenExpiresAt.toISOString(),
       selected_business_id: firstBiz?.id || null,
       selected_business_name: firstBiz?.name || null,
       selected_page_id: firstPage?.id || null,
       selected_page_name: firstPage?.name || null,
+      selected_page_access_token: firstPage?.access_token || null,
       selected_ig_user_id: firstPage?.instagram_business_account?.id || null,
       selected_ig_username: firstPage?.instagram_business_account?.username || null,
       selected_ad_account_id: firstAd?.id || null,
@@ -182,11 +213,14 @@ export async function GET(req: NextRequest) {
     console.log('[MetaCallback] Upserting connection to database:', {
       campaignId,
       userId: user.id,
+      fbUserId,
       hasBusinessId: !!connectionData.selected_business_id,
       hasPageId: !!connectionData.selected_page_id,
+      hasPageToken: !!connectionData.selected_page_access_token,
       hasAdAccountId: !!connectionData.selected_ad_account_id,
       hasIgUserId: !!connectionData.selected_ig_user_id,
       hasToken: !!longToken,
+      tokenExpiresAt: tokenExpiresAt.toISOString(),
     })
     
     const { error: upsertError } = await supabaseServer

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       .from('campaign_meta_connections')
       .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected')
       .eq('campaign_id', campaignId)
-      .single()
+      .maybeSingle()
 
     if (connError) {
       console.error('[MetaSelection] Error fetching connection:', {
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       .from('campaign_states')
       .select('meta_connect_data')
       .eq('campaign_id', campaignId)
-      .single()
+      .maybeSingle()
 
     if (stateError) {
       console.error('[MetaSelection] Error fetching campaign state:', {
