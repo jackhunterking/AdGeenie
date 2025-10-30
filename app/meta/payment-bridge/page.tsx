@@ -28,6 +28,12 @@ export default function PaymentBridgePage() {
     try {
       const opener = window.opener
       if (opener && typeof opener.postMessage === 'function') {
+        // Canonical event for current listeners
+        opener.postMessage({ 
+          type: 'META_CONNECTED',
+          status: 'payment-added'
+        }, window.location.origin)
+        // Back-compat for any legacy listeners
         opener.postMessage({ 
           type: 'meta-connected',
           status: 'payment-added'

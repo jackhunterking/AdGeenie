@@ -1,5 +1,14 @@
 "use client"
 
+/**
+ * Feature: Meta connect and payments
+ * Purpose: Open FB.ui `ads_payment` with correct params and verify result
+ * References:
+ *  - Facebook JS SDK FB.ui: https://developers.facebook.com/docs/javascript/reference/FB.ui/
+ *  - Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
+ *  - Ad Account fields: https://developers.facebook.com/docs/marketing-api/reference/ad-account
+ */
+
 import { Button } from "@/components/ui/button"
 import { Link2, CreditCard, AlertTriangle } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
@@ -9,7 +18,6 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const enabled = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_ENABLE_META === 'true' : false
   const { campaign } = useCampaignContext()
   const [adAccountId, setAdAccountId] = useState<string | null>(null)
-  const [addingPayment, setAddingPayment] = useState(false)
   const [loading, setLoading] = useState(false)
   type Summary = {
     business?: { id: string; name?: string }
@@ -149,7 +157,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       try {
         if (event.origin !== window.location.origin) return
         const data = event.data as unknown
-        if (data && typeof data === 'object' && data !== null && (data as { type?: string }).type === 'META_CONNECTED') {
+        const t = (data && typeof data === 'object' && data !== null ? (data as { type?: string }).type : undefined)
+        if (t === 'META_CONNECTED' || t === 'meta-connected') {
           console.log('[MetaConnectCard] Received META_CONNECTED message; hydrating')
           void hydrate()
         }
@@ -204,38 +213,11 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     fb.login((response: unknown) => {
       console.log('[MetaConnectCard] FB.login callback response:', response)
     }, loginParams as unknown as Record<string, unknown>)
-    
+
     // Perform side-effects after calling the SDK
     const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
     document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
     console.log('[MetaConnectCard] Cookie set:', { campaignId: campaign.id, expires })
-
-    // Start optimistic polling for selection as a fallback in case postMessage is blocked
-    let cancelled = false
-    const start = Date.now()
-    const poll = async () => {
-      if (cancelled) return
-      try {
-        const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
-        if (res.ok) {
-          const j = await res.json() as Summary
-          const hasAssets = Boolean(j?.business?.id || j?.page?.id || j?.adAccount?.id || j?.instagram?.id)
-          const connectedish = j?.status === 'connected' || j?.status === 'selected_assets'
-          if (hasAssets || connectedish) {
-            console.log('[MetaConnectCard] Poll detected updated selection; hydrating')
-            await hydrate()
-            cancelled = true
-            return
-          }
-        }
-      } catch {
-        // ignore
-      }
-      if (!cancelled && Date.now() - start < 30_000) {
-        setTimeout(poll, 1000)
-      }
-    }
-    setTimeout(poll, 1000)
   }, [enabled, campaign?.id])
 
   const onDisconnect = useCallback(async () => {
@@ -324,18 +306,20 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       }
     }
 
-    const numericId = adAccountId.replace(/^act_/i, '')
+    // Normalize to act_ form (FB accepts this directly in FB.ui)
+    const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`
+    const idNoPrefix = actId.replace(/^act_/i, '')
 
     // Verify we have the minimum required data
-    if (!numericId || !/^\d+$/.test(numericId)) {
-      console.error('[MetaConnect] Invalid account ID format:', numericId)
+    if (!idNoPrefix || !/^\d+$/.test(idNoPrefix)) {
+      console.error('[MetaConnect] Invalid account ID format:', actId)
       window.alert('Invalid ad account ID format. Please reconnect your Meta account.')
       return
     }
 
     // Log comprehensive debug info
     console.info('[MetaConnect] Opening payment dialog:', {
-      accountId: numericId,
+      accountId: idNoPrefix,
       accountStatus: accountValidation?.status,
       isActive: accountValidation?.isActive,
       hasFunding: accountValidation?.hasFunding,
@@ -346,7 +330,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
     // Log pre-flight check
     console.info('[MetaConnect] Pre-flight check passed:', {
-      accountId: numericId,
+      accountId: idNoPrefix,
       accountActive: accountValidation?.isActive,
       accountStatus: accountValidation?.status,
       hasBusiness: accountValidation?.hasBusiness,
@@ -358,10 +342,11 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
     const params = {
       method: 'ads_payment',
-      account_id: numericId,
+      account_id: actId,
+      app_id: process.env.NEXT_PUBLIC_FB_APP_ID,
       display: 'popup',
-      fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`
-    }
+      fallback_redirect_uri: `${window.location.origin}/meta/payment-bridge`,
+    } as Record<string, unknown>
 
     // Log params for verification
     console.info('[MetaConnect] FB.ui params:', {
@@ -386,7 +371,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
           '• Browser popup blocker\n' +
           '• Missing Facebook permissions\n\n' +
           'Please add payment method directly in Facebook Ads Manager:\n' +
-          `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
+          `https://business.facebook.com/settings/ad-accounts/${idNoPrefix}/payment_methods`
         )
         return
       }
@@ -397,13 +382,13 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         console.error('[FB.ui][ads_payment] Error response:', {
           error_message: response.error_message,
           error_code: response.error_code,
-          accountId: numericId,
+          accountId: idNoPrefix,
           accountValidation: accountValidation,
         })
         window.alert(
           `Facebook payment setup failed:\n${response.error_message}\n\n` +
           `Please add payment method directly in Facebook Ads Manager:\n` +
-          `https://business.facebook.com/settings/ad-accounts/${numericId}/payment_methods`
+          `https://business.facebook.com/settings/ad-accounts/${idNoPrefix}/payment_methods`
         )
         return
       }
@@ -433,6 +418,23 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         }
       })()
     })
+
+    // Server-side verification fallback (works even if callback is empty)
+    void (async () => {
+      try {
+        // give FB a moment to process
+        await new Promise((r) => setTimeout(r, 3000))
+        const verify = await fetch(`/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`, { cache: 'no-store' })
+        if (verify.ok) {
+          const json = await verify.json() as { connected?: boolean }
+          if (json?.connected) {
+            console.info('[MetaConnect] Server verified payment connected; hydrating')
+            setPaymentStatus('success')
+            void hydrate()
+          }
+        }
+      } catch {/* empty */}
+    })()
   }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
 
   return (

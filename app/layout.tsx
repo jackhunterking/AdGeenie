@@ -49,7 +49,8 @@ export default function RootLayout({
                   autoLogAppEvents: true,
                   cookie: true,
                   xfbml: true,
-                  version: '${process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'}'
+                  // IMPORTANT: ensure NEXT_PUBLIC_FB_GRAPH_VERSION is set to a supported Graph version
+                  version: '${process.env.NEXT_PUBLIC_FB_GRAPH_VERSION}'
                 });
                 FB.AppEvents.logPageView();
               };
