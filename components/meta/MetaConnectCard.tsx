@@ -369,8 +369,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       }
 
       const appId = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
-      const originalVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
-      const dialogVersion = 'v3.1' // Doc example version; we will try others if needed
+      // Use current Graph API version from environment instead of hardcoded v3.1
+      const dialogVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
 
       const initSafe = (version: string) => {
         try {
@@ -379,7 +379,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         } catch {/* ignore init errors */}
       }
 
-      console.info('[MetaConnect] FB.ui ads_payment: temporary init for dialog', { dialogVersion, originalVersion, accountId: idNoPrefix })
+      console.info('[MetaConnect] FB.ui ads_payment: initializing with current Graph API version', { dialogVersion, accountId: idNoPrefix })
       initSafe(dialogVersion)
 
       // TRIAL: Use numeric-only account_id (ROLLBACK if no improvement)
@@ -388,9 +388,6 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       fbObj.ui(params, (response: AdsPaymentResponse) => {
         setPaymentStatus('processing')
         console.info('[FB.ui][ads_payment] Raw callback response:', JSON.stringify(response, null, 2))
-
-        // Always restore SDK version after the dialog attempt
-        initSafe(originalVersion)
 
         if (response === undefined || response === null) {
           setPaymentStatus('error')
