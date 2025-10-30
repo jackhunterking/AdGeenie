@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import { getConnection } from '@/lib/meta/service'
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,11 +29,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { data: conn, error: connError } = await supabaseServer
-      .from('campaign_meta_connections')
-      .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected')
-      .eq('campaign_id', campaignId)
-      .maybeSingle()
+    const conn = await getConnection({ campaignId })
+    const connError = null
 
     if (connError) {
       console.error('[MetaSelection] Error fetching connection:', {

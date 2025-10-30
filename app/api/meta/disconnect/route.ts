@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import { deleteConnection, setDisconnected } from '@/lib/meta/service'
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,32 +37,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Delete the connection record
-    const { error: deleteError } = await supabaseServer
-      .from('campaign_meta_connections')
-      .delete()
-      .eq('campaign_id', campaignId)
-
-    if (deleteError) {
-      console.error('[MetaDisconnect] Error deleting connection:', deleteError)
+    try { await deleteConnection({ campaignId }) } catch (e) {
+      console.error('[MetaDisconnect] Error deleting connection:', e)
       return NextResponse.json({ error: 'Failed to disconnect' }, { status: 500 })
     }
 
-    // Update campaign state to reflect disconnection
-    const { error: stateError } = await supabaseServer
-      .from('campaign_states')
-      .update({
-        meta_connect_data: {
-          status: 'disconnected',
-          disconnectedAt: new Date().toISOString(),
-        }
-      })
-      .eq('campaign_id', campaignId)
-
-    if (stateError) {
-      console.error('[MetaDisconnect] Error updating campaign state:', stateError)
-      // Don't fail the request since the connection was already deleted
-    }
+    await setDisconnected({ campaignId })
 
     console.log('[MetaDisconnect] Successfully disconnected Meta account for campaign:', campaignId)
 

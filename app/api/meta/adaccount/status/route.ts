@@ -8,10 +8,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
+import { getConnection, validateAdAccount } from '@/lib/meta/service'
 
-function getGraphVersion(): string {
-  return process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
-}
+// Graph version handled by service
 
 export async function GET(req: NextRequest) {
   try {
@@ -38,14 +37,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get token from campaign_meta_connections
-    const { data: conn } = await supabaseServer
-      .from('campaign_meta_connections')
-      .select('long_lived_user_token')
-      .eq('campaign_id', campaignId)
-      .single()
-
-    const token = (conn as { long_lived_user_token?: string } | null)?.long_lived_user_token
+    const conn = await getConnection({ campaignId })
+    const token = (conn as { long_lived_user_token?: string } | null)?.long_lived_user_token || null
 
     if (!token) {
       return NextResponse.json({
@@ -56,46 +49,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch comprehensive account details from Facebook Graph API
-    const gv = getGraphVersion()
-    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`
-    const fields = 'account_status,disable_reason,capabilities,funding_source,funding_source_details,business,tos_accepted,owner,currency'
-    const url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}?fields=${fields}`
-
-    console.log('[Account Status] Fetching:', url.replace(token, 'TOKEN'))
-
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    })
-
-    if (!res.ok) {
-      const errorText = await res.text()
-      console.error('[Account Status] Facebook API error:', res.status, errorText)
-      return NextResponse.json({
-        isActive: false,
-        status: null,
-        error: `Facebook API error: ${res.status}`,
-        details: errorText
-      })
-    }
-
-    const data: unknown = await res.json()
-    const obj = (data && typeof data === 'object' && data !== null) ? (data as Record<string, unknown>) : {}
-
-    console.log('[Account Status] Response:', JSON.stringify(obj, null, 2))
-
-    return NextResponse.json({
-      isActive: obj.account_status === 1,
-      status: typeof obj.account_status === 'number' ? obj.account_status : null,
-      disableReason: typeof obj.disable_reason === 'string' ? obj.disable_reason : undefined,
-      hasFunding: !!obj.funding_source,
-      hasToSAccepted: typeof obj.tos_accepted === 'object' ? obj.tos_accepted : undefined,
-      hasBusiness: !!obj.business,
-      hasOwner: !!obj.owner,
-      capabilities: Array.isArray(obj.capabilities) ? obj.capabilities : [],
-      currency: typeof obj.currency === 'string' ? obj.currency : undefined,
-      rawData: obj, // Include for debugging
-    })
+    const result = await validateAdAccount({ token, actId: accountId })
+    return NextResponse.json(result)
   } catch (error) {
     console.error('[Account Status] Exception:', error)
     return NextResponse.json({
