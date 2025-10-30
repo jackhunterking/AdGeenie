@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
-import { getConnection } from '@/lib/meta/service'
+import { getConnectionPublic } from '@/lib/meta/service'
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const conn = await getConnection({ campaignId })
+    const conn = await getConnectionPublic({ campaignId })
     const connError = null
 
     if (connError) {

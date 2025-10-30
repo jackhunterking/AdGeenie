@@ -408,35 +408,27 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         return
       }
 
-      // Success - poll for payment status
-      console.info('[FB.ui][ads_payment] Dialog completed, polling for payment status...')
+      // Success - mark payment connected in backend and refresh
+      console.info('[FB.ui][ads_payment] Dialog completed, marking payment connected...')
       setPaymentStatus('success')
 
-      // Poll payment status
-      const pollPaymentStatus = async () => {
-        try {
-          const statusRes = await fetch(
-            `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(adAccountId)}`,
-            { cache: 'no-store' }
-          )
-          if (statusRes.ok) {
-            const statusData = await statusRes.json()
-            if (statusData.connected) {
-              console.info('[MetaConnect] Payment connected successfully')
-              void hydrate() // Refresh summary
-            }
-          }
-        } catch (error) {
-          console.error('[MetaConnect] Error polling payment status:', error)
-        } finally {
-          setPaymentStatus('idle')
+      try {
+        const res = await fetch('/api/meta/payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: campaign.id }),
+        })
+        if (!res.ok) {
+          console.error('[MetaConnect] Failed to mark payment connected:', res.status, await res.text())
+        } else {
+          console.info('[MetaConnect] Payment marked connected; hydrating summary')
+          void hydrate()
         }
+      } catch (err) {
+        console.error('[MetaConnect] Error marking payment connected:', err)
+      } finally {
+        setPaymentStatus('idle')
       }
-
-      // Poll after a short delay
-      setTimeout(() => {
-        void pollPaymentStatus()
-      }, 2000)
     })
   }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
 

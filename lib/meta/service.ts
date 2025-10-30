@@ -263,4 +263,138 @@ export async function setDisconnected(args: { campaignId: string }): Promise<voi
   }
 }
 
+/**
+ * Return only non-sensitive connection fields for client consumption.
+ */
+export async function getConnectionPublic(args: { campaignId: string }): Promise<{
+  selected_business_id: string | null
+  selected_business_name: string | null
+  selected_page_id: string | null
+  selected_page_name: string | null
+  selected_ig_user_id: string | null
+  selected_ig_username: string | null
+  selected_ad_account_id: string | null
+  selected_ad_account_name: string | null
+  ad_account_payment_connected: boolean | null
+} | null> {
+  const { data, error } = await supabaseServer
+    .from('campaign_meta_connections')
+    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected')
+    .eq('campaign_id', args.campaignId)
+    .maybeSingle()
+  if (error) {
+    console.error('[MetaService] getConnectionPublic error:', error)
+    return null
+  }
+  return data as unknown as ReturnType<typeof getConnectionPublic> extends Promise<infer T> ? T : never
+}
+
+/**
+ * Return connection including sensitive token for server-side use only.
+ */
+export async function getConnectionWithToken(args: { campaignId: string }): Promise<{
+  long_lived_user_token: string | null
+} & NonNullable<Awaited<ReturnType<typeof getConnectionPublic>>> | null> {
+  const { data, error } = await supabaseServer
+    .from('campaign_meta_connections')
+    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,long_lived_user_token')
+    .eq('campaign_id', args.campaignId)
+    .maybeSingle()
+  if (error) {
+    console.error('[MetaService] getConnectionWithToken error:', error)
+    return null
+  }
+  return data as unknown as ReturnType<typeof getConnectionWithToken> extends Promise<infer T> ? T : never
+}
+
+/**
+ * Update selected assets in SSOT. Fetches names/tokens as needed using the stored user token.
+ */
+export async function setSelectedAssets(args: {
+  campaignId: string
+  businessId?: string | null
+  pageId?: string | null
+  adAccountId?: string | null
+}): Promise<void> {
+  const current = await getConnectionWithToken({ campaignId: args.campaignId })
+  if (!current) throw new Error('No existing Meta connection to update')
+
+  const token = current.long_lived_user_token || ''
+  if (!token) throw new Error('Missing long-lived user token')
+
+  const updates: Record<string, unknown> = {}
+
+  // Business
+  if (typeof args.businessId !== 'undefined') {
+    updates.selected_business_id = args.businessId
+    updates.selected_business_name = null
+    if (args.businessId) {
+      try {
+        const gv = getGraphVersion()
+        const res = await fetch(`https://graph.facebook.com/${gv}/${encodeURIComponent(args.businessId)}?fields=name`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+        if (res.ok) {
+          const j: unknown = await res.json()
+          const name = (j && typeof j === 'object' && j !== null && typeof (j as { name?: string }).name === 'string') ? (j as { name: string }).name : null
+          updates.selected_business_name = name
+        }
+      } catch {}
+    }
+  }
+
+  // Page (and IG via page)
+  if (typeof args.pageId !== 'undefined') {
+    updates.selected_page_id = args.pageId
+    updates.selected_page_name = null
+    updates.selected_page_access_token = null
+    updates.selected_ig_user_id = null
+    updates.selected_ig_username = null
+    if (args.pageId) {
+      try {
+        const pages = await fetchPagesWithTokens({ token })
+        const match = pages.find(p => p.id === args.pageId) || null
+        if (match) {
+          updates.selected_page_name = match.name ?? null
+          updates.selected_page_access_token = match.access_token ?? null
+          if (match.instagram_business_account?.id) {
+            updates.selected_ig_user_id = match.instagram_business_account.id
+            updates.selected_ig_username = match.instagram_business_account.username ?? null
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // Ad Account
+  if (typeof args.adAccountId !== 'undefined') {
+    const rawId = args.adAccountId
+    updates.selected_ad_account_id = rawId
+    updates.selected_ad_account_name = null
+    if (rawId) {
+      try {
+        const accounts = await fetchAdAccounts({ token })
+        const normalized = rawId.startsWith('act_') ? rawId.replace(/^act_/, '') : rawId
+        const match = accounts.find(a => a.id === normalized) || accounts.find(a => `act_${a.id}` === rawId) || null
+        if (match) {
+          updates.selected_ad_account_id = match.id
+          updates.selected_ad_account_name = match.name ?? null
+        }
+      } catch {}
+    }
+  }
+
+  const { error } = await supabaseServer
+    .from('campaign_meta_connections')
+    .update(updates)
+    .eq('campaign_id', args.campaignId)
+  if (error) throw error
+
+  // Reflect status
+  try {
+    await updateCampaignState({ campaignId: args.campaignId, status: 'connected' })
+  } catch {}
+}
+
 
