@@ -293,7 +293,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     }
   }, [enabled, campaign?.id, hydrate])
 
-  const onAddPayment = useCallback(() => {
+  const onAddPayment = useCallback(async () => {
     if (!enabled || !adAccountId || !campaign?.id) return
 
     // Check SDK readiness
@@ -320,12 +320,24 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       }
     }
 
-    // Normalize to act_ form (FB accepts this directly in FB.ui)
+    // Check for payment capability before opening dialog
+    if (accountValidation?.capabilities && Array.isArray(accountValidation.capabilities)) {
+      const hasPaymentCapability = accountValidation.capabilities.includes('CAN_USE_ADS_PAYMENT_SERVICES')
+      if (!hasPaymentCapability) {
+        console.error('[MetaConnect] Account lacks CAN_USE_ADS_PAYMENT_SERVICES capability')
+        window.alert('This ad account does not have permission to add payment methods. Please check your account permissions in Business Manager.')
+        return
+      }
+    }
+
+    // Normalize to act_ form (FB.ui requires this format)
     const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`
     const idNoPrefix = actId.replace(/^act_/i, '')
     
-    // TRIAL: Test numeric-only account_id for FB.ui ads_payment (ROLLBACK if no improvement)
-    const dialogAccountId = idNoPrefix // numeric only, no act_ prefix
+    // Feature flag to test both formats - toggle this based on test results
+    // Based on Facebook documentation and testing, FB.ui ads_payment should receive act_ prefix
+    const USE_ACT_PREFIX = true
+    const dialogAccountId = USE_ACT_PREFIX ? actId : idNoPrefix
 
     // Verify we have the minimum required data
     if (!idNoPrefix || !/^\d+$/.test(idNoPrefix)) {
@@ -334,20 +346,26 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       return
     }
 
-    // Log comprehensive debug info
-    console.info('[MetaConnect] Opening payment dialog:', {
-      accountId: idNoPrefix,
+    // Log comprehensive debug info including format being tested
+    console.info('[MetaConnect] Opening payment dialog with enhanced diagnostics:', {
+      format: USE_ACT_PREFIX ? 'act_<id> (prefixed)' : 'numeric only',
+      dialogAccountId,
+      originalAdAccountId: adAccountId,
+      normalizedActId: actId,
+      numericId: idNoPrefix,
       accountStatus: accountValidation?.status,
       isActive: accountValidation?.isActive,
       hasFunding: accountValidation?.hasFunding,
       hasBusiness: accountValidation?.hasBusiness,
+      hasToSAccepted: accountValidation?.hasToSAccepted,
       capabilities: accountValidation?.capabilities,
       sdkReady,
+      timestamp: new Date().toISOString(),
     })
 
     // Log pre-flight check
     console.info('[MetaConnect] Pre-flight check passed:', {
-      accountId: idNoPrefix,
+      accountId: dialogAccountId,
       accountActive: accountValidation?.isActive,
       accountStatus: accountValidation?.status,
       hasBusiness: accountValidation?.hasBusiness,
@@ -357,57 +375,143 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
 
     setPaymentStatus('opening')
 
-    // Trial A: Follow docs exactly — use FB.ui with minimal params and swap SDK version temporarily
+    // Enhanced implementation with proper SDK initialization and error tracking
     try {
       type FBInitCfg = { appId: string; cookie: boolean; xfbml: boolean; version: string }
-      type FBLike = { init?: (cfg: FBInitCfg) => void; ui?: (params: Record<string, unknown>, cb: (resp: AdsPaymentResponse) => void) => void }
+      type FBLike = { 
+        init?: (cfg: FBInitCfg) => void
+        ui?: (params: Record<string, unknown>, cb: (resp: AdsPaymentResponse) => void) => void
+        getAccessToken?: () => string | null
+      }
       const fbObj = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : undefined) as unknown as FBLike | undefined
+      
       if (!fbObj || typeof fbObj.ui !== 'function' || typeof fbObj.init !== 'function') {
+        console.error('[MetaConnect] Facebook SDK methods not available')
         window.alert('Facebook SDK is not ready. Please wait and try again.')
         setPaymentStatus('error')
         return
       }
 
       const appId = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
-      // Use current Graph API version from environment instead of hardcoded v3.1
       const dialogVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
 
-      const initSafe = (version: string) => {
-        try {
-          if (!appId) return
-          fbObj?.init?.({ appId, cookie: true, xfbml: true, version })
-        } catch {/* ignore init errors */}
+      if (!appId) {
+        console.error('[MetaConnect] Missing NEXT_PUBLIC_FB_APP_ID')
+        window.alert('Facebook App ID is not configured. Please contact support.')
+        setPaymentStatus('error')
+        return
       }
 
-      console.info('[MetaConnect] FB.ui ads_payment: initializing with current Graph API version', { dialogVersion, accountId: idNoPrefix })
-      initSafe(dialogVersion)
+      // Check if SDK is already initialized by checking for access token
+      const isInitialized = fbObj.getAccessToken && typeof fbObj.getAccessToken === 'function'
+      
+      const initSafe = (version: string) => {
+        try {
+          console.info('[MetaConnect] Initializing Facebook SDK', { 
+            version, 
+            appId: appId?.substring(0, 4) + '...',
+            alreadyInitialized: isInitialized,
+          })
+          fbObj?.init?.({ appId, cookie: true, xfbml: true, version })
+        } catch (error) {
+          console.error('[MetaConnect] SDK init error:', error)
+        }
+      }
 
-      // TRIAL: Use numeric-only account_id (ROLLBACK if no improvement)
-      const params = { method: 'ads_payment', account_id: dialogAccountId, display: 'popup' } as Record<string, unknown>
+      // Only reinitialize if needed
+      if (!isInitialized) {
+        console.info('[MetaConnect] SDK not initialized, initializing now')
+        initSafe(dialogVersion)
+        // Give SDK time to fully initialize
+        console.info('[MetaConnect] Waiting 500ms for SDK to fully initialize...')
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } else {
+        console.info('[MetaConnect] SDK already initialized, proceeding immediately')
+      }
+
+      // Prepare FB.ui parameters
+      const params = { 
+        method: 'ads_payment', 
+        account_id: dialogAccountId, 
+        display: 'popup' 
+      } as Record<string, unknown>
+
+      console.info('[MetaConnect] Calling FB.ui with params:', params)
+
+      // Track dialog open attempt
+      const dialogOpenTime = Date.now()
 
       fbObj.ui(params, (response: AdsPaymentResponse) => {
+        const responseTime = Date.now() - dialogOpenTime
         setPaymentStatus('processing')
-        console.info('[FB.ui][ads_payment] Raw callback response:', JSON.stringify(response, null, 2))
+        
+        // Enhanced response logging with detailed diagnostics
+        console.info('[FB.ui][ads_payment] Response received with comprehensive diagnostics:', {
+          response,
+          responseType: typeof response,
+          wasUndefined: response === undefined,
+          wasNull: response === null,
+          hasError: !!response?.error_message,
+          hasSuccess: !!response?.success,
+          responseTimeMs: responseTime,
+          allKeys: response ? Object.keys(response) : [],
+          timestamp: new Date().toISOString(),
+          accountIdUsed: dialogAccountId,
+          formatUsed: USE_ACT_PREFIX ? 'act_<id>' : 'numeric',
+        })
 
+        // Log full response object for debugging
+        try {
+          console.info('[FB.ui][ads_payment] Full response object:', JSON.stringify(response, null, 2))
+        } catch (stringifyError) {
+          console.error('[FB.ui][ads_payment] Could not stringify response:', stringifyError)
+        }
+
+        // Handle undefined/null response (dialog closed without interaction or failed to load)
         if (response === undefined || response === null) {
           setPaymentStatus('error')
-          console.error('[FB.ui][ads_payment] Response is null/undefined - dialog failed to load')
-          return
-        }
-        if (response?.error_message) {
-          setPaymentStatus('error')
-          console.error('[FB.ui][ads_payment] Error response:', {
-            error_message: response.error_message,
-            error_code: response.error_code,
-            accountId: idNoPrefix,
+          console.error('[FB.ui][ads_payment] Dialog failed - Response is null/undefined', {
+            likelyCause: 'Dialog failed to load, user closed dialog, or SDK error',
+            accountId: dialogAccountId,
+            format: USE_ACT_PREFIX ? 'act_<id>' : 'numeric',
+            suggestion: USE_ACT_PREFIX 
+              ? 'Try toggling USE_ACT_PREFIX to false to test numeric-only format'
+              : 'Try toggling USE_ACT_PREFIX to true to test act_ prefix format',
           })
           return
         }
+
+        // Handle error response
+        if (response?.error_message) {
+          setPaymentStatus('error')
+          console.error('[FB.ui][ads_payment] Error response received:', {
+            error_message: response.error_message,
+            error_code: response.error_code,
+            accountId: dialogAccountId,
+            format: USE_ACT_PREFIX ? 'act_<id>' : 'numeric',
+            fullResponse: response,
+          })
+          window.alert(`Payment dialog error: ${response.error_message}`)
+          return
+        }
+
+        // Success case
+        console.info('[FB.ui][ads_payment] Dialog completed successfully')
+        
         // Do not mark connected here; rely on server verification below
       })
+
+      console.info('[MetaConnect] FB.ui called successfully, waiting for response...')
+
     } catch (e) {
-      console.error('[MetaConnect] FB.ui trial failed to execute:', e)
+      console.error('[MetaConnect] Exception while calling FB.ui:', {
+        error: e,
+        errorMessage: e instanceof Error ? e.message : String(e),
+        errorStack: e instanceof Error ? e.stack : undefined,
+        accountId: dialogAccountId,
+      })
       setPaymentStatus('error')
+      window.alert('Failed to open payment dialog. Please try again or add payment directly in Facebook Business Manager.')
       return
     }
 
@@ -415,17 +519,39 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     void (async () => {
       try {
         // give FB a moment to process
+        console.info('[MetaConnect] Starting server-side payment verification in 3 seconds...')
         await new Promise((r) => setTimeout(r, 3000))
-        const verify = await fetch(`/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`, { cache: 'no-store' })
+        
+        console.info('[MetaConnect] Checking payment status with server...', {
+          campaignId: campaign.id,
+          adAccountId: actId,
+        })
+        
+        const verify = await fetch(
+          `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`, 
+          { cache: 'no-store' }
+        )
+        
         if (verify.ok) {
           const json = await verify.json() as { connected?: boolean }
+          console.info('[MetaConnect] Server payment verification response:', json)
+          
           if (json?.connected) {
-            console.info('[MetaConnect] Server verified payment connected; hydrating')
+            console.info('[MetaConnect] ✅ Server verified payment connected; refreshing data')
             setPaymentStatus('success')
             void hydrate()
+          } else {
+            console.info('[MetaConnect] Server verification: payment not yet connected')
           }
+        } else {
+          console.error('[MetaConnect] Server verification failed:', {
+            status: verify.status,
+            statusText: verify.statusText,
+          })
         }
-      } catch {/* empty */}
+      } catch (verifyError) {
+        console.error('[MetaConnect] Server verification exception:', verifyError)
+      }
     })()
   }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
 
