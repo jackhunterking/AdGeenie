@@ -202,6 +202,8 @@ export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
   const handleStepClick = (index: number) => {
     // Only allow navigation to completed steps or the next step if current is complete
     const targetStep = steps[index]
+    if (!targetStep) return
+    
     const isTargetCompleted = targetStep.completed
     const isNextStep = index === currentStepIndex + 1
     const isPreviousStep = index < currentStepIndex
@@ -301,7 +303,7 @@ export function CampaignStepper({ steps, campaignId }: CampaignStepperProps) {
                       <div
                         className={cn(
                           "h-0.5 w-8 md:w-16 transition-colors",
-                          steps[index + 1].completed || index < currentStepIndex
+                          steps[index + 1]?.completed || index < currentStepIndex
                             ? "bg-green-500"
                             : "bg-muted"
                         )}

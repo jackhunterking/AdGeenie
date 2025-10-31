@@ -70,12 +70,14 @@ const useTypewriterPlaceholder = () => {
 
     const timeout = setTimeout(
       () => {
-        if (isDeleting) {
-          // Remove one character
-          setPlaceholder(currentText.substring(0, placeholder.length - 1))
-        } else {
-          // Add one character
-          setPlaceholder(currentText.substring(0, placeholder.length + 1))
+        if (currentText) {
+          if (isDeleting) {
+            // Remove one character
+            setPlaceholder(currentText.substring(0, placeholder.length - 1))
+          } else {
+            // Add one character
+            setPlaceholder(currentText.substring(0, placeholder.length + 1))
+          }
         }
       },
       isDeleting ? 30 : 50 // Faster deletion, slower typing

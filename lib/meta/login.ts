@@ -41,7 +41,10 @@ export function generateRandomState(bytes: number = 32): string {
   }
   // base64url encode
   let str = ''
-  for (let i = 0; i < arr.length; i++) str += String.fromCharCode(arr[i])
+  for (let i = 0; i < arr.length; i++) {
+    const byte = arr[i]
+    if (byte !== undefined) str += String.fromCharCode(byte)
+  }
   const b64 = typeof btoa === 'function' ? btoa(str) : Buffer.from(str, 'binary').toString('base64')
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }

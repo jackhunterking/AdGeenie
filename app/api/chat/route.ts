@@ -988,7 +988,7 @@ CRITICAL - NO TEXT RESPONSES AFTER SETUP GOAL:
           const textParts = (msg.parts as Array<{ type: string; text?: string }>)?.filter(p => p.type === 'text') || [];
           console.log(`[FINISH] Assistant message text parts: ${textParts.length}`);
           if (textParts.length > 0) {
-            console.log(`[FINISH] Text content: ${textParts[0].text?.substring(0, 100)}`);
+            console.log(`[FINISH] Text content: ${textParts[0]?.text?.substring(0, 100)}`);
           } else {
             console.warn(`[FINISH] ⚠️  Assistant message has NO text parts!`);
           }

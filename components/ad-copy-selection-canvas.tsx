@@ -46,6 +46,8 @@ export function AdCopySelectionCanvas() {
   const handleEditCopy = (index: number) => {
     // Send copy to AI chat for editing
     const copy = activeVariations[index]
+    if (!copy) return
+    
     const currentFormat = activeFormat
     
     // Always use the selected creative image for ad copy edits
@@ -166,6 +168,8 @@ export function AdCopySelectionCanvas() {
 
   const renderFeedAdCopyCard = (copyIndex: number) => {
     const copy = activeVariations[copyIndex]
+    if (!copy) return null
+    
     const isSelected = adCopyState.selectedCopyIndex === copyIndex
     const isProcessing = false
     const selectedImg = selectedImageIndex != null
@@ -314,6 +318,8 @@ export function AdCopySelectionCanvas() {
 
   const renderStoryAdCopyCard = (copyIndex: number) => {
     const copy = activeVariations[copyIndex]
+    if (!copy) return null
+    
     const isSelected = adCopyState.selectedCopyIndex === copyIndex
     const isProcessing = false
     const selectedImg = selectedImageIndex != null

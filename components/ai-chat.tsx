@@ -280,8 +280,8 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
           
           // DEBUG: Log what we're sending (AI SDK v5 pattern - metadata field)
           console.log(`[TRANSPORT] ========== SENDING MESSAGE ==========`);
-          console.log(`[TRANSPORT] message.id:`, lastMessage.id);
-          console.log(`[TRANSPORT] message.role:`, lastMessage.role);
+          console.log(`[TRANSPORT] message.id:`, lastMessage?.id);
+          console.log(`[TRANSPORT] message.role:`, lastMessage?.role);
           console.log(`[TRANSPORT] message.metadata:`, (enrichedMessage as { metadata?: unknown }).metadata);
           console.log(`[TRANSPORT] goalType included:`, goalType);
           
@@ -352,10 +352,10 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
           partsCount: m.parts?.length || 0
         })));
         console.log(`[CLIENT] First message details:`, {
-          id: messages[0].id,
-          role: messages[0].role,
-          partsCount: messages[0].parts?.length || 0,
-          parts: messages[0].parts
+          id: messages[0]?.id,
+          role: messages[0]?.role,
+          partsCount: messages[0]?.parts?.length || 0,
+          parts: messages[0]?.parts
         });
       }
     } else if (initialMessages.length > 0) {
@@ -651,7 +651,7 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
               // Get coordinates via geocoding if not provided
               if (!coordinates) {
                 const results = await searchLocations(loc.name);
-                if (results.length > 0) {
+                if (results.length > 0 && results[0]) {
                   coordinates = results[0].center as [number, number];
                   bbox = results[0].bbox as [number, number, number, number];
                 } else {

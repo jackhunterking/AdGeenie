@@ -217,6 +217,8 @@ export function PreviewPanel() {
       return
     }
     const variation = adVariations[index]
+    if (!variation) return
+    
     setSelectedCreativeVariation(variation)
     setSelectedImageIndex(index)
   }
@@ -224,6 +226,7 @@ export function PreviewPanel() {
   const handleEditAd = (index: number) => {
     // Send variation to AI chat for editing with rich visual reference
     const variation = adVariations[index]
+    if (!variation) return
     const currentFormat = activeFormat
     
     // Get the actual generated image for this variation if it exists

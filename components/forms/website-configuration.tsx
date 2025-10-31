@@ -47,7 +47,7 @@ export function WebsiteConfiguration() {
       const parts = host.split(".")
       if (parts.length < 2) return false
       const tld = parts[parts.length - 1]
-      if (!/^[a-z0-9-]{2,}$/i.test(tld)) return false
+      if (!tld || !/^[a-z0-9-]{2,}$/i.test(tld)) return false
       return true
     } catch {
       return false

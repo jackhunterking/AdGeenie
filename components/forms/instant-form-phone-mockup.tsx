@@ -91,7 +91,7 @@ export function InstantFormPhoneMockup({
               </button>
               
               <div className="text-center flex-1" aria-live="polite">
-                <h2 className="text-base font-semibold text-[#050505] dark:text-[#E4E6EB]">{currentStage.title}</h2>
+                <h2 className="text-base font-semibold text-[#050505] dark:text-[#E4E6EB]">{currentStage?.title}</h2>
                 <p className="text-xs text-[#65676B] dark:text-[#B0B3B8]">{stage} of {totalStages}</p>
               </div>
               

@@ -49,10 +49,12 @@ export function ImageEditProgressLoader({ type = "edit" }: ImageEditProgressLoad
       
       // Find which step we should be on based on elapsed time
       for (let i = steps.length - 1; i >= 0; i--) {
-        if (elapsed >= steps[i].duration) {
+        const currentStepData = steps[i];
+        const prevStepData = steps[i - 1];
+        if (currentStepData && elapsed >= currentStepData.duration) {
           setCurrentStep(i);
           break;
-        } else if (i === 0 || elapsed >= steps[i - 1].duration) {
+        } else if (i === 0 || (prevStepData && elapsed >= prevStepData.duration)) {
           setCurrentStep(i);
           break;
         }

@@ -814,7 +814,9 @@ export const PromptInputTextarea = ({
       e.preventDefault();
       const lastAttachment =
         attachments.files[attachments.files.length - 1];
-      attachments.remove(lastAttachment.id);
+      if (lastAttachment) {
+        attachments.remove(lastAttachment.id);
+      }
     }
   };
 
@@ -1095,8 +1097,9 @@ export const PromptInputSpeechButton = ({
         let finalTranscript = "";
 
         for (let i = 0; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+          const result = event.results[i];
+          if (result?.isFinal && result[0]) {
+            finalTranscript += result[0].transcript;
           }
         }
 

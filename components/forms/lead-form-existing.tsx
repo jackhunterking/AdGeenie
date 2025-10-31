@@ -91,10 +91,16 @@ export function LeadFormExisting({ onPreview, onConfirm, onRequestCreate, select
       }
       q.forEach((qq) => {
         const t = typeof qq.type === 'string' ? qq.type.toUpperCase() : ''
-        if (map[t]) fields.push(map[t])
+        const mappedField = map[t]
+        if (mappedField) fields.push(mappedField)
       })
       if (fields.length === 0) {
-        fields.push(map.FULL_NAME, map.EMAIL, map.PHONE)
+        const fullName = map.FULL_NAME
+        const email = map.EMAIL
+        const phone = map.PHONE
+        if (fullName) fields.push(fullName)
+        if (email) fields.push(email)
+        if (phone) fields.push(phone)
       }
 
       onPreview({

@@ -80,15 +80,27 @@ export function generateNameCandidates(prompt: string): string[] {
   const candidates: string[] = []
   // 3-word windows
   for (let i = 0; i <= Math.max(0, keywords.length - 3); i++) {
-    candidates.push(titleCase([keywords[i], keywords[i + 1], keywords[i + 2]]))
+    const word1 = keywords[i]
+    const word2 = keywords[i + 1]
+    const word3 = keywords[i + 2]
+    if (word1 && word2 && word3) {
+      candidates.push(titleCase([word1, word2, word3]))
+    }
   }
   // 2-word windows
   for (let i = 0; i <= Math.max(0, keywords.length - 2); i++) {
-    candidates.push(titleCase([keywords[i], keywords[i + 1]]))
+    const word1 = keywords[i]
+    const word2 = keywords[i + 1]
+    if (word1 && word2) {
+      candidates.push(titleCase([word1, word2]))
+    }
   }
   // 1-word singles
   for (let i = 0; i < keywords.length; i++) {
-    candidates.push(titleCase([keywords[i]]))
+    const word = keywords[i]
+    if (word) {
+      candidates.push(titleCase([word]))
+    }
   }
   // Fallback combos using adjectives + first keyword (noun-ish)
   const head = keywords[0]
