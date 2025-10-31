@@ -219,6 +219,8 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
   const [activeEditSession, setActiveEditSession] = useState<{ sessionId: string; variationIndex: number } | null>(null);
   const [customPlaceholder, setCustomPlaceholder] = useState("Type your message...");
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  // Keep latest Authorization header (Bearer <token>) in a ref for sync headers
+  const authHeaderRef = useRef<string | null>(null);
   const { setIsGenerating, setGenerationMessage, generationMessage } = useGeneration();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -226,6 +228,23 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
   const goalType = campaignMetadata?.initialGoal || goalState?.selectedGoal || null;
   
   console.log('[AI-CHAT] Goal context:', { goalType, campaignMetadata, goalState: goalState?.selectedGoal });
+
+  // Load current session token and subscribe to auth changes
+  useEffect(() => {
+    let isMounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      const token = data.session?.access_token;
+      authHeaderRef.current = token ? `Bearer ${token}` : null;
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      authHeaderRef.current = session?.access_token ? `Bearer ${session.access_token}` : null;
+    });
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
   
   // AI SDK Native Pattern: Use stable conversationId from server
   // This prevents ID changes that would cause useChat to reset
@@ -237,10 +256,10 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     () =>
       new DefaultChatTransport({
         api: '/api/chat',
-        headers: async () => {
-          const { data } = await supabase.auth.getSession();
-          const token = data.session?.access_token;
-          return token ? { Authorization: `Bearer ${token}` } : {};
+        headers: () => {
+          const headers: Record<string, string> = {};
+          if (authHeaderRef.current) headers.Authorization = authHeaderRef.current;
+          return headers;
         },
         prepareSendMessagesRequest({ messages, id }) {
           const lastMessage = messages[messages.length - 1];
