@@ -27,7 +27,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     adAccount?: { id: string; name?: string }
     paymentConnected?: boolean
     status?: string
-    accountStatus?: number
+    accountStatus?: string
     accountActive?: boolean
   }
   
