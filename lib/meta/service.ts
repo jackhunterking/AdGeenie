@@ -281,10 +281,11 @@ export async function getConnectionPublic(args: { campaignId: string }): Promise
   admin_checked_at: string | null
   admin_business_role: string | null
   admin_ad_account_role: string | null
+  user_app_connected: boolean | null
 } | null> {
   const { data, error } = await supabaseServer
     .from('campaign_meta_connections')
-    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role')
+    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role,user_app_connected')
     .eq('campaign_id', args.campaignId)
     .maybeSingle()
   if (error) {
@@ -295,6 +296,41 @@ export async function getConnectionPublic(args: { campaignId: string }): Promise
 }
 
 /**
+ * Persist the user app token fields on the connection row.
+ */
+export async function persistUserAppToken(
+  campaignId: string,
+  userAppToken: string,
+  expiresAt: Date,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabaseServer
+    .from('campaign_meta_connections')
+    .update({
+      user_app_token: userAppToken,
+      user_app_token_expires_at: expiresAt.toISOString(),
+      user_app_connected: true,
+      user_app_fb_user_id: userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('campaign_id', campaignId)
+  if (error) throw error
+}
+
+/**
+ * Fetch only the user app token.
+ */
+export async function getUserAppToken(campaignId: string): Promise<string | null> {
+  const { data, error } = await supabaseServer
+    .from('campaign_meta_connections')
+    .select('user_app_token')
+    .eq('campaign_id', campaignId)
+    .maybeSingle()
+  if (error) return null
+  return (data as { user_app_token?: string | null } | null)?.user_app_token ?? null
+}
+
+/**
  * Return connection including sensitive token for server-side use only.
  */
 export async function getConnectionWithToken(args: { campaignId: string }): Promise<{
@@ -302,7 +338,7 @@ export async function getConnectionWithToken(args: { campaignId: string }): Prom
 } & NonNullable<Awaited<ReturnType<typeof getConnectionPublic>>> | null> {
   const { data, error } = await supabaseServer
     .from('campaign_meta_connections')
-    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role,long_lived_user_token')
+    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role,user_app_connected,long_lived_user_token')
     .eq('campaign_id', args.campaignId)
     .maybeSingle()
   if (error) {

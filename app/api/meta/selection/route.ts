@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
       adminConnected: Boolean(conn?.admin_connected),
       adminBusinessRole: conn?.admin_business_role ?? null,
       adminAdAccountRole: conn?.admin_ad_account_role ?? null,
+      userAppConnected: Boolean((conn as { user_app_connected?: boolean } | null)?.user_app_connected ?? false),
       status,
     })
   } catch (error) {

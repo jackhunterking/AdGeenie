@@ -32,6 +32,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     adminConnected?: boolean
     adminBusinessRole?: string | null
     adminAdAccountRole?: string | null
+    userAppConnected?: boolean
   }
   
   type AdsPaymentResponse = {
@@ -188,14 +189,14 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       return
     }
     // We no longer depend on FB.login for Business Login; we build and open the URL manually
-    const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID
+    const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID_SYSTEM || process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID
     if (!configId) {
       console.error('[MetaConnectCard] Missing Facebook config ID')
       window.alert('Missing NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID')
       return
     }
     
-    const redirectUri = `${window.location.origin}/api/meta/auth/callback`
+    const redirectUri = `${window.location.origin}/api/meta/auth/callback?type=system`
     const appId = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
     const graphVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
     if (!appId) {
@@ -607,7 +608,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       window.alert('Missing Facebook App/Config for user login')
       return
     }
-    const redirectUri = `${window.location.origin}/api/meta/auth/callback`
+    const redirectUri = `${window.location.origin}/api/meta/auth/callback?type=user`
     const state = generateRandomState(32)
     try { sessionStorage.setItem('meta_oauth_state', state) } catch {}
     const url = buildBusinessLoginUrl({ appId, configId, redirectUri, graphVersion, state })
@@ -681,45 +682,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
                   </span>
                 </div>
               )}
-
-      {/* Connect as Admin Step */}
-      {summary?.business?.id && summary?.adAccount?.id && (
-        <div className="rounded-md border p-3 space-y-2 panel-surface">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-medium">Connect as Admin</div>
-            {summary?.adminConnected ? (
-              <span className="text-[11px] px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">Verified</span>
-            ) : (
-              <span className="text-[11px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">Action required</span>
-            )}
-          </div>
-          {summary?.adminConnected ? (
-            <div className="text-xs text-muted-foreground">
-              Admin access confirmed on Business{summary.adminBusinessRole ? ` (${summary.adminBusinessRole})` : ''} and Ad Account{summary.adminAdAccountRole ? ` (${summary.adminAdAccountRole})` : ''}.
-            </div>
-          ) : (
-            <div className="text-xs text-yellow-800 dark:text-yellow-200">
-              You must be Business Admin or Finance Editor on the selected Business and Ad Account to add payment.
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <Button size="sm" disabled={!enabled || verifyingAdmin} onClick={onVerifyAdmin} className="h-7 px-3">
-              {verifyingAdmin ? 'Verifying…' : 'Verify Admin Access'}
-            </Button>
-            <Button size="sm" variant="outline" disabled={!enabled || loading} onClick={onConnect} className="h-7 px-3">
-              Reconnect with Admin Access
-            </Button>
-            <a
-              href={summary?.business?.id ? `https://business.facebook.com/settings/people/?business_id=${summary.business.id}` : 'https://business.facebook.com/settings/people'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs underline text-muted-foreground ml-2"
-            >
-              Open Business Settings →
-            </a>
-          </div>
-        </div>
-      )}
+              
               {summary.page?.id && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Page:</span>
@@ -744,6 +707,65 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
                   </span>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Connect as Admin Section - MOVED OUTSIDE green card */}
+        {summary?.business?.id && summary?.adAccount?.id && (
+          <div className="rounded-md border p-3 space-y-2 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium text-blue-900 dark:text-blue-200">Admin Access Required</div>
+              {summary?.adminConnected && summary?.userAppConnected ? (
+                <span className="text-[11px] px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">✓ Ready</span>
+              ) : (
+                <span className="text-[11px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">Setup Required</span>
+              )}
+            </div>
+
+            <div className="text-xs text-blue-700 dark:text-blue-300">
+              To add payment methods, you need Business Admin or Finance Editor permissions.
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {/* Admin Verification Status */}
+              <div className="flex items-center justify-between text-xs">
+                <span>1. Admin permissions verified:</span>
+                {summary?.adminConnected ? (
+                  <span className="text-green-700 dark:text-green-300 font-medium">✓ Verified</span>
+                ) : (
+                  <Button size="sm" disabled={!enabled || verifyingAdmin} onClick={onVerifyAdmin} className="h-7 px-3">
+                    {verifyingAdmin ? 'Verifying…' : 'Verify Admin Access'}
+                  </Button>
+                )}
+              </div>
+
+              {/* User App Connection Status */}
+              <div className="flex items-center justify-between text-xs">
+                <span>2. User app connected:</span>
+                {summary?.userAppConnected ? (
+                  <span className="text-green-700 dark:text-green-300 font-medium">✓ Connected</span>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={!enabled} onClick={onUserLogin} className="h-7 px-3">
+                    Login with Facebook (User Access)
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Helpful Links */}
+            <div className="flex items-center gap-3 text-xs pt-1">
+              <a
+                href={summary?.business?.id ? `https://business.facebook.com/settings/people/?business_id=${summary.business.id}` : 'https://business.facebook.com/settings/people'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-blue-700 dark:text-blue-300"
+              >
+                Business Settings →
+              </a>
+              <Button size="sm" variant="ghost" disabled={!enabled || loading} onClick={onConnect} className="h-6 px-2 text-xs">
+                Reconnect as Different User
+              </Button>
             </div>
           </div>
         )}
@@ -788,17 +810,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={onUserLogin}
-                  className="h-7 px-3"
-                  disabled={!enabled}
-                >
-                  Login with Facebook (User Access)
-                </Button>
-                <Button
-                  size="sm"
                   onClick={onAddPayment}
-                  disabled={!sdkReady || paymentStatus === 'opening' || paymentStatus === 'processing' || (requireAdmin && summary?.adminConnected === false)}
+                  disabled={!sdkReady || paymentStatus === 'opening' || paymentStatus === 'processing' || (requireAdmin && !summary?.adminConnected) || (requireAdmin && !summary?.userAppConnected)}
                   className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                 >
                   {paymentStatus === 'opening' || paymentStatus === 'processing' ? 'Opening...' : 'Add Payment'}

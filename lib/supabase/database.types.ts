@@ -108,6 +108,10 @@ export type Database = {
           fb_user_id: string | null
           long_lived_user_token: string | null
           token_expires_at: string | null
+          user_app_token: string | null
+          user_app_token_expires_at: string | null
+          user_app_connected: boolean
+          user_app_fb_user_id: string | null
           selected_business_id: string | null
           selected_business_name: string | null
           selected_page_id: string | null
@@ -132,6 +136,10 @@ export type Database = {
           fb_user_id?: string | null
           long_lived_user_token?: string | null
           token_expires_at?: string | null
+          user_app_token?: string | null
+          user_app_token_expires_at?: string | null
+          user_app_connected?: boolean
+          user_app_fb_user_id?: string | null
           selected_business_id?: string | null
           selected_business_name?: string | null
           selected_page_id?: string | null
@@ -156,6 +164,10 @@ export type Database = {
           fb_user_id?: string | null
           long_lived_user_token?: string | null
           token_expires_at?: string | null
+          user_app_token?: string | null
+          user_app_token_expires_at?: string | null
+          user_app_connected?: boolean
+          user_app_fb_user_id?: string | null
           selected_business_id?: string | null
           selected_business_name?: string | null
           selected_page_id?: string | null

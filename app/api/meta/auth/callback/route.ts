@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const { searchParams, origin } = new URL(req.url)
     const code = searchParams.get('code')
     const state = searchParams.get('state')
+    const callbackType = searchParams.get('type') || 'system'
 
     if (!code) {
       // For implicit/token flow, access_token would be in URL fragment (#), which the server cannot read.
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     console.log('[MetaCallback] Processing callback for campaign:', campaignId)
 
-    const redirectUri = `${origin}/api/meta/auth/callback`
+    const redirectUri = `${origin}/api/meta/auth/callback?type=${callbackType}`
 
     // 1) Exchange code → tokens via service
     console.log('[MetaCallback] Exchanging code for token')
@@ -54,7 +55,54 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}/${campaignId}?meta=token_exchange_failed`)
     }
 
-    console.log('[MetaCallback] Fetching Meta assets')
+    // If this is a user app callback, store user token and exit early (no asset fetching)
+    if (callbackType === 'user') {
+      console.log('[MetaCallback] User app callback detected; persisting user_app_* fields')
+      const fbUserId = await fetchUserId({ token: longToken! })
+
+      // Approximate long-lived token expiry to 60 days from now
+      const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+
+      const supabase = await createServerClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      let userId: string | null = user?.id ?? null
+      if (!userId) {
+        const { data: campaignRow } = await supabaseServer
+          .from('campaigns')
+          .select('id,user_id')
+          .eq('id', campaignId)
+          .maybeSingle()
+        userId = (campaignRow as { user_id?: string } | null)?.user_id ?? null
+        if (!userId) {
+          return NextResponse.redirect(`${origin}/?meta=unauthorized`)
+        }
+      }
+
+      const { error } = await supabaseServer
+        .from('campaign_meta_connections')
+        .update({
+          user_app_token: longToken!,
+          user_app_token_expires_at: expiresAt.toISOString(),
+          user_app_connected: true,
+          user_app_fb_user_id: fbUserId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('campaign_id', campaignId)
+
+      if (error) {
+        console.error('[MetaCallback] Failed to persist user app token:', error)
+        return NextResponse.redirect(`${origin}/${campaignId}?meta=user_token_persist_failed`)
+      }
+
+      const bridgeUrl = new URL(`${origin}/meta/oauth/bridge`)
+      bridgeUrl.searchParams.set('campaignId', campaignId)
+      bridgeUrl.searchParams.set('meta', 'connected')
+      if (state) bridgeUrl.searchParams.set('st', state)
+      console.log('[MetaCallback] User app token saved, redirecting to bridge:', bridgeUrl.toString())
+      return NextResponse.redirect(bridgeUrl.toString())
+    }
+
+    console.log('[MetaCallback] Fetching Meta assets (system app)')
     const fbUserId = await fetchUserId({ token: longToken! })
     const businesses = await fetchBusinesses({ token: longToken! })
     const pages = await fetchPagesWithTokens({ token: longToken! })
