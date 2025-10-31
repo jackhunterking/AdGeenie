@@ -49,6 +49,7 @@ import {
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
 import { DefaultChatTransport, ChatStatus } from "ai";
+import { supabase } from "@/lib/supabase/client";
 import { generateImage } from "@/server/images";
 import { ImageGenerationConfirmation } from "@/components/ai-elements/image-generation-confirmation";
 // Removed legacy FormSelectionUI in favor of unified canvas in Goal step
@@ -236,6 +237,11 @@ const AIChat = ({ campaignId, conversationId, messages: initialMessages = [], ca
     () =>
       new DefaultChatTransport({
         api: '/api/chat',
+        headers: async () => {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          return token ? { Authorization: `Bearer ${token}` } : {};
+        },
         prepareSendMessagesRequest({ messages, id }) {
           const lastMessage = messages[messages.length - 1];
           

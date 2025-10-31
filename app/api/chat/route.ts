@@ -111,9 +111,26 @@ export async function POST(req: Request) {
   
   // Authenticate user
   const supabase = await createServerClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // Prefer cookie-based session; fallback to Authorization: Bearer <jwt>
+  const { data: { user: cookieUser }, error: authError } = await supabase.auth.getUser();
   
-  if (authError || !user) {
+  // Try bearer token if no cookie session
+  let user = cookieUser;
+  if (!user) {
+    const authHeader = req.headers.get('authorization') || '';
+    const lower = authHeader.toLowerCase();
+    const bearer = lower.startsWith('bearer ') ? authHeader.slice(7).trim() : undefined;
+    if (bearer) {
+      try {
+        const byToken = await supabase.auth.getUser(bearer);
+        user = byToken.data.user ?? null;
+      } catch (e) {
+        // ignore; will fall through to 401 if still no user
+      }
+    }
+  }
+  
+  if ((authError && !user) || !user) {
     return new Response('Unauthorized', { status: 401 });
   }
   
