@@ -443,6 +443,17 @@ export async function setSelectedAssets(args: {
   try {
     await updateCampaignState({ campaignId: args.campaignId, status: 'connected' })
   } catch {}
+
+  // Best-effort: recompute admin snapshot when business/ad account may have changed
+  try {
+    const finalBusinessId = typeof args.businessId !== 'undefined' ? args.businessId : (current.selected_business_id || null)
+    const finalAdAccountId = typeof args.adAccountId !== 'undefined' ? args.adAccountId : (current.selected_ad_account_id || null)
+    if (finalBusinessId && finalAdAccountId) {
+      await computeAndPersistAdminSnapshot(args.campaignId)
+    }
+  } catch (e) {
+    console.error('[MetaService] setSelectedAssets snapshot failed (non-fatal):', e)
+  }
 }
 
 
@@ -676,6 +687,76 @@ export async function verifyAdminAccess(campaignId: string): Promise<{
   if (error) throw error
 
   return { adminConnected, businessRole, adAccountRole }
+}
+
+
+/**
+ * Feature: Admin snapshot on connect
+ * Purpose: Fetch and persist raw role/user JSON plus computed roles immediately after connect
+ */
+export async function computeAndPersistAdminSnapshot(campaignId: string): Promise<void> {
+  const conn = await getConnectionWithToken({ campaignId })
+  if (!conn) return
+
+  const businessId = conn.selected_business_id || ''
+  const adAccountId = conn.selected_ad_account_id || ''
+  if (!businessId || !adAccountId) return
+
+  // Prefer user app token, else fall back to long-lived user token
+  const token = conn.user_app_token || conn.long_lived_user_token || ''
+  if (!token) return
+
+  let fbUserId: string | null = null
+  let businessUsersRaw: Array<{ id?: string; role?: string }> = []
+  let adAccountUsersRaw: Array<{ id?: string; role?: string }> = []
+  let businessRole: string | null = null
+  let adAccountRole: string | null = null
+  let adAccountRaw: Record<string, unknown> | null = null
+
+  try {
+    fbUserId = await fetchUserId({ token })
+
+    // Business users/roles (try multiple edges inside helper)
+    businessUsersRaw = await fetchBusinessUsersWithRoles(token, businessId)
+    const bRow = businessUsersRaw.find(u => u.id === fbUserId) || null
+    businessRole = bRow?.role ?? null
+
+    // Ad account users with tasks (mapped to role)
+    adAccountUsersRaw = await fetchAdAccountUsers(token, adAccountId, businessId)
+    const aRow = adAccountUsersRaw.find(u => u.id === fbUserId) || null
+    adAccountRole = aRow?.role ?? null
+
+    // Optional: include ad account raw details using existing validator
+    try {
+      const v = await validateAdAccount({ token, actId: adAccountId })
+      adAccountRaw = v.rawData
+    } catch {
+      // ignore optional enrichment failures
+    }
+  } catch (e) {
+    console.error('[MetaService] computeAndPersistAdminSnapshot error:', e)
+  }
+
+  // Compute admin_connected using the same logic as verifyAdminAccess
+  const adOk = hasAdminOrFinance(adAccountRole)
+  const bizOk = businessRole == null ? true : hasAdminOrFinance(businessRole)
+  const adminConnected = adOk && bizOk
+
+  const updates: Record<string, unknown> = {
+    admin_connected: adminConnected,
+    admin_checked_at: new Date().toISOString(),
+    admin_business_role: businessRole,
+    admin_ad_account_role: adAccountRole,
+    admin_business_users_json: businessUsersRaw,
+    admin_ad_account_users_json: adAccountUsersRaw,
+    admin_ad_account_raw_json: adAccountRaw ?? null,
+  }
+
+  const { error } = await supabaseServer
+    .from('campaign_meta_connections')
+    .update(updates)
+    .eq('campaign_id', campaignId)
+  if (error) throw error
 }
 
 

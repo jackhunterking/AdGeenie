@@ -126,6 +126,10 @@ export type Database = {
           admin_checked_at: string | null
           admin_business_role: string | null
           admin_ad_account_role: string | null
+          admin_business_users_json: Json | null
+          admin_ad_account_users_json: Json | null
+          admin_business_raw_json: Json | null
+          admin_ad_account_raw_json: Json | null
           created_at: string
           updated_at: string
         }
@@ -154,6 +158,10 @@ export type Database = {
           admin_checked_at?: string | null
           admin_business_role?: string | null
           admin_ad_account_role?: string | null
+          admin_business_users_json?: Json | null
+          admin_ad_account_users_json?: Json | null
+          admin_business_raw_json?: Json | null
+          admin_ad_account_raw_json?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -182,6 +190,10 @@ export type Database = {
           admin_checked_at?: string | null
           admin_business_role?: string | null
           admin_ad_account_role?: string | null
+          admin_business_users_json?: Json | null
+          admin_ad_account_users_json?: Json | null
+          admin_business_raw_json?: Json | null
+          admin_ad_account_raw_json?: Json | null
           created_at?: string
           updated_at?: string
         }

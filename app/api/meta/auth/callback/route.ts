@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
-import { exchangeCodeForTokens, fetchUserId, fetchBusinesses, fetchPagesWithTokens, fetchAdAccounts, chooseAssets, persistConnection, updateCampaignState } from '@/lib/meta/service'
+import { exchangeCodeForTokens, fetchUserId, fetchBusinesses, fetchPagesWithTokens, fetchAdAccounts, chooseAssets, persistConnection, updateCampaignState, computeAndPersistAdminSnapshot } from '@/lib/meta/service'
 
 // graph version is provided by the service
 
@@ -155,6 +155,13 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       console.error('[MetaCallback] Failed to persist connection:', e)
       return NextResponse.redirect(`${origin}/${campaignId}?meta=connection_failed`)
+    }
+
+    // Snapshot admin roles and raw JSON immediately after connect (best-effort)
+    try {
+      await computeAndPersistAdminSnapshot(campaignId)
+    } catch (e) {
+      console.error('[MetaCallback] Admin snapshot failed (non-fatal):', e)
     }
 
     const metaConnectData = {
