@@ -29,6 +29,20 @@ NEXT_PUBLIC_META_REQUIRE_ADMIN=true
 
 If you want to temporarily disable gating (for testing), set `NEXT_PUBLIC_META_REQUIRE_ADMIN=false`.
 
+### Business Login Configs (dual)
+- System connect (assets):
+```bash
+NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID_SYSTEM=1352055236432179
+```
+- User login (before payment or manual):
+```bash
+NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID_USER=823305277060499
+```
+If only the legacy single key is present, the app will continue to use:
+```bash
+NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID=<legacy_config_id>
+```
+
 ### Helpful links
 - Business People settings: `https://business.facebook.com/settings/people/?business_id=<BUSINESS_ID>`
 - Ad Account payment methods: `https://business.facebook.com/settings/ad-accounts/<AD_ACCOUNT_ID>/payment_methods`

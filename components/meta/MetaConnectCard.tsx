@@ -592,6 +592,38 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     }
   }, [enabled, campaign?.id, hydrate])
 
+  const onUserLogin = useCallback(() => {
+    console.log('[MetaConnectCard] User login button clicked')
+    if (!enabled) return
+    if (!campaign?.id) {
+      window.alert('Missing campaign id')
+      return
+    }
+    const appId = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
+    const graphVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
+    const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID_USER || process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID
+    if (!appId || !configId) {
+      console.error('[MetaConnectCard] Missing app/config for user login', { hasAppId: !!appId, hasConfig: !!configId })
+      window.alert('Missing Facebook App/Config for user login')
+      return
+    }
+    const redirectUri = `${window.location.origin}/api/meta/auth/callback`
+    const state = generateRandomState(32)
+    try { sessionStorage.setItem('meta_oauth_state', state) } catch {}
+    const url = buildBusinessLoginUrl({ appId, configId, redirectUri, graphVersion, state })
+    console.log('[MetaConnectCard] Initiating User Login (Business Login)', {
+      configId,
+      graphVersion,
+      redirectUri,
+      campaignId: campaign.id,
+    })
+    try {
+      window.open(url, 'fb_biz_login_user', 'width=720,height=760')
+    } catch {
+      window.location.href = url
+    }
+  }, [enabled, campaign?.id])
+
   return (
     <div className="rounded-lg border panel-surface p-3 space-y-3">
         <div className="flex items-center gap-3">
@@ -753,14 +785,25 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
                 <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs text-blue-900 dark:text-blue-200">Payment method required</span>
               </div>
-              <Button
-                size="sm"
-                onClick={onAddPayment}
-              disabled={!sdkReady || paymentStatus === 'opening' || paymentStatus === 'processing' || (requireAdmin && summary?.adminConnected === false)}
-                className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-              >
-                {paymentStatus === 'opening' || paymentStatus === 'processing' ? 'Opening...' : 'Add Payment'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onUserLogin}
+                  className="h-7 px-3"
+                  disabled={!enabled}
+                >
+                  Login with Facebook (User Access)
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={onAddPayment}
+                  disabled={!sdkReady || paymentStatus === 'opening' || paymentStatus === 'processing' || (requireAdmin && summary?.adminConnected === false)}
+                  className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                >
+                  {paymentStatus === 'opening' || paymentStatus === 'processing' ? 'Opening...' : 'Add Payment'}
+                </Button>
+              </div>
             </div>
 
             {/* Helper text with direct link to Ads Manager */}
