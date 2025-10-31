@@ -33,17 +33,27 @@ export async function searchLocations(query: string) {
     const data = await response.json() as NominatimResult[]
     
     // Convert Nominatim format to our expected format
-    return data.map((item) => ({
-      place_name: item.display_name,
-      center: [parseFloat(item.lon), parseFloat(item.lat)],
-      bbox: item.boundingbox ? [
-        parseFloat(item.boundingbox[2]), // minLng
-        parseFloat(item.boundingbox[0]), // minLat
-        parseFloat(item.boundingbox[3]), // maxLng
-        parseFloat(item.boundingbox[1])  // maxLat
-      ] : null,
-      place_type: [item.type],
-    }))
+    return data.map((item) => {
+      const bb = item.boundingbox
+      let bbox: [number, number, number, number] | null = null
+
+      if (Array.isArray(bb) && bb.length >= 4) {
+        const minLng = typeof bb[2] === 'string' ? parseFloat(bb[2]) : NaN
+        const minLat = typeof bb[0] === 'string' ? parseFloat(bb[0]) : NaN
+        const maxLng = typeof bb[3] === 'string' ? parseFloat(bb[3]) : NaN
+        const maxLat = typeof bb[1] === 'string' ? parseFloat(bb[1]) : NaN
+        if (Number.isFinite(minLng) && Number.isFinite(minLat) && Number.isFinite(maxLng) && Number.isFinite(maxLat)) {
+          bbox = [minLng, minLat, maxLng, maxLat]
+        }
+      }
+
+      return {
+        place_name: item.display_name,
+        center: [parseFloat(item.lon), parseFloat(item.lat)] as [number, number],
+        bbox,
+        place_type: [item.type],
+      }
+    })
   } catch (error) {
     console.error("Error fetching location suggestions from OpenStreetMap:", error)
     return []
