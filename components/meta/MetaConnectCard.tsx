@@ -571,12 +571,23 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ campaignId: campaign.id }),
       })
+      
       if (!res.ok) {
-        const e = await res.json().catch(() => ({})) as { error?: string }
+        const e = await res.json().catch(() => ({})) as { error?: string; requiresUserLogin?: boolean }
         console.error('[MetaConnectCard] Admin verify failed:', { status: res.status, error: e?.error })
-        window.alert(e?.error || 'Failed to verify admin access. Please try again.')
+        
+        // Show specific message if user login is required
+        if (e?.requiresUserLogin) {
+          window.alert(
+            'User login required for admin verification.\n\n' +
+            'Please complete step 2: "Login with Facebook (User Access)" first, then try verifying admin access again.'
+          )
+        } else {
+          window.alert(e?.error || 'Failed to verify admin access. Please try again.')
+        }
         return
       }
+      
       const j = await res.json() as { adminConnected?: boolean; businessRole?: string | null; adAccountRole?: string | null }
       console.log('[MetaConnectCard] Admin verify result:', j)
       await hydrate()

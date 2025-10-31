@@ -340,10 +340,12 @@ export async function getUserAppToken(campaignId: string): Promise<string | null
  */
 export async function getConnectionWithToken(args: { campaignId: string }): Promise<{
   long_lived_user_token: string | null
+  user_app_token: string | null
+  user_app_token_expires_at: string | null
 } & NonNullable<Awaited<ReturnType<typeof getConnectionPublic>>> | null> {
   const { data, error } = await supabaseServer
     .from('campaign_meta_connections')
-    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role,user_app_connected,long_lived_user_token')
+    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role,user_app_connected,long_lived_user_token,user_app_token,user_app_token_expires_at')
     .eq('campaign_id', args.campaignId)
     .maybeSingle()
   if (error) {
@@ -501,12 +503,38 @@ export async function verifyAdminAccess(campaignId: string): Promise<{
 }> {
   const conn = await getConnectionWithToken({ campaignId })
   if (!conn) throw new Error('No Meta connection found for campaign')
-  const token = conn.long_lived_user_token || ''
-  if (!token) throw new Error('Missing long-lived user token')
+  
+  // Use user app token for admin verification (required for role checks)
+  const userToken = conn.user_app_token || ''
+  const userTokenExpiry = conn.user_app_token_expires_at
+
+  if (!userToken) {
+    throw new Error('User app token required for admin verification. Please complete "Login with Facebook (User Access)" first.')
+  }
+
+  // Check token expiry
+  if (userTokenExpiry) {
+    const expiryDate = new Date(userTokenExpiry)
+    const now = new Date()
+    if (expiryDate <= now) {
+      throw new Error('User app token has expired. Please reconnect via "Login with Facebook (User Access)".')
+    }
+  }
+
+  const token = userToken
 
   const businessId = conn.selected_business_id || ''
   const adAccountId = conn.selected_ad_account_id || ''
   if (!businessId || !adAccountId) throw new Error('Missing business or ad account selection')
+
+  console.log('[MetaService] verifyAdminAccess starting:', {
+    campaignId,
+    hasSystemToken: !!conn.long_lived_user_token,
+    hasUserToken: !!conn.user_app_token,
+    userTokenExpiry: conn.user_app_token_expires_at,
+    businessId: conn.selected_business_id,
+    adAccountId: conn.selected_ad_account_id,
+  })
 
   let businessRole: string | null = null
   let adAccountRole: string | null = null
@@ -526,6 +554,13 @@ export async function verifyAdminAccess(campaignId: string): Promise<{
     adAccountRole = aRow?.role ?? null
 
     adminConnected = hasAdminOrFinance(businessRole) && hasAdminOrFinance(adAccountRole)
+
+    console.log('[MetaService] verifyAdminAccess roles fetched:', {
+      businessRole,
+      adAccountRole,
+      adminConnected,
+      fbUserId,
+    })
   } catch (e) {
     console.error('[MetaService] verifyAdminAccess error during graph checks:', e)
   }

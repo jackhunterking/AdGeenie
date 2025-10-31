@@ -29,14 +29,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const result = await verifyAdminAccess(campaignId)
-
-    return NextResponse.json({
-      adminConnected: result.adminConnected,
-      businessRole: result.businessRole,
-      adAccountRole: result.adAccountRole,
-      checkedAt: new Date().toISOString(),
-    })
+    try {
+      const result = await verifyAdminAccess(campaignId)
+      
+      return NextResponse.json({
+        adminConnected: result.adminConnected,
+        businessRole: result.businessRole,
+        adAccountRole: result.adAccountRole,
+        checkedAt: new Date().toISOString(),
+      })
+    } catch (verifyError) {
+      const errorMessage = verifyError instanceof Error ? verifyError.message : 'Unknown error'
+      console.error('[MetaAdminVerify] Verification failed:', errorMessage)
+      
+      // Return specific error for missing user token
+      if (errorMessage.includes('User app token required')) {
+        return NextResponse.json({ 
+          error: errorMessage,
+          requiresUserLogin: true 
+        }, { status: 400 })
+      }
+      
+      throw verifyError
+    }
   } catch (error) {
     console.error('[MetaAdminVerify] Server error:', {
       error: error instanceof Error ? error.message : String(error),
