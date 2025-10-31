@@ -4,20 +4,13 @@ import { sanitizeParts } from '@/lib/ai/schema';
 import { Dashboard } from '@/components/dashboard';
 import type { Database } from '@/lib/supabase/database.types';
 
-// Database message row type
-interface DBMessage {
-  id: string;
-  role: string;
-  content: string;
-  parts: unknown;
-  tool_invocations: unknown;
-  [key: string]: unknown;
-}
+// Database message row type (from generated types)
+type MessageRow = Database['public']['Tables']['messages']['Row'];
 
 // Convert DB storage to UIMessage (following AI SDK docs)
 // Now restores complete UIMessage format from storage
-function dbToUIMessage(stored: DBMessage): UIMessage {
-  let parts = sanitizeParts(stored.parts);
+function dbToUIMessage(stored: MessageRow): UIMessage {
+  let parts = sanitizeParts(stored.parts as unknown);
   
   // Safety fallback: If parts is empty but we have content, create a text part
   // This ensures messages always have displayable content
@@ -29,12 +22,13 @@ function dbToUIMessage(stored: DBMessage): UIMessage {
     }];
   }
   
-  const hasToolInvocations = Array.isArray(stored.tool_invocations) && stored.tool_invocations.length > 0;
+  const toolInv: unknown = stored.tool_invocations as unknown;
+  const hasToolInvocations = Array.isArray(toolInv) && toolInv.length > 0;
   const uiMessage = {
     id: stored.id,
     role: stored.role,
     parts: parts,
-    ...(hasToolInvocations ? { toolInvocations: stored.tool_invocations } : {})
+    ...(hasToolInvocations ? { toolInvocations: toolInv } : {})
   } as UIMessage;
   
   const toolPartsCount = Array.isArray(uiMessage.parts)
@@ -91,7 +85,7 @@ export default async function CampaignPage({
   console.log(`[SERVER] Conversation ID for chat:`, conversationId);
   
   // Step 2: Load messages from that conversation
-  let dbMessages = null;
+  let dbMessages: MessageRow[] | null = null;
   let error = null;
   
   if (conversation) {
@@ -101,7 +95,7 @@ export default async function CampaignPage({
       .eq('conversation_id', conversation.id)
       .order('seq', { ascending: true });
     
-    dbMessages = result.data;
+    dbMessages = (result.data as MessageRow[] | null);
     error = result.error;
   }
 
@@ -111,7 +105,10 @@ export default async function CampaignPage({
 
   if (dbMessages && dbMessages.length > 0) {
     console.log(`[SERVER] Found ${dbMessages.length} raw messages in DB`);
-    console.log(`[SERVER] First message:`, { id: dbMessages[0].id, role: dbMessages[0].role, has_parts: !!dbMessages[0].parts });
+    const [first] = dbMessages;
+    if (first) {
+      console.log(`[SERVER] First message:`, { id: first.id, role: first.role, has_parts: !!first.parts });
+    }
   }
 
   const messages: UIMessage[] = (dbMessages || []).map(dbToUIMessage);
