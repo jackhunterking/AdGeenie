@@ -107,7 +107,23 @@ export async function GET(req: NextRequest) {
     const businesses = await fetchBusinesses({ token: longToken! })
     const pages = await fetchPagesWithTokens({ token: longToken! })
     const adAccounts = await fetchAdAccounts({ token: longToken! })
+    
+    console.log('[MetaCallback] Fetched assets:', {
+      businessesCount: businesses.length,
+      pagesCount: pages.length,
+      adAccountsCount: adAccounts.length,
+      firstAdAccountHasBusiness: adAccounts[0]?.business ? true : false,
+    })
+    
     const assets = chooseAssets({ businesses, pages, adAccounts })
+    
+    console.log('[MetaCallback] Selected assets:', {
+      hasBusinessId: !!assets.business?.id,
+      businessSource: businesses.length > 0 ? 'from /me/businesses' : (assets.business ? 'from ad account' : 'none'),
+      hasPageId: !!assets.page?.id,
+      hasAdAccountId: !!assets.adAccount?.id,
+      hasInstagram: !!assets.ig?.id,
+    })
 
     // 4) Persist
     const supabase = await createServerClient()

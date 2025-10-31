@@ -27,6 +27,7 @@ export interface MetaAdAccount {
   id: string
   name?: string
   account_status?: number
+  business?: { id: string; name?: string }
 }
 
 export interface MetaAssets {

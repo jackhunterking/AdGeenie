@@ -92,7 +92,7 @@ export async function fetchPagesWithTokens(args: { token: string }): Promise<Met
 
 export async function fetchAdAccounts(args: { token: string }): Promise<MetaAdAccount[]> {
   const gv = getGraphVersion()
-  const res = await fetch(`https://graph.facebook.com/${gv}/me/adaccounts?fields=id,name,account_status,currency&limit=500`, {
+  const res = await fetch(`https://graph.facebook.com/${gv}/me/adaccounts?fields=id,name,account_status,currency,business{id,name}&limit=500`, {
     headers: { Authorization: `Bearer ${args.token}` },
     cache: 'no-store',
   })
@@ -108,12 +108,17 @@ export function chooseAssets(args: { businesses: MetaBusiness[]; pages: MetaPage
   const firstBiz = args.businesses.at(0) ?? null
   const activeAccounts = args.adAccounts.filter((a) => a.account_status === 1)
   const firstAd = (activeAccounts.at(0) ?? args.adAccounts.at(0)) ?? null
+  
+  // If no business from /me/businesses, get it from the ad account
+  // This works even without business_management permission
+  const business = firstBiz ?? (firstAd?.business ? { id: firstAd.business.id, name: firstAd.business.name } : null)
+  
   const firstPage = args.pages.at(0) ?? null
   const ig = firstPage?.instagram_business_account?.id
     ? { id: firstPage.instagram_business_account.id, username: firstPage.instagram_business_account.username }
     : null
   return {
-    business: firstBiz,
+    business,
     page: firstPage,
     ig,
     adAccount: firstAd,
