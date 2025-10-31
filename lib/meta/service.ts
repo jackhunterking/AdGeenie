@@ -487,7 +487,7 @@ async function fetchBusinessUsersWithRoles(token: string, businessId: string): P
   return []
 }
 
-async function fetchAdAccountUsers(token: string, adAccountId: string): Promise<Array<{ id?: string; role?: string }>> {
+async function fetchAdAccountUsers(token: string, adAccountId: string, businessId?: string): Promise<Array<{ id?: string; role?: string }>> {
   const gv = getGraphVersion()
   const normalized = adAccountId.startsWith('act_') ? adAccountId.replace(/^act_/, '') : adAccountId
   const actId = `act_${normalized}`
@@ -534,8 +534,8 @@ async function fetchAdAccountUsers(token: string, adAccountId: string): Promise<
     })
   }
   
-  // Fallback to assigned_users edge
-  url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/assigned_users?fields=id,role&limit=500`
+  // Fallback to assigned_users edge (requires business param for some tenants)
+  url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/assigned_users?fields=id,role&limit=500` + (businessId ? `&business=${encodeURIComponent(businessId)}` : '')
   
   console.log('[fetchAdAccountUsers] Trying /assigned_users edge:', { url })
   
@@ -637,7 +637,7 @@ export async function verifyAdminAccess(campaignId: string): Promise<{
     })
 
     // Ad account role
-    const au = await fetchAdAccountUsers(token, adAccountId)
+    const au = await fetchAdAccountUsers(token, adAccountId, businessId)
     const aRow = au.find(u => u.id === fbUserId) || null
     adAccountRole = aRow?.role ?? null
 
@@ -649,13 +649,17 @@ export async function verifyAdminAccess(campaignId: string): Promise<{
       adAccountRole,
     })
 
-    adminConnected = hasAdminOrFinance(businessRole) && hasAdminOrFinance(adAccountRole)
+    // Lean decision: if Business edges are unavailable (role null), allow ad-account admin/finance to pass
+    const adOk = hasAdminOrFinance(adAccountRole)
+    const bizOk = businessRole == null ? true : hasAdminOrFinance(businessRole)
+    adminConnected = adOk && bizOk
 
     console.log('[MetaService] verifyAdminAccess final determination:', {
       businessRole,
       adAccountRole,
       businessHasAdminOrFinance: hasAdminOrFinance(businessRole),
       adAccountHasAdminOrFinance: hasAdminOrFinance(adAccountRole),
+      decision: { adOk, bizOk },
       adminConnected,
     })
 
