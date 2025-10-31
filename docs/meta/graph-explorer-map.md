@@ -34,6 +34,12 @@ Goal: minimize requests using fields expansion so each call returns a broader sl
 
 - `business_management`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`, `instagram_basic`, `ads_read`.
 
+### Token quick guide (for this map)
+- Long‑lived User Access Token: best default for Levels 1–3 reads.
+- User App Token: preferred for role/permission edges (business/ad account users).
+- Page Access Token: required for page/IG actions (not used in the calls below, but you’ll get it from `/me/accounts`).
+- Our app fields: `long_lived_user_token`, `user_app_token`, `selected_page_access_token`.
+
 ---
 
 ### Level 1 – Top (Identity pivot)
@@ -41,6 +47,8 @@ Goal: minimize requests using fields expansion so each call returns a broader sl
 Paste in Path:
 
 `/me?fields=id,name,businesses.limit(5){id,name,owned_pages.limit(5){id,name,instagram_business_account},owned_ad_accounts.limit(5){id,account_id,name,currency,account_status}}`
+
+Token to use: Long‑lived User Access Token (or a fresh User App Token). Scopes: `business_management`, `pages_show_list`, `ads_read`.
 
 What returns (one response):
 - Your user info
@@ -55,6 +63,10 @@ Replace `{business-id}` with one from Level 1:
 
 `/{business-id}?fields=id,name,owned_pages.limit(10){id,name,instagram_business_account},owned_ad_accounts.limit(10){id,account_id,name,currency,account_status,campaigns.limit(10){id,name,objective,status,adsets.limit(5){id,name,status},ads.limit(5){id,name,status}}},system_users.limit(5){id,name,role},owned_product_catalogs.limit(5){id,name,vertical}`
 
+Token to use:
+- For basic business/page/ad account reads: Long‑lived User Access Token.
+- For user/role edges (`users`, `people`, `assigned_users`, `business_users`): User App Token preferred for accurate role checks.
+
 What returns:
 - Pages (+ IG link), Ad Accounts
 - For each Ad Account: shallow samples of Campaigns, Ad Sets, Ads
@@ -67,6 +79,11 @@ What returns:
 Replace `{ad-account-id}` with the numeric ID (keep `act_` in the Path):
 
 `/act_{ad-account-id}?fields=id,account_id,name,currency,timezone_id,campaigns.limit(10){id,name,objective,status,adsets.limit(5){id,name,status},ads.limit(5){id,name,status}},adspixels.limit(5){id,name},customaudiences.limit(5){id,name,approximate_count,delivery_status}`
+
+Token to use:
+- Structure/details (fields above): Long‑lived User Access Token.
+- If exploring `/users?fields=id,tasks` for roles: User App Token preferred.
+- Managing ads requires `ads_management` (not shown here; these are reads).
 
 What returns:
 - Ad Account basics
@@ -82,6 +99,8 @@ What returns:
 
 - Per‑campaign last 7 days:
 `/{campaign-id}/insights?date_preset=last_7d&fields=impressions,spend,clicks,ctr`
+
+Token to use: Long‑lived User Access Token (or User App Token) with `ads_read`.
 
 ---
 
