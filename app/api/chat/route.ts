@@ -223,7 +223,6 @@ export async function POST(req: Request) {
         try {
           const plan = await createCreativePlan({
             goal: (['calls','leads','website-visits'].includes(String(effectiveGoal)) ? String(effectiveGoal) : 'unknown') as 'calls'|'leads'|'website-visits'|'unknown',
-            inferredCategory: undefined,
             offerText,
           });
 
