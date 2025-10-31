@@ -566,6 +566,19 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     if (!enabled || !campaign?.id) return
     setVerifyingAdmin(true)
     try {
+      console.log('[MetaConnectCard] Starting admin verification:', {
+        campaignId: campaign.id,
+        summary: {
+          hasBusinessId: !!summary?.business?.id,
+          businessId: summary?.business?.id,
+          hasAdAccountId: !!summary?.adAccount?.id,
+          adAccountId: summary?.adAccount?.id,
+          userAppConnected: summary?.userAppConnected,
+          adminConnected: summary?.adminConnected,
+        },
+        timestamp: new Date().toISOString(),
+      })
+
       const res = await fetch('/api/meta/admin/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -589,7 +602,14 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       }
       
       const j = await res.json() as { adminConnected?: boolean; businessRole?: string | null; adAccountRole?: string | null }
-      console.log('[MetaConnectCard] Admin verify result:', j)
+      console.log('[MetaConnectCard] Admin verify result (DETAILED):', {
+        adminConnected: j?.adminConnected,
+        businessRole: j?.businessRole,
+        adAccountRole: j?.adAccountRole,
+        fullResponse: j,
+        timestamp: new Date().toISOString(),
+      })
+
       await hydrate()
       if (j?.adminConnected) {
         window.alert('Admin access verified successfully.')
@@ -602,7 +622,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     } finally {
       setVerifyingAdmin(false)
     }
-  }, [enabled, campaign?.id, hydrate])
+  }, [enabled, campaign?.id, hydrate, summary])
 
   const onUserLogin = useCallback(() => {
     console.log('[MetaConnectCard] User login button clicked')

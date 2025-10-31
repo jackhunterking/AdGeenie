@@ -456,12 +456,43 @@ export async function setSelectedAssets(args: {
 async function fetchBusinessAssignedUsers(token: string, businessId: string): Promise<Array<{ id?: string; role?: string }>> {
   const gv = getGraphVersion()
   const url = `https://graph.facebook.com/${gv}/${encodeURIComponent(businessId)}/assigned_users?fields=id,role&limit=500`
+  
+  console.log('[fetchBusinessAssignedUsers] Fetching business users:', {
+    businessId,
+    url,
+    graphVersion: gv,
+    tokenPrefix: token.substring(0, 10) + '...',
+  })
+  
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
-  if (!res.ok) return []
+  
+  console.log('[fetchBusinessAssignedUsers] API response:', {
+    status: res.status,
+    statusText: res.statusText,
+    ok: res.ok,
+  })
+  
+  if (!res.ok) {
+    const errorText = await res.text()
+    console.error('[fetchBusinessAssignedUsers] API error:', {
+      status: res.status,
+      errorText,
+      businessId,
+    })
+    return []
+  }
+  
   const j: unknown = await res.json()
   const list = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
     ? (j as { data: Array<{ id?: string; role?: string }> }).data
     : []
+  
+  console.log('[fetchBusinessAssignedUsers] Users fetched:', {
+    count: list.length,
+    users: list.map(u => ({ id: u.id, role: u.role })),
+    businessId,
+  })
+  
   return list
 }
 
@@ -469,24 +500,82 @@ async function fetchAdAccountUsers(token: string, adAccountId: string): Promise<
   const gv = getGraphVersion()
   const normalized = adAccountId.startsWith('act_') ? adAccountId.replace(/^act_/, '') : adAccountId
   const actId = `act_${normalized}`
+  
+  console.log('[fetchAdAccountUsers] Fetching ad account users:', {
+    originalId: adAccountId,
+    normalizedId: actId,
+    graphVersion: gv,
+    tokenPrefix: token.substring(0, 10) + '...',
+  })
+  
   // Try users edge
   let url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/users?fields=id,role&limit=500`
+  
+  console.log('[fetchAdAccountUsers] Trying /users edge:', { url })
+  
   let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+  
+  console.log('[fetchAdAccountUsers] /users response:', {
+    status: res.status,
+    statusText: res.statusText,
+    ok: res.ok,
+  })
+  
   if (res.ok) {
     const j: unknown = await res.json()
     const list = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
       ? (j as { data: Array<{ id?: string; role?: string }> }).data
       : []
+    
+    console.log('[fetchAdAccountUsers] /users result:', {
+      count: list.length,
+      users: list.map(u => ({ id: u.id, role: u.role })),
+    })
+    
     if (list.length > 0) return list
+    
+    console.log('[fetchAdAccountUsers] /users returned empty, trying fallback')
+  } else {
+    const errorText = await res.text()
+    console.warn('[fetchAdAccountUsers] /users failed, trying fallback:', {
+      status: res.status,
+      errorText,
+    })
   }
+  
   // Fallback to assigned_users edge
   url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/assigned_users?fields=id,role&limit=500`
+  
+  console.log('[fetchAdAccountUsers] Trying /assigned_users edge:', { url })
+  
   res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
-  if (!res.ok) return []
+  
+  console.log('[fetchAdAccountUsers] /assigned_users response:', {
+    status: res.status,
+    statusText: res.statusText,
+    ok: res.ok,
+  })
+  
+  if (!res.ok) {
+    const errorText = await res.text()
+    console.error('[fetchAdAccountUsers] /assigned_users error:', {
+      status: res.status,
+      errorText,
+      adAccountId: actId,
+    })
+    return []
+  }
+  
   const j2: unknown = await res.json()
   const list2 = (j2 && typeof j2 === 'object' && j2 !== null && Array.isArray((j2 as { data?: unknown[] }).data))
     ? (j2 as { data: Array<{ id?: string; role?: string }> }).data
     : []
+  
+  console.log('[fetchAdAccountUsers] /assigned_users result:', {
+    count: list2.length,
+    users: list2.map(u => ({ id: u.id, role: u.role })),
+  })
+  
   return list2
 }
 
@@ -548,12 +637,36 @@ export async function verifyAdminAccess(campaignId: string): Promise<{
     const bRow = bu.find(u => u.id === fbUserId) || null
     businessRole = bRow?.role ?? null
 
+    console.log('[MetaService] verifyAdminAccess business user lookup:', {
+      fbUserId,
+      businessUsersCount: bu.length,
+      allBusinessUsers: bu.map(u => ({ id: u.id, role: u.role })),
+      foundUser: bRow,
+      businessRole,
+    })
+
     // Ad account role
     const au = await fetchAdAccountUsers(token, adAccountId)
     const aRow = au.find(u => u.id === fbUserId) || null
     adAccountRole = aRow?.role ?? null
 
+    console.log('[MetaService] verifyAdminAccess ad account user lookup:', {
+      fbUserId,
+      adAccountUsersCount: au.length,
+      allAdAccountUsers: au.map(u => ({ id: u.id, role: u.role })),
+      foundUser: aRow,
+      adAccountRole,
+    })
+
     adminConnected = hasAdminOrFinance(businessRole) && hasAdminOrFinance(adAccountRole)
+
+    console.log('[MetaService] verifyAdminAccess final determination:', {
+      businessRole,
+      adAccountRole,
+      businessHasAdminOrFinance: hasAdminOrFinance(businessRole),
+      adAccountHasAdminOrFinance: hasAdminOrFinance(adAccountRole),
+      adminConnected,
+    })
 
     console.log('[MetaService] verifyAdminAccess roles fetched:', {
       businessRole,
