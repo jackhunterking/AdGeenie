@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
       pageId: conn?.selected_page_id,
       adAccountId: conn?.selected_ad_account_id,
       paymentConnected: conn?.ad_account_payment_connected,
+      adminConnected: conn?.admin_connected,
     })
 
     return NextResponse.json({
@@ -80,6 +81,9 @@ export async function GET(req: NextRequest) {
       instagram: conn?.selected_ig_user_id ? { id: conn.selected_ig_user_id, username: conn.selected_ig_username ?? '' } : null,
       adAccount: conn?.selected_ad_account_id ? { id: conn.selected_ad_account_id, name: conn.selected_ad_account_name ?? undefined } : undefined,
       paymentConnected: Boolean(conn?.ad_account_payment_connected),
+      adminConnected: Boolean(conn?.admin_connected),
+      adminBusinessRole: conn?.admin_business_role ?? null,
+      adminAdAccountRole: conn?.admin_ad_account_role ?? null,
       status,
     })
   } catch (error) {

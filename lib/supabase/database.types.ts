@@ -118,6 +118,10 @@ export type Database = {
           selected_ad_account_id: string | null
           selected_ad_account_name: string | null
           ad_account_payment_connected: boolean
+          admin_connected: boolean
+          admin_checked_at: string | null
+          admin_business_role: string | null
+          admin_ad_account_role: string | null
           created_at: string
           updated_at: string
         }
@@ -138,6 +142,10 @@ export type Database = {
           selected_ad_account_id?: string | null
           selected_ad_account_name?: string | null
           ad_account_payment_connected?: boolean
+          admin_connected?: boolean
+          admin_checked_at?: string | null
+          admin_business_role?: string | null
+          admin_ad_account_role?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -158,6 +166,10 @@ export type Database = {
           selected_ad_account_id?: string | null
           selected_ad_account_name?: string | null
           ad_account_payment_connected?: boolean
+          admin_connected?: boolean
+          admin_checked_at?: string | null
+          admin_business_role?: string | null
+          admin_ad_account_role?: string | null
           created_at?: string
           updated_at?: string
         }

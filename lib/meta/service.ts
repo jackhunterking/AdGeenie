@@ -277,10 +277,14 @@ export async function getConnectionPublic(args: { campaignId: string }): Promise
   selected_ad_account_id: string | null
   selected_ad_account_name: string | null
   ad_account_payment_connected: boolean | null
+  admin_connected: boolean | null
+  admin_checked_at: string | null
+  admin_business_role: string | null
+  admin_ad_account_role: string | null
 } | null> {
   const { data, error } = await supabaseServer
     .from('campaign_meta_connections')
-    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected')
+    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role')
     .eq('campaign_id', args.campaignId)
     .maybeSingle()
   if (error) {
@@ -298,7 +302,7 @@ export async function getConnectionWithToken(args: { campaignId: string }): Prom
 } & NonNullable<Awaited<ReturnType<typeof getConnectionPublic>>> | null> {
   const { data, error } = await supabaseServer
     .from('campaign_meta_connections')
-    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,long_lived_user_token')
+    .select('selected_business_id,selected_business_name,selected_page_id,selected_page_name,selected_ig_user_id,selected_ig_username,selected_ad_account_id,selected_ad_account_name,ad_account_payment_connected,admin_connected,admin_checked_at,admin_business_role,admin_ad_account_role,long_lived_user_token')
     .eq('campaign_id', args.campaignId)
     .maybeSingle()
   if (error) {
@@ -396,6 +400,109 @@ export async function setSelectedAssets(args: {
   try {
     await updateCampaignState({ campaignId: args.campaignId, status: 'connected' })
   } catch {}
+}
+
+
+/**
+ * Feature: Admin verification
+ * Purpose: Verify that the connected fb user has admin/payment roles on Business & Ad Account
+ * References:
+ *  - Business assigned users: https://developers.facebook.com/docs/graph-api/reference/business/assigned_users/
+ *  - Ad Account users/roles: https://developers.facebook.com/docs/marketing-api/reference/ad-account/
+ */
+async function fetchBusinessAssignedUsers(token: string, businessId: string): Promise<Array<{ id?: string; role?: string }>> {
+  const gv = getGraphVersion()
+  const url = `https://graph.facebook.com/${gv}/${encodeURIComponent(businessId)}/assigned_users?fields=id,role&limit=500`
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+  if (!res.ok) return []
+  const j: unknown = await res.json()
+  const list = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
+    ? (j as { data: Array<{ id?: string; role?: string }> }).data
+    : []
+  return list
+}
+
+async function fetchAdAccountUsers(token: string, adAccountId: string): Promise<Array<{ id?: string; role?: string }>> {
+  const gv = getGraphVersion()
+  const normalized = adAccountId.startsWith('act_') ? adAccountId.replace(/^act_/, '') : adAccountId
+  const actId = `act_${normalized}`
+  // Try users edge
+  let url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/users?fields=id,role&limit=500`
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+  if (res.ok) {
+    const j: unknown = await res.json()
+    const list = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
+      ? (j as { data: Array<{ id?: string; role?: string }> }).data
+      : []
+    if (list.length > 0) return list
+  }
+  // Fallback to assigned_users edge
+  url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/assigned_users?fields=id,role&limit=500`
+  res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+  if (!res.ok) return []
+  const j2: unknown = await res.json()
+  const list2 = (j2 && typeof j2 === 'object' && j2 !== null && Array.isArray((j2 as { data?: unknown[] }).data))
+    ? (j2 as { data: Array<{ id?: string; role?: string }> }).data
+    : []
+  return list2
+}
+
+function hasAdminOrFinance(role: string | undefined | null): boolean {
+  if (!role) return false
+  const r = role.toUpperCase()
+  return r.includes('ADMIN') || r.includes('FINANCE_EDITOR') || r.includes('FINANCE')
+}
+
+export async function verifyAdminAccess(campaignId: string): Promise<{
+  adminConnected: boolean
+  businessRole: string | null
+  adAccountRole: string | null
+}> {
+  const conn = await getConnectionWithToken({ campaignId })
+  if (!conn) throw new Error('No Meta connection found for campaign')
+  const token = conn.long_lived_user_token || ''
+  if (!token) throw new Error('Missing long-lived user token')
+
+  const businessId = conn.selected_business_id || ''
+  const adAccountId = conn.selected_ad_account_id || ''
+  if (!businessId || !adAccountId) throw new Error('Missing business or ad account selection')
+
+  let businessRole: string | null = null
+  let adAccountRole: string | null = null
+  let adminConnected = false
+
+  try {
+    // Identify fb user id from token
+    const fbUserId = await fetchUserId({ token })
+    // Business role
+    const bu = await fetchBusinessAssignedUsers(token, businessId)
+    const bRow = bu.find(u => u.id === fbUserId) || null
+    businessRole = bRow?.role ?? null
+
+    // Ad account role
+    const au = await fetchAdAccountUsers(token, adAccountId)
+    const aRow = au.find(u => u.id === fbUserId) || null
+    adAccountRole = aRow?.role ?? null
+
+    adminConnected = hasAdminOrFinance(businessRole) && hasAdminOrFinance(adAccountRole)
+  } catch (e) {
+    console.error('[MetaService] verifyAdminAccess error during graph checks:', e)
+  }
+
+  const updates = {
+    admin_connected: adminConnected,
+    admin_checked_at: new Date().toISOString(),
+    admin_business_role: businessRole,
+    admin_ad_account_role: adAccountRole,
+  }
+
+  const { error } = await supabaseServer
+    .from('campaign_meta_connections')
+    .update(updates)
+    .eq('campaign_id', campaignId)
+  if (error) throw error
+
+  return { adminConnected, businessRole, adAccountRole }
 }
 
 

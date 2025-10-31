@@ -29,6 +29,9 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     status?: string
     accountStatus?: string
     accountActive?: boolean
+    adminConnected?: boolean
+    adminBusinessRole?: string | null
+    adminAdAccountRole?: string | null
   }
   
   type AdsPaymentResponse = {
@@ -40,6 +43,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [sdkReady, setSdkReady] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'opening' | 'processing' | 'error' | 'success'>('idle')
+  const requireAdmin = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_META_REQUIRE_ADMIN === 'true' : false
+  const [verifyingAdmin, setVerifyingAdmin] = useState(false)
   const [accountValidation, setAccountValidation] = useState<{
     isActive: boolean
     status: number | null
@@ -296,6 +301,17 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   const onAddPayment = useCallback(async () => {
     if (!enabled || !adAccountId || !campaign?.id) return
 
+    // Gate by admin verification if required
+    if (requireAdmin && summary?.adminConnected === false) {
+      const bId = summary?.business?.id
+      window.alert(
+        'Admin access required to add a payment method. Please verify admin access first.\n\n' +
+        'You may need Business Admin or Finance Editor on the Business and Ad Account.\n' +
+        'Use "Verify Admin Access" or reconnect with an admin-enabled Facebook account.'
+      )
+      return
+    }
+
     // Check SDK readiness
     const fb = (typeof window !== 'undefined' ? (window as unknown as { FB?: unknown }).FB : null) as unknown as { ui?: (params: Record<string, unknown>, cb: (response: AdsPaymentResponse) => void) => void } | null
     if (!fb || typeof fb.ui !== 'function') {
@@ -545,6 +561,37 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     })()
   }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
 
+  const onVerifyAdmin = useCallback(async () => {
+    if (!enabled || !campaign?.id) return
+    setVerifyingAdmin(true)
+    try {
+      const res = await fetch('/api/meta/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: campaign.id }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({})) as { error?: string }
+        console.error('[MetaConnectCard] Admin verify failed:', { status: res.status, error: e?.error })
+        window.alert(e?.error || 'Failed to verify admin access. Please try again.')
+        return
+      }
+      const j = await res.json() as { adminConnected?: boolean; businessRole?: string | null; adAccountRole?: string | null }
+      console.log('[MetaConnectCard] Admin verify result:', j)
+      await hydrate()
+      if (j?.adminConnected) {
+        window.alert('Admin access verified successfully.')
+      } else {
+        window.alert('Admin access not verified. Please ensure you are Business Admin or Finance Editor on both Business and Ad Account.')
+      }
+    } catch (e) {
+      console.error('[MetaConnectCard] Admin verify exception:', e)
+      window.alert('Failed to verify admin access. Please try again later.')
+    } finally {
+      setVerifyingAdmin(false)
+    }
+  }, [enabled, campaign?.id, hydrate])
+
   return (
     <div className="rounded-lg border panel-surface p-3 space-y-3">
         <div className="flex items-center gap-3">
@@ -602,6 +649,45 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
                   </span>
                 </div>
               )}
+
+      {/* Connect as Admin Step */}
+      {summary?.business?.id && summary?.adAccount?.id && (
+        <div className="rounded-md border p-3 space-y-2 panel-surface">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium">Connect as Admin</div>
+            {summary?.adminConnected ? (
+              <span className="text-[11px] px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">Verified</span>
+            ) : (
+              <span className="text-[11px] px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">Action required</span>
+            )}
+          </div>
+          {summary?.adminConnected ? (
+            <div className="text-xs text-muted-foreground">
+              Admin access confirmed on Business{summary.adminBusinessRole ? ` (${summary.adminBusinessRole})` : ''} and Ad Account{summary.adminAdAccountRole ? ` (${summary.adminAdAccountRole})` : ''}.
+            </div>
+          ) : (
+            <div className="text-xs text-yellow-800 dark:text-yellow-200">
+              You must be Business Admin or Finance Editor on the selected Business and Ad Account to add payment.
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={!enabled || verifyingAdmin} onClick={onVerifyAdmin} className="h-7 px-3">
+              {verifyingAdmin ? 'Verifying…' : 'Verify Admin Access'}
+            </Button>
+            <Button size="sm" variant="outline" disabled={!enabled || loading} onClick={onConnect} className="h-7 px-3">
+              Reconnect with Admin Access
+            </Button>
+            <a
+              href={summary?.business?.id ? `https://business.facebook.com/settings/people/?business_id=${summary.business.id}` : 'https://business.facebook.com/settings/people'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs underline text-muted-foreground ml-2"
+            >
+              Open Business Settings →
+            </a>
+          </div>
+        </div>
+      )}
               {summary.page?.id && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Page:</span>
@@ -670,7 +756,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
               <Button
                 size="sm"
                 onClick={onAddPayment}
-                disabled={!sdkReady || paymentStatus === 'opening' || paymentStatus === 'processing'}
+              disabled={!sdkReady || paymentStatus === 'opening' || paymentStatus === 'processing' || (requireAdmin && summary?.adminConnected === false)}
                 className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
               >
                 {paymentStatus === 'opening' || paymentStatus === 'processing' ? 'Opening...' : 'Add Payment'}
