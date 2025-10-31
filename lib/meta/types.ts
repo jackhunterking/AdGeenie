@@ -53,6 +53,8 @@ export interface CampaignMetaConnectionPayload {
   selected_ad_account_id: string | null
   selected_ad_account_name: string | null
   ad_account_payment_connected: boolean
+  admin_connected: boolean
+  user_app_connected: boolean
 }
 
 export interface SelectionSummaryDTO {

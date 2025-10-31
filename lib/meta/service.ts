@@ -150,6 +150,8 @@ export async function persistConnection(args: {
     selected_ad_account_id: args.assets.adAccount?.id ?? null,
     selected_ad_account_name: args.assets.adAccount?.name ?? null,
     ad_account_payment_connected: false,
+    admin_connected: false,
+    user_app_connected: false,
   }
 
   const { error } = await supabaseServer
