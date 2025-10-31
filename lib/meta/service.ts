@@ -497,51 +497,18 @@ async function fetchAdAccountUsers(token: string, adAccountId: string, businessI
     normalizedId: actId,
     graphVersion: gv,
     tokenPrefix: token.substring(0, 10) + '...',
+    businessId: businessId || 'none',
   })
   
-  // Try users edge
-  let url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/users?fields=id,role&limit=500`
+  // Ad accounts use 'tasks' field (array), not 'role'
+  // tasks array contains permissions like: ['ACCOUNT_ADMIN', 'MANAGE', 'ADVERTISE', etc.]
+  const url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/users?fields=id,tasks&limit=500`
   
-  console.log('[fetchAdAccountUsers] Trying /users edge:', { url })
+  console.log('[fetchAdAccountUsers] Calling /users with tasks field:', { url })
   
-  let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
   
-  console.log('[fetchAdAccountUsers] /users response:', {
-    status: res.status,
-    statusText: res.statusText,
-    ok: res.ok,
-  })
-  
-  if (res.ok) {
-    const j: unknown = await res.json()
-    const list = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
-      ? (j as { data: Array<{ id?: string; role?: string }> }).data
-      : []
-    
-    console.log('[fetchAdAccountUsers] /users result:', {
-      count: list.length,
-      users: list.map(u => ({ id: u.id, role: u.role })),
-    })
-    
-    if (list.length > 0) return list
-    
-    console.log('[fetchAdAccountUsers] /users returned empty, trying fallback')
-  } else {
-    const errorText = await res.text()
-    console.warn('[fetchAdAccountUsers] /users failed, trying fallback:', {
-      status: res.status,
-      errorText,
-    })
-  }
-  
-  // Fallback to assigned_users edge (requires business param for some tenants)
-  url = `https://graph.facebook.com/${gv}/${encodeURIComponent(actId)}/assigned_users?fields=id,role&limit=500` + (businessId ? `&business=${encodeURIComponent(businessId)}` : '')
-  
-  console.log('[fetchAdAccountUsers] Trying /assigned_users edge:', { url })
-  
-  res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
-  
-  console.log('[fetchAdAccountUsers] /assigned_users response:', {
+  console.log('[fetchAdAccountUsers] API response:', {
     status: res.status,
     statusText: res.statusText,
     ok: res.ok,
@@ -549,7 +516,7 @@ async function fetchAdAccountUsers(token: string, adAccountId: string, businessI
   
   if (!res.ok) {
     const errorText = await res.text()
-    console.error('[fetchAdAccountUsers] /assigned_users error:', {
+    console.error('[fetchAdAccountUsers] API error:', {
       status: res.status,
       errorText,
       adAccountId: actId,
@@ -557,17 +524,39 @@ async function fetchAdAccountUsers(token: string, adAccountId: string, businessI
     return []
   }
   
-  const j2: unknown = await res.json()
-  const list2 = (j2 && typeof j2 === 'object' && j2 !== null && Array.isArray((j2 as { data?: unknown[] }).data))
-    ? (j2 as { data: Array<{ id?: string; role?: string }> }).data
+  const j: unknown = await res.json()
+  
+  // Parse tasks array and convert to role format for consistency with business users
+  type UserWithTasks = { id?: string; tasks?: string[] }
+  const rawList = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
+    ? (j as { data: UserWithTasks[] }).data
     : []
   
-  console.log('[fetchAdAccountUsers] /assigned_users result:', {
-    count: list2.length,
-    users: list2.map(u => ({ id: u.id, role: u.role })),
+  console.log('[fetchAdAccountUsers] Raw API response with tasks:', {
+    count: rawList.length,
+    usersWithTasks: rawList.map(u => ({ id: u.id, tasks: u.tasks })),
   })
   
-  return list2
+  // Convert tasks array to role string for storage/comparison
+  // ACCOUNT_ADMIN or MANAGE tasks indicate admin-level access
+  const list = rawList
+    .map(u => {
+      const hasAdminTask = u.tasks && (u.tasks.includes('ACCOUNT_ADMIN') || u.tasks.includes('MANAGE'))
+      return {
+        id: u.id,
+        role: hasAdminTask ? 'ADMIN' : null,
+        originalTasks: u.tasks || []
+      }
+    })
+    .filter(u => u.id && u.role !== null)
+    .map(u => ({ id: u.id!, role: u.role! }))
+  
+  console.log('[fetchAdAccountUsers] Mapped tasks to roles:', {
+    count: list.length,
+    users: list.map(u => ({ id: u.id, role: u.role })),
+  })
+  
+  return list
 }
 
 function hasAdminOrFinance(role: string | undefined | null): boolean {
