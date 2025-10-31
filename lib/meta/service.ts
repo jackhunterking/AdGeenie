@@ -55,7 +55,8 @@ export async function fetchUserId(args: { token: string }): Promise<string | nul
     cache: 'no-store',
   })
   if (!res.ok) return null
-  const json: unknown = await res.json()
+  const json: unknown = await res.json() 
+  console.log('[MetaService] fetchUserId response:', json)
   const id = (json && typeof json === 'object' && json !== null && typeof (json as { id?: string }).id === 'string')
     ? (json as { id: string }).id
     : null
@@ -98,6 +99,7 @@ export async function fetchAdAccounts(args: { token: string }): Promise<MetaAdAc
   })
   if (!res.ok) return []
   const json: unknown = await res.json()
+  console.log('[MetaService] fetchAdAccounts response:', json)
   const list = (json && typeof json === 'object' && json !== null && Array.isArray((json as { data?: unknown[] }).data))
     ? (json as { data: MetaAdAccount[] }).data
     : []
