@@ -320,23 +320,13 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       }
     }
 
-    // Check for payment capability before opening dialog
-    if (accountValidation?.capabilities && Array.isArray(accountValidation.capabilities)) {
-      const hasPaymentCapability = accountValidation.capabilities.includes('CAN_USE_ADS_PAYMENT_SERVICES')
-      if (!hasPaymentCapability) {
-        console.error('[MetaConnect] Account lacks CAN_USE_ADS_PAYMENT_SERVICES capability')
-        window.alert('This ad account does not have permission to add payment methods. Please check your account permissions in Business Manager.')
-        return
-      }
-    }
-
-    // Normalize to act_ form (FB.ui requires this format)
+    // Normalize to act_ form for internal use
     const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`
     const idNoPrefix = actId.replace(/^act_/i, '')
     
-    // Feature flag to test both formats - toggle this based on test results
-    // Based on Facebook documentation and testing, FB.ui ads_payment should receive act_ prefix
-    const USE_ACT_PREFIX = true
+    // Feature flag to test both formats
+    // Testing confirmed: numeric-only format works; act_ prefix causes 404 errors
+    const USE_ACT_PREFIX = false
     const dialogAccountId = USE_ACT_PREFIX ? actId : idNoPrefix
 
     // Verify we have the minimum required data
