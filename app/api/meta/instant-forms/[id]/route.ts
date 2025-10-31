@@ -6,13 +6,13 @@
  *  - Supabase (server): https://supabase.com/docs/reference/javascript/installing#server-environments
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createServerClient, supabaseServer } from '@/lib/supabase/server'
 import { getConnectionWithToken, fetchPagesWithTokens, getGraphVersion } from '@/lib/meta/service'
 
-export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    const formId = ctx.params?.id
+    const formId = params?.id
     if (!formId) return NextResponse.json({ error: 'Form id required' }, { status: 400 })
 
     const { searchParams } = new URL(req.url)
