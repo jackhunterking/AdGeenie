@@ -111,7 +111,11 @@ export async function POST(request: NextRequest) {
       const avoid: string[] = []
       // Try up to 3 times to avoid global conflicts
       for (let attempt = 0; attempt < 3; attempt++) {
-        const proposed = await generateCampaignNameAI({ prompt: source, goalType: initialGoal || undefined, avoid })
+        const proposed = await generateCampaignNameAI({
+          prompt: source,
+          ...(typeof initialGoal === 'string' ? { goalType: initialGoal } : {}),
+          avoid,
+        })
         const nameToTry = proposed && proposed.trim().length > 0 ? proposed : 'Campaign'
 
         // Attempt insert immediately to leverage DB unique index globally
