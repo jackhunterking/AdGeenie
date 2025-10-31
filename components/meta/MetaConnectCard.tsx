@@ -624,6 +624,7 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       window.location.href = url
     }
   }, [enabled, campaign?.id])
+  console.log('[MetaConnectCard] Summary:', summary)
 
   return (
     <div className="rounded-lg border panel-surface p-3 space-y-3">
