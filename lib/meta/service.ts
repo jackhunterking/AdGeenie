@@ -453,47 +453,38 @@ export async function setSelectedAssets(args: {
  *  - Business assigned users: https://developers.facebook.com/docs/graph-api/reference/business/assigned_users/
  *  - Ad Account users/roles: https://developers.facebook.com/docs/marketing-api/reference/ad-account/
  */
-async function fetchBusinessAssignedUsers(token: string, businessId: string): Promise<Array<{ id?: string; role?: string }>> {
+async function fetchBusinessUsersWithRoles(token: string, businessId: string): Promise<Array<{ id?: string; role?: string }>> {
   const gv = getGraphVersion()
-  const url = `https://graph.facebook.com/${gv}/${encodeURIComponent(businessId)}/assigned_users?fields=id,role&limit=500`
-  
-  console.log('[fetchBusinessAssignedUsers] Fetching business users:', {
-    businessId,
-    url,
-    graphVersion: gv,
-    tokenPrefix: token.substring(0, 10) + '...',
-  })
-  
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
-  
-  console.log('[fetchBusinessAssignedUsers] API response:', {
-    status: res.status,
-    statusText: res.statusText,
-    ok: res.ok,
-  })
-  
-  if (!res.ok) {
-    const errorText = await res.text()
-    console.error('[fetchBusinessAssignedUsers] API error:', {
-      status: res.status,
-      errorText,
-      businessId,
-    })
-    return []
+  const tries = [
+    { edge: 'users', url: `https://graph.facebook.com/${gv}/${encodeURIComponent(businessId)}/users?fields=id,role&limit=500` },
+    { edge: 'people', url: `https://graph.facebook.com/${gv}/${encodeURIComponent(businessId)}/people?fields=id,role&limit=500` },
+    { edge: 'assigned_users', url: `https://graph.facebook.com/${gv}/${encodeURIComponent(businessId)}/assigned_users?fields=id,role&limit=500` },
+    { edge: 'business_users', url: `https://graph.facebook.com/${gv}/${encodeURIComponent(businessId)}/business_users?fields=id,role&limit=500` },
+  ] as Array<{ edge: string; url: string }>
+
+  for (const t of tries) {
+    try {
+      console.log('[fetchBusinessUsersWithRoles] Trying edge:', { edge: t.edge, url: t.url, businessId, graphVersion: gv, tokenPrefix: token.substring(0, 10) + '...' })
+      const res = await fetch(t.url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+      console.log('[fetchBusinessUsersWithRoles] Edge response:', { edge: t.edge, status: res.status, statusText: res.statusText, ok: res.ok })
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.warn('[fetchBusinessUsersWithRoles] Edge failed:', { edge: t.edge, status: res.status, errorText })
+        continue
+      }
+      const j: unknown = await res.json()
+      const list = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
+        ? (j as { data: Array<{ id?: string; role?: string }> }).data
+        : []
+      console.log('[fetchBusinessUsersWithRoles] Edge result:', { edge: t.edge, count: list.length, users: list.map(u => ({ id: u.id, role: u.role })) })
+      if (list.length > 0) return list
+    } catch (e) {
+      console.error('[fetchBusinessUsersWithRoles] Edge exception:', { edge: t.edge, error: e instanceof Error ? e.message : String(e) })
+    }
   }
-  
-  const j: unknown = await res.json()
-  const list = (j && typeof j === 'object' && j !== null && Array.isArray((j as { data?: unknown[] }).data))
-    ? (j as { data: Array<{ id?: string; role?: string }> }).data
-    : []
-  
-  console.log('[fetchBusinessAssignedUsers] Users fetched:', {
-    count: list.length,
-    users: list.map(u => ({ id: u.id, role: u.role })),
-    businessId,
-  })
-  
-  return list
+
+  console.warn('[fetchBusinessUsersWithRoles] All edges returned no users/roles for business:', { businessId })
+  return []
 }
 
 async function fetchAdAccountUsers(token: string, adAccountId: string): Promise<Array<{ id?: string; role?: string }>> {
@@ -633,7 +624,7 @@ export async function verifyAdminAccess(campaignId: string): Promise<{
     // Identify fb user id from token
     const fbUserId = await fetchUserId({ token })
     // Business role
-    const bu = await fetchBusinessAssignedUsers(token, businessId)
+    const bu = await fetchBusinessUsersWithRoles(token, businessId)
     const bRow = bu.find(u => u.id === fbUserId) || null
     businessRole = bRow?.role ?? null
 
