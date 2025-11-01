@@ -1,7 +1,7 @@
 /**
- * Feature: Meta Business Login callback
+ * Feature: Meta Business Login callback (Refactored - localStorage based)
  * Purpose: Exchange OAuth `code` for a user token, upgrade to long-lived,
- *          fetch first Business/Page/Ad Account, and persist for the campaign.
+ *          fetch first Business/Page/Ad Account, and return data for client storage.
  * References:
  *  - Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business/
  * Build: trigger (no-op)
@@ -9,193 +9,183 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { createServerClient, supabaseServer } from '@/lib/supabase/server'
-import { exchangeCodeForTokens, fetchUserId, fetchBusinesses, fetchPagesWithTokens, fetchAdAccounts, chooseAssets, persistConnection, updateCampaignState, computeAndPersistAdminSnapshot } from '@/lib/meta/service'
+import {
+  exchangeCodeForTokens,
+  fetchUserId,
+  fetchBusinesses,
+  fetchPagesWithTokens,
+  fetchAdAccounts,
+  chooseAssets,
+  computeAdminSnapshot,
+} from '@/lib/meta/service-refactored'
+import { metaLogger } from '@/lib/meta/logger'
 
 // graph version is provided by the service
 
 export async function GET(req: NextRequest) {
-  console.log('[MetaCallback] Callback started')
+  metaLogger.info('MetaCallback', 'Callback started');
+
   try {
-    const { searchParams, origin } = new URL(req.url)
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    const callbackType = searchParams.get('type') || 'system'
+    const { searchParams, origin } = new URL(req.url);
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    const callbackType = searchParams.get('type') || 'system';
 
     if (!code) {
-      // For implicit/token flow, access_token would be in URL fragment (#), which the server cannot read.
-      // Log available query params to aid debugging when response_type is wrong.
-      const paramsLog: Record<string, string> = {}
-      searchParams.forEach((v, k) => { paramsLog[k] = v })
-      console.error('[MetaCallback] Missing code parameter - likely wrong response_type (expected code grant).', { queryParams: paramsLog, state })
-      return NextResponse.redirect(`${origin}/?meta=missing_code`)
+      const paramsLog: Record<string, string> = {};
+      searchParams.forEach((v, k) => {
+        paramsLog[k] = v;
+      });
+      metaLogger.error('MetaCallback', 'Missing code parameter', 'No code in callback', {
+        queryParams: paramsLog,
+        state,
+      });
+      return NextResponse.redirect(`${origin}/?meta=missing_code`);
     }
 
-    // version via service when making calls
-
-    const cookieStore = await cookies()
-    const campaignId = cookieStore.get('meta_cid')?.value || null
+    const cookieStore = await cookies();
+    const campaignId = cookieStore.get('meta_cid')?.value || null;
     if (!campaignId) {
-      console.error('[MetaCallback] Missing campaign ID from cookie')
-      return NextResponse.redirect(`${origin}/?meta=missing_campaign`)
+      metaLogger.error('MetaCallback', 'Missing campaign ID from cookie', 'No meta_cid cookie');
+      return NextResponse.redirect(`${origin}/?meta=missing_campaign`);
     }
 
-    console.log('[MetaCallback] Processing callback for campaign:', campaignId)
+    metaLogger.info('MetaCallback', 'Processing callback', {
+      campaignId,
+      callbackType,
+    });
 
-    const redirectUri = `${origin}/api/meta/auth/callback?type=${callbackType}`
+    const redirectUri = `${origin}/api/meta/auth/callback?type=${callbackType}`;
 
-    // 1) Exchange code → tokens via service
-    console.log('[MetaCallback] Exchanging code for token')
-    let longToken: string | null = null
+    // 1) Exchange code → tokens
+    metaLogger.info('MetaCallback', 'Exchanging code for token');
+    let longToken: string | null = null;
     try {
-      const tokens = await exchangeCodeForTokens({ code, redirectUri })
-      longToken = tokens.longToken
+      const tokens = await exchangeCodeForTokens({ code, redirectUri });
+      longToken = tokens.longToken;
     } catch (err) {
-      console.error('[MetaCallback] Token exchange failed:', err)
-      return NextResponse.redirect(`${origin}/${campaignId}?meta=token_exchange_failed`)
+      metaLogger.error('MetaCallback', 'Token exchange failed', err as Error);
+      return NextResponse.redirect(`${origin}/${campaignId}?meta=token_exchange_failed`);
     }
 
-    // If this is a user app callback, store user token and exit early (no asset fetching)
+    // If this is a user app callback, return user token data
     if (callbackType === 'user') {
-      console.log('[MetaCallback] User app callback detected; persisting user_app_* fields')
-      const fbUserId = await fetchUserId({ token: longToken! })
+      metaLogger.info('MetaCallback', 'User app callback detected');
+      const fbUserId = await fetchUserId({ token: longToken! });
+
+      if (!fbUserId) {
+        metaLogger.error('MetaCallback', 'Failed to fetch user ID', 'User ID fetch returned null');
+        return NextResponse.redirect(`${origin}/${campaignId}?meta=user_id_failed`);
+      }
 
       // Approximate long-lived token expiry to 60 days from now
-      const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+      const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
 
-      const supabase = await createServerClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      let userId: string | null = user?.id ?? null
-      if (!userId) {
-        const { data: campaignRow } = await supabaseServer
-          .from('campaigns')
-          .select('id,user_id')
-          .eq('id', campaignId)
-          .maybeSingle()
-        userId = (campaignRow as { user_id?: string } | null)?.user_id ?? null
-        if (!userId) {
-          return NextResponse.redirect(`${origin}/?meta=unauthorized`)
-        }
-      }
+      // Encode data in URL for client to store
+      const connectionData = {
+        type: 'user_app',
+        user_app_token: longToken!,
+        user_app_token_expires_at: expiresAt.toISOString(),
+        user_app_fb_user_id: fbUserId,
+        user_app_connected: true,
+      };
 
-      const { error } = await supabaseServer
-        .from('campaign_meta_connections')
-        .update({
-          user_app_token: longToken!,
-          user_app_token_expires_at: expiresAt.toISOString(),
-          user_app_connected: true,
-          user_app_fb_user_id: fbUserId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('campaign_id', campaignId)
+      const bridgeUrl = new URL(`${origin}/meta/oauth/bridge`);
+      bridgeUrl.searchParams.set('campaignId', campaignId);
+      bridgeUrl.searchParams.set('meta', 'connected');
+      bridgeUrl.searchParams.set('data', btoa(JSON.stringify(connectionData)));
+      if (state) bridgeUrl.searchParams.set('st', state);
 
-      if (error) {
-        console.error('[MetaCallback] Failed to persist user app token:', error)
-        return NextResponse.redirect(`${origin}/${campaignId}?meta=user_token_persist_failed`)
-      }
-
-      const bridgeUrl = new URL(`${origin}/meta/oauth/bridge`)
-      bridgeUrl.searchParams.set('campaignId', campaignId)
-      bridgeUrl.searchParams.set('meta', 'connected')
-      if (state) bridgeUrl.searchParams.set('st', state)
-      console.log('[MetaCallback] User app token saved, redirecting to bridge:', bridgeUrl.toString())
-      return NextResponse.redirect(bridgeUrl.toString())
+      metaLogger.info('MetaCallback', 'User app data prepared, redirecting to bridge');
+      return NextResponse.redirect(bridgeUrl.toString());
     }
 
-    console.log('[MetaCallback] Fetching Meta assets (system app)')
-    const fbUserId = await fetchUserId({ token: longToken! })
-    const businesses = await fetchBusinesses({ token: longToken! })
-    const pages = await fetchPagesWithTokens({ token: longToken! })
-    const adAccounts = await fetchAdAccounts({ token: longToken! })
-    
-    console.log('[MetaCallback] Fetched assets:', {
+    // System app callback: fetch assets
+    metaLogger.info('MetaCallback', 'Fetching Meta assets (system app)');
+    const fbUserId = await fetchUserId({ token: longToken! });
+
+    if (!fbUserId) {
+      metaLogger.error('MetaCallback', 'Failed to fetch user ID', 'User ID fetch returned null');
+      return NextResponse.redirect(`${origin}/${campaignId}?meta=user_id_failed`);
+    }
+
+    const businesses = await fetchBusinesses({ token: longToken! });
+    const pages = await fetchPagesWithTokens({ token: longToken! });
+    const adAccounts = await fetchAdAccounts({ token: longToken! });
+
+    metaLogger.info('MetaCallback', 'Fetched assets', {
       businessesCount: businesses.length,
       pagesCount: pages.length,
       adAccountsCount: adAccounts.length,
-      firstAdAccountHasBusiness: adAccounts[0]?.business ? true : false,
-    })
-    
-    const assets = chooseAssets({ businesses, pages, adAccounts })
-    
-    console.log('[MetaCallback] Selected assets:', {
-      hasBusinessId: !!assets.business?.id,
-      businessSource: businesses.length > 0 ? 'from /me/businesses' : (assets.business ? 'from ad account' : 'none'),
-      hasPageId: !!assets.page?.id,
-      hasAdAccountId: !!assets.adAccount?.id,
-      hasInstagram: !!assets.ig?.id,
-    })
+    });
 
-    // 4) Persist
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    // Fallback: campaign owner if popup lacks session
-    let userId: string | null = user?.id ?? null
-    if (!userId) {
-      const { data: campaignRow } = await supabaseServer
-        .from('campaigns')
-        .select('id,user_id')
-        .eq('id', campaignId)
-        .maybeSingle()
-      userId = (campaignRow as { user_id?: string } | null)?.user_id ?? null
-      if (!userId) {
-        return NextResponse.redirect(`${origin}/?meta=unauthorized`)
+    const assets = chooseAssets({ businesses, pages, adAccounts });
+
+    metaLogger.info('MetaCallback', 'Selected assets', {
+      hasBusiness: !!assets.business?.id,
+      hasPage: !!assets.page?.id,
+      hasAdAccount: !!assets.adAccount?.id,
+      hasInstagram: !!assets.ig?.id,
+    });
+
+    // Compute admin snapshot (best-effort, non-blocking)
+    let adminSnapshot: Awaited<ReturnType<typeof computeAdminSnapshot>> | null = null;
+    if (assets.business?.id && assets.adAccount?.id) {
+      try {
+        adminSnapshot = await computeAdminSnapshot({
+          token: longToken!,
+          businessId: assets.business.id,
+          adAccountId: assets.adAccount.id,
+        });
+        metaLogger.info('MetaCallback', 'Admin snapshot computed', {
+          admin_connected: adminSnapshot.admin_connected,
+        });
+      } catch (e) {
+        metaLogger.error('MetaCallback', 'Admin snapshot failed (non-fatal)', e as Error);
       }
     }
 
-    // Calculate token expiration (long-lived tokens are valid for 60 days)
-    console.log('[MetaCallback] Upserting connection to database')
-    try {
-      await persistConnection({
-        campaignId,
-        userId,
-        fbUserId,
-        longToken: longToken!,
-        assets,
-      })
-    } catch (e) {
-      console.error('[MetaCallback] Failed to persist connection:', e)
-      return NextResponse.redirect(`${origin}/${campaignId}?meta=connection_failed`)
-    }
+    // Prepare connection data for client storage
+    const tokenExpiresAt = new Date(
+      Date.now() + 100 * 365 * 24 * 60 * 60 * 1000
+    ).toISOString();
 
-    // Snapshot admin roles and raw JSON immediately after connect (best-effort)
-    try {
-      await computeAndPersistAdminSnapshot(campaignId)
-    } catch (e) {
-      console.error('[MetaCallback] Admin snapshot failed (non-fatal):', e)
-    }
-
-    const metaConnectData = {
+    const connectionData = {
+      type: 'system',
+      fb_user_id: fbUserId,
+      long_lived_user_token: longToken!,
+      token_expires_at: tokenExpiresAt,
+      selected_business_id: assets.business?.id,
+      selected_business_name: assets.business?.name,
+      selected_page_id: assets.page?.id,
+      selected_page_name: assets.page?.name,
+      selected_page_access_token: assets.page?.access_token,
+      selected_ig_user_id: assets.ig?.id,
+      selected_ig_username: assets.ig?.username,
+      selected_ad_account_id: assets.adAccount?.id,
+      selected_ad_account_name: assets.adAccount?.name,
+      ad_account_payment_connected: false,
+      admin_connected: adminSnapshot?.admin_connected || false,
+      admin_business_role: adminSnapshot?.admin_business_role,
+      admin_ad_account_role: adminSnapshot?.admin_ad_account_role,
+      admin_checked_at: adminSnapshot?.admin_checked_at,
+      user_app_connected: false,
       status: assets.adAccount?.id ? 'connected' : 'selected_assets',
-      businessId: assets.business?.id || null,
-      pageId: assets.page?.id || null,
-      igUserId: assets.ig?.id || null,
-      adAccountId: assets.adAccount?.id || null,
-      connectedAt: new Date().toISOString(),
-    }
+    };
 
-    console.log('[MetaCallback] Updating campaign state:', {
-      campaignId,
-      metaConnectData,
-    })
-    
-    try {
-      await updateCampaignState({ campaignId, status: metaConnectData.status, extra: metaConnectData })
-    } catch (e) {
-      console.error('[MetaCallback] Failed to update campaign state:', e)
-      // non-fatal
-    }
+    // Encode data in URL (use base64 to handle special characters)
+    const bridgeUrl = new URL(`${origin}/meta/oauth/bridge`);
+    bridgeUrl.searchParams.set('campaignId', campaignId);
+    bridgeUrl.searchParams.set('meta', 'connected');
+    bridgeUrl.searchParams.set('data', btoa(JSON.stringify(connectionData)));
+    if (state) bridgeUrl.searchParams.set('st', state);
 
-    const bridgeUrl = new URL(`${origin}/meta/oauth/bridge`)
-    bridgeUrl.searchParams.set('campaignId', campaignId)
-    bridgeUrl.searchParams.set('meta', 'connected')
-    if (state) bridgeUrl.searchParams.set('st', state)
-    console.log('[MetaCallback] Successfully saved connection, redirecting to bridge:', bridgeUrl.toString())
-
-    return NextResponse.redirect(bridgeUrl.toString())
+    metaLogger.info('MetaCallback', 'Connection data prepared, redirecting to bridge');
+    return NextResponse.redirect(bridgeUrl.toString());
   } catch (error) {
-    console.error('[MetaCallback] Unhandled error:', error)
-    const origin = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').origin
-    return NextResponse.redirect(`${origin}/?meta=error`)
+    metaLogger.error('MetaCallback', 'Unhandled error', error as Error);
+    const origin = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').origin;
+    return NextResponse.redirect(`${origin}/?meta=error`);
   }
 }
 

@@ -14,6 +14,8 @@ import { Link2, CreditCard, AlertTriangle } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useCampaignContext } from "@/lib/context/campaign-context"
 import { buildBusinessLoginUrl, generateRandomState } from "@/lib/meta/login"
+import { metaStorage } from '@/lib/meta/storage'
+import { metaLogger } from '@/lib/meta/logger'
 
 export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' }) {
   const enabled = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_ENABLE_META === 'true' : false
@@ -62,66 +64,70 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     if (!enabled || !campaign?.id) return
     setLoading(true)
     try {
-      console.log('[MetaConnectCard] Hydrating meta connection for campaign:', campaign.id)
-      const res = await fetch(`/api/meta/selection?campaignId=${encodeURIComponent(campaign.id)}`, { cache: 'no-store' })
-      if (!res.ok) {
-        console.error('[MetaConnectCard] Failed to fetch selection:', {
-          status: res.status,
-          statusText: res.statusText,
+      metaLogger.debug('MetaConnectCard', 'Hydrating meta connection for campaign', {
+        campaignId: campaign.id,
+      })
+
+      const connectionData = metaStorage.getConnection(campaign.id)
+      if (!connectionData) {
+        metaLogger.info('MetaConnectCard', 'No connection data found in localStorage', {
           campaignId: campaign.id,
         })
+        setSummary(null)
+        setAdAccountId(null)
         return
       }
-      const j: Summary = await res.json()
-      console.log('[MetaConnectCard] Selection data received:', {
-        hasBusinessId: !!j?.business?.id,
-        hasPageId: !!j?.page?.id,
-        hasAdAccountId: !!j?.adAccount?.id,
-        hasInstagram: !!j?.instagram?.id,
-        paymentConnected: j?.paymentConnected,
-        status: j?.status,
+
+      const summary = metaStorage.getConnectionSummary(campaign.id)
+      metaLogger.debug('MetaConnectCard', 'Connection summary loaded from localStorage', {
+        hasBusinessId: !!summary?.business?.id,
+        hasPageId: !!summary?.page?.id,
+        hasAdAccountId: !!summary?.adAccount?.id,
+        hasInstagram: !!summary?.instagram?.id,
+        paymentConnected: summary?.paymentConnected,
+        status: summary?.status,
       })
-      setSummary(j)
-      setAdAccountId(j?.adAccount?.id ?? null)
+
+      setSummary(summary as Summary)
+      setAdAccountId(summary?.adAccount?.id ?? null)
 
       // Validate account status if ad account is selected
-      if (j?.adAccount?.id) {
+      if (summary?.adAccount?.id) {
         setValidatingAccount(true)
         try {
-          console.log('[MetaConnectCard] Validating ad account:', j.adAccount.id)
+          metaLogger.info('MetaConnectCard', 'Validating ad account', {
+            accountId: summary.adAccount.id,
+          })
           const statusRes = await fetch(
-            `/api/meta/adaccount/status?campaignId=${encodeURIComponent(campaign.id)}&accountId=${encodeURIComponent(j.adAccount.id)}`,
+            `/api/meta/adaccount/status?campaignId=${encodeURIComponent(campaign.id)}&accountId=${encodeURIComponent(summary.adAccount.id)}`,
             { cache: 'no-store' }
           )
           if (statusRes.ok) {
             const statusData = await statusRes.json()
             setAccountValidation(statusData)
-            console.log('[MetaConnectCard] Account validation result:', {
+            metaLogger.debug('MetaConnectCard', 'Account validation result', {
               isActive: statusData.isActive,
               status: statusData.status,
               disableReason: statusData.disableReason,
               hasFunding: statusData.hasFunding,
             })
           } else {
-            console.error('[MetaConnectCard] Account validation failed:', {
+            metaLogger.error('MetaConnectCard', 'Account validation failed', new Error(`Status: ${statusRes.status}`), {
               status: statusRes.status,
               statusText: statusRes.statusText,
-              accountId: j.adAccount.id,
+              accountId: summary.adAccount.id,
             })
           }
         } catch (error) {
-          console.error('[MetaConnectCard] Account validation error:', {
-            error: error instanceof Error ? error.message : String(error),
-            accountId: j.adAccount.id,
+          metaLogger.error('MetaConnectCard', 'Account validation error', error as Error, {
+            accountId: summary.adAccount.id,
           })
         } finally {
           setValidatingAccount(false)
         }
       }
     } catch (error) {
-      console.error('[MetaConnectCard] Hydration error:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
+      metaLogger.error('MetaConnectCard', 'Hydration error', error as Error, {
         campaignId: campaign.id,
       })
     } finally {
@@ -165,17 +171,57 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         if (event.origin !== window.location.origin) return
         const data = event.data as unknown
         const t = (data && typeof data === 'object' && data !== null ? (data as { type?: string }).type : undefined)
+
         if (t === 'META_CONNECTED' || t === 'meta-connected') {
-          console.log('[MetaConnectCard] Received META_CONNECTED message; hydrating')
+          metaLogger.info('MetaConnectCard', 'Received META_CONNECTED message')
+
+          // Extract connection data from message
+          const messageData = data as {
+            type: string
+            campaignId: string
+            status: string
+            connectionData?: {
+              type: 'system' | 'user_app'
+              user_id: string
+              fb_user_id: string
+              long_lived_user_token?: string
+              token_expires_at?: string
+              user_app_token?: string
+              user_app_token_expires_at?: string
+              user_app_fb_user_id?: string
+              selected_business_id?: string
+              selected_business_name?: string
+              selected_page_id?: string
+              selected_page_name?: string
+              selected_page_access_token?: string
+              selected_ig_user_id?: string
+              selected_ig_username?: string
+              selected_ad_account_id?: string
+              selected_ad_account_name?: string
+            }
+          }
+
+          if (messageData.connectionData && campaign?.id) {
+            metaLogger.info('MetaConnectCard', 'Storing connection data from message', {
+              campaignId: campaign.id,
+              type: messageData.connectionData.type,
+              hasToken: !!(messageData.connectionData.long_lived_user_token || messageData.connectionData.user_app_token),
+            })
+
+            // Store connection data in localStorage
+            metaStorage.setConnection(campaign.id, messageData.connectionData)
+          }
+
+          // Refresh from localStorage
           void hydrate()
         }
-      } catch {
-        // ignore
+      } catch (error) {
+        metaLogger.error('MetaConnectCard', 'Error handling META_CONNECTED message', error as Error)
       }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [hydrate])
+  }, [hydrate, campaign?.id])
 
   const onConnect = useCallback(() => {
     console.log('[MetaConnectCard] Connect button clicked')
@@ -241,9 +287,9 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
   }, [enabled, campaign?.id])
 
   const onDisconnect = useCallback(async () => {
-    console.log('[MetaConnectCard] Disconnect button clicked')
+    metaLogger.info('MetaConnectCard', 'Disconnect button clicked')
     if (!enabled || !campaign?.id) {
-      console.error('[MetaConnectCard] Cannot disconnect - meta disabled or no campaign ID')
+      metaLogger.error('MetaConnectCard', 'Cannot disconnect - meta disabled or no campaign ID', new Error('Missing prerequisites'))
       return
     }
 
@@ -254,29 +300,18 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
     )
 
     if (!confirmed) {
-      console.log('[MetaConnectCard] Disconnect cancelled by user')
+      metaLogger.info('MetaConnectCard', 'Disconnect cancelled by user')
       return
     }
 
-    console.log('[MetaConnectCard] Disconnecting campaign:', campaign.id)
+    metaLogger.info('MetaConnectCard', 'Disconnecting campaign', {
+      campaignId: campaign.id,
+    })
     setLoading(true)
     try {
-      const res = await fetch('/api/meta/disconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignId: campaign.id }),
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        console.error('[MetaConnectCard] Disconnect failed:', {
-          status: res.status,
-          error: error.error,
-          campaignId: campaign.id,
-        })
-        window.alert(`Failed to disconnect: ${error.error || 'Unknown error'}`)
-        return
-      }
+      // Clear localStorage
+      metaStorage.clearAllData(campaign.id)
+      metaLogger.info('MetaConnectCard', 'Connection disconnected and data cleared from localStorage')
 
       // Clear local state
       setSummary(null)
@@ -284,13 +319,10 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       setAccountValidation(null)
       setPaymentStatus('idle')
 
-      console.log('[MetaConnectCard] Successfully disconnected Meta account')
-
-      // Refresh to get updated state
+      // Refresh to confirm cleared state
       await hydrate()
     } catch (error) {
-      console.error('[MetaConnectCard] Error disconnecting:', {
-        error: error instanceof Error ? error.message : String(error),
+      metaLogger.error('MetaConnectCard', 'Error disconnecting', error as Error, {
         campaignId: campaign.id,
       })
       window.alert('Failed to disconnect Meta account. Please try again.')
@@ -528,24 +560,31 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         // give FB a moment to process
         console.info('[MetaConnect] Starting server-side payment verification in 3 seconds...')
         await new Promise((r) => setTimeout(r, 3000))
-        
+
         console.info('[MetaConnect] Checking payment status with server...', {
           campaignId: campaign.id,
           adAccountId: actId,
         })
-        
+
         const verify = await fetch(
-          `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`, 
+          `/api/meta/payment/status?campaignId=${encodeURIComponent(campaign.id)}&adAccountId=${encodeURIComponent(actId)}`,
           { cache: 'no-store' }
         )
-        
+
         if (verify.ok) {
           const json = await verify.json() as { connected?: boolean }
           console.info('[MetaConnect] Server payment verification response:', json)
-          
+
           if (json?.connected) {
-            console.info('[MetaConnect] ✅ Server verified payment connected; refreshing data')
+            console.info('[MetaConnect] Server verified payment connected; updating localStorage')
             setPaymentStatus('success')
+
+            // Update localStorage
+            metaStorage.markPaymentConnected(campaign.id)
+            metaLogger.info('MetaConnectCard', 'Payment marked as connected in localStorage', {
+              campaignId: campaign.id,
+            })
+
             void hydrate()
           } else {
             console.info('[MetaConnect] Server verification: payment not yet connected')
@@ -560,13 +599,13 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         console.error('[MetaConnect] Server verification exception:', verifyError)
       }
     })()
-  }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate])
+  }, [enabled, adAccountId, campaign?.id, sdkReady, accountValidation, hydrate, summary])
 
   const onVerifyAdmin = useCallback(async () => {
     if (!enabled || !campaign?.id) return
     setVerifyingAdmin(true)
     try {
-      console.log('[MetaConnectCard] Starting admin verification:', {
+      metaLogger.info('MetaConnectCard', 'Starting admin verification', {
         campaignId: campaign.id,
         summary: {
           hasBusinessId: !!summary?.business?.id,
@@ -576,7 +615,6 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
           userAppConnected: summary?.userAppConnected,
           adminConnected: summary?.adminConnected,
         },
-        timestamp: new Date().toISOString(),
       })
 
       const res = await fetch('/api/meta/admin/verify', {
@@ -584,11 +622,13 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ campaignId: campaign.id }),
       })
-      
+
       if (!res.ok) {
         const e = await res.json().catch(() => ({})) as { error?: string; requiresUserLogin?: boolean }
-        console.error('[MetaConnectCard] Admin verify failed:', { status: res.status, error: e?.error })
-        
+        metaLogger.error('MetaConnectCard', 'Admin verify failed', new Error(e?.error || 'Unknown error'), {
+          status: res.status,
+        })
+
         // Show specific message if user login is required
         if (e?.requiresUserLogin) {
           window.alert(
@@ -600,24 +640,36 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
         }
         return
       }
-      
-      const j = await res.json() as { adminConnected?: boolean; businessRole?: string | null; adAccountRole?: string | null }
-      console.log('[MetaConnectCard] Admin verify result (DETAILED):', {
-        adminConnected: j?.adminConnected,
-        businessRole: j?.businessRole,
-        adAccountRole: j?.adAccountRole,
-        fullResponse: j,
-        timestamp: new Date().toISOString(),
+
+      const result = await res.json() as {
+        adminConnected?: boolean
+        businessRole?: string | null
+        adAccountRole?: string | null
+      }
+
+      metaLogger.info('MetaConnectCard', 'Admin verify result received', {
+        adminConnected: result?.adminConnected,
+        businessRole: result?.businessRole,
+        adAccountRole: result?.adAccountRole,
       })
 
+      // Update localStorage with admin status
+      metaStorage.updateAdminStatus(campaign.id, {
+        admin_connected: result.adminConnected || false,
+        admin_business_role: result.businessRole,
+        admin_ad_account_role: result.adAccountRole,
+      })
+
+      metaLogger.info('MetaConnectCard', 'Admin status updated in localStorage')
+
       await hydrate()
-      if (j?.adminConnected) {
+      if (result?.adminConnected) {
         window.alert('Admin access verified successfully.')
       } else {
         window.alert('Admin access not verified. Please ensure you are Business Admin or Finance Editor on both Business and Ad Account.')
       }
     } catch (e) {
-      console.error('[MetaConnectCard] Admin verify exception:', e)
+      metaLogger.error('MetaConnectCard', 'Admin verify exception', e as Error)
       window.alert('Failed to verify admin access. Please try again later.')
     } finally {
       setVerifyingAdmin(false)
