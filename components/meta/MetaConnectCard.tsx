@@ -273,17 +273,43 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       preview: url.replace(/state=[^&]+/, 'state=***'),
     })
 
-    try {
-      window.open(url, 'fb_biz_login', 'width=720,height=760')
-    } catch (e) {
-      console.error('[MetaConnectCard] Failed to open login popup:', e)
-      window.location.href = url
-    }
-
-    // Perform side-effects after calling the SDK
+    // Set cookie before opening popup
     const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
     document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
     console.log('[MetaConnectCard] Cookie set:', { campaignId: campaign.id, expires })
+
+    // Attempt to open popup
+    let popup: Window | null = null
+    try {
+      popup = window.open(url, 'fb_biz_login', 'width=720,height=760,popup=yes')
+    } catch (e) {
+      console.error('[MetaConnectCard] Failed to open login popup:', e)
+    }
+
+    // Check if popup was blocked
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      console.warn('[MetaConnectCard] Popup blocked - showing alert')
+      const userWantsRedirect = window.confirm(
+        'Pop-up was blocked by your browser!\n\n' +
+        'To connect your Meta account:\n' +
+        '1. Click "OK" to open in a new tab\n' +
+        '2. Or enable pop-ups for this site and try again\n\n' +
+        'Open in new tab?'
+      )
+
+      if (userWantsRedirect) {
+        // Open in new tab instead
+        const newTab = window.open(url, '_blank')
+        if (!newTab) {
+          // If even new tab is blocked, navigate current page as last resort
+          console.error('[MetaConnectCard] New tab also blocked, navigating current page')
+          window.location.href = url
+        }
+      }
+    } else {
+      // Popup opened successfully
+      console.log('[MetaConnectCard] Popup opened successfully')
+    }
   }, [enabled, campaign?.id])
 
   const onDisconnect = useCallback(async () => {
@@ -706,10 +732,39 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       redirectUri,
       campaignId: campaign.id,
     })
+
+    // Set cookie before opening popup
+    const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString()
+    document.cookie = `meta_cid=${encodeURIComponent(campaign.id)}; Path=/; Expires=${expires}; SameSite=Lax`
+
+    // Attempt to open popup
+    let popup: Window | null = null
     try {
-      window.open(url, 'fb_biz_login_user', 'width=720,height=760')
-    } catch {
-      window.location.href = url
+      popup = window.open(url, 'fb_biz_login_user', 'width=720,height=760,popup=yes')
+    } catch (e) {
+      console.error('[MetaConnectCard] Failed to open user login popup:', e)
+    }
+
+    // Check if popup was blocked
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      console.warn('[MetaConnectCard] User login popup blocked - showing alert')
+      const userWantsRedirect = window.confirm(
+        'Pop-up was blocked by your browser!\n\n' +
+        'To login with Facebook (User Access):\n' +
+        '1. Click "OK" to open in a new tab\n' +
+        '2. Or enable pop-ups for this site and try again\n\n' +
+        'Open in new tab?'
+      )
+
+      if (userWantsRedirect) {
+        const newTab = window.open(url, '_blank')
+        if (!newTab) {
+          console.error('[MetaConnectCard] New tab also blocked, navigating current page')
+          window.location.href = url
+        }
+      }
+    } else {
+      console.log('[MetaConnectCard] User login popup opened successfully')
     }
   }, [enabled, campaign?.id])
   console.log('[MetaConnectCard] Summary:', summary)
