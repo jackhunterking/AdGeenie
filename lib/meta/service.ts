@@ -122,7 +122,7 @@ export function chooseAssets(args: { businesses: MetaBusiness[]; pages: MetaPage
   return {
     business,
     page: firstPage,
-    ig,
+    instagram: ig,
     adAccount: firstAd,
   }
 }
@@ -147,8 +147,8 @@ export async function persistConnection(args: {
     selected_page_id: args.assets.page?.id ?? null,
     selected_page_name: args.assets.page?.name ?? null,
     selected_page_access_token: args.assets.page?.access_token ?? null,
-    selected_ig_user_id: args.assets.ig?.id ?? null,
-    selected_ig_username: args.assets.ig?.username ?? null,
+    selected_ig_user_id: args.assets.instagram?.id ?? null,
+    selected_ig_username: args.assets.instagram?.username ?? null,
     selected_ad_account_id: args.assets.adAccount?.id ?? null,
     selected_ad_account_name: args.assets.adAccount?.name ?? null,
     ad_account_payment_connected: false,

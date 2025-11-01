@@ -311,7 +311,7 @@ export function chooseAssets(args: {
   return {
     business,
     page: firstPage,
-    ig,
+    instagram: ig,
     adAccount: firstAd,
   };
 }
@@ -762,8 +762,8 @@ export const clientService = {
       selected_page_id: args.assets.page?.id,
       selected_page_name: args.assets.page?.name,
       selected_page_access_token: args.assets.page?.access_token,
-      selected_ig_user_id: args.assets.ig?.id,
-      selected_ig_username: args.assets.ig?.username,
+      selected_ig_user_id: args.assets.instagram?.id,
+      selected_ig_username: args.assets.instagram?.username,
       selected_ad_account_id: args.assets.adAccount?.id,
       selected_ad_account_name: args.assets.adAccount?.name,
       ad_account_payment_connected: false,
