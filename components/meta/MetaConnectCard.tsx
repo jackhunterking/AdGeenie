@@ -683,6 +683,11 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       window.alert('Missing campaign id')
       return
     }
+
+    console.log('[MetaConnectCard] User login button clicked', {
+      enabled,
+      campaignId: campaign?.id,
+    });
     const appId = process.env.NEXT_PUBLIC_FB_APP_ID as string | undefined
     const graphVersion = process.env.NEXT_PUBLIC_FB_GRAPH_VERSION || 'v24.0'
     const configId = process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID_USER || process.env.NEXT_PUBLIC_FB_BIZ_LOGIN_CONFIG_ID
