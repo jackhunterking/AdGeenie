@@ -33,7 +33,7 @@ export interface MetaAdAccount {
 export interface MetaAssets {
   business?: MetaBusiness | null
   page?: MetaPage | null
-  ig?: { id: string; username?: string } | null
+  instagram?: { id: string; username?: string } | null
   adAccount?: MetaAdAccount | null
 }
 
@@ -63,6 +63,10 @@ export interface SelectionSummaryDTO {
   instagram?: { id: string; username: string } | null
   adAccount?: { id: string; name?: string }
   paymentConnected: boolean
+  adminConnected: boolean
+  adminBusinessRole: string | null
+  adminAdAccountRole: string | null
+  userAppConnected: boolean
   status: string
 }
 

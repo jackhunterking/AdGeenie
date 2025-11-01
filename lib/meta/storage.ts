@@ -93,12 +93,12 @@ class MetaStorage {
       const key = this.getKey(campaignId);
       const existing = this.getConnection(campaignId);
 
-      const updated: StoredConnection = {
+      const updated = {
         ...existing,
         ...data,
         campaign_id: campaignId,
         updated_at: new Date().toISOString(),
-      };
+      } as StoredConnection;
 
       // Ensure created_at exists
       if (!updated.created_at) {
@@ -360,7 +360,7 @@ class MetaStorage {
   /**
    * Store API log
    */
-  storeLog(log: unknown): void {
+  storeLog(log: Record<string, unknown>): void {
     if (!this.isClient) {
       return;
     }
