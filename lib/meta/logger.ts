@@ -61,7 +61,6 @@ class MetaLogger {
   private output(log: GraphApiCallLog): void {
     const message = this.formatLog(log);
     const details = {
-      timestamp: log.timestamp,
       ...log,
     };
 
