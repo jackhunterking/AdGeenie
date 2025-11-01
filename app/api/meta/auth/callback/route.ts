@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
       hasBusiness: !!assets.business?.id,
       hasPage: !!assets.page?.id,
       hasAdAccount: !!assets.adAccount?.id,
-      hasInstagram: !!assets.ig?.id,
+      hasInstagram: !!assets.instagram?.id,
     });
 
     // Compute admin snapshot (best-effort, non-blocking)
@@ -160,8 +160,8 @@ export async function GET(req: NextRequest) {
       selected_page_id: assets.page?.id,
       selected_page_name: assets.page?.name,
       selected_page_access_token: assets.page?.access_token,
-      selected_ig_user_id: assets.ig?.id,
-      selected_ig_username: assets.ig?.username,
+      selected_ig_user_id: assets.instagram?.id,
+      selected_ig_username: assets.instagram?.username,
       selected_ad_account_id: assets.adAccount?.id,
       selected_ad_account_name: assets.adAccount?.name,
       ad_account_payment_connected: false,
