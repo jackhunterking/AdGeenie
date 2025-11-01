@@ -656,8 +656,8 @@ export function MetaConnectCard({ mode = 'launch' }: { mode?: 'launch' | 'step' 
       // Update localStorage with admin status
       metaStorage.updateAdminStatus(campaign.id, {
         admin_connected: result.adminConnected || false,
-        admin_business_role: result.businessRole,
-        admin_ad_account_role: result.adAccountRole,
+        admin_business_role: result.businessRole || undefined,
+        admin_ad_account_role: result.adAccountRole ?? undefined,
       })
 
       metaLogger.info('MetaConnectCard', 'Admin status updated in localStorage')
