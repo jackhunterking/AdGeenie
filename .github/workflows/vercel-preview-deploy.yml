@@ -1,0 +1,31 @@
+name: Vercel Preview Deployment
+
+on:
+  push:
+    branches:
+      - meta-pay-dialog-issue
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  trigger-deployment:
+    runs-on: ubuntu-latest
+    name: Trigger Vercel Preview Deploy
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trigger Vercel Deploy Hook
+        run: |
+          echo "Triggering Vercel deployment for branch: ${{ github.ref_name }}"
+          curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
+
+      - name: Deployment triggered
+        run: |
+          echo "✅ Vercel deployment has been triggered"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Check your Vercel dashboard for deployment status"
